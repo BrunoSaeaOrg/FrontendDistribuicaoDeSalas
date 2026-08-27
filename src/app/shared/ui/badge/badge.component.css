@@ -1,0 +1,29 @@
+.saea-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.saea-badge--success {
+  background: rgba(21, 128, 61, 0.12);
+  color: var(--saea-success);
+}
+.saea-badge--warning {
+  background: rgba(180, 83, 9, 0.12);
+  color: var(--saea-warning);
+}
+.saea-badge--danger {
+  background: rgba(192, 57, 43, 0.12);
+  color: var(--saea-danger);
+}
+.saea-badge--info {
+  background: rgba(46, 156, 181, 0.12);
+  color: var(--saea-primary-strong);
+}

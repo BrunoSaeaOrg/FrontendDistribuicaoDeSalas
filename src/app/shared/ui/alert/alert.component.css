@@ -1,0 +1,44 @@
+.saea-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  background: var(--saea-surface);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-4);
+  box-sizing: border-box;
+  font-family: var(--font-body);
+}
+
+.saea-alert-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.saea-alert-content {
+  font-size: var(--fs-sm);
+  color: var(--saea-ink);
+  line-height: 1.5;
+}
+
+.saea-alert--success .saea-alert-icon {
+  background: var(--saea-success);
+}
+.saea-alert--warning .saea-alert-icon {
+  background: var(--saea-warning);
+}
+.saea-alert--danger .saea-alert-icon {
+  background: var(--saea-danger);
+}
+.saea-alert--info .saea-alert-icon,
+.saea-alert--primary .saea-alert-icon {
+  background: var(--saea-primary-strong);
+}

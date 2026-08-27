@@ -1,0 +1,75 @@
+<div class="painel-page">
+  <div class="painel-filters">
+    <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="unidade.set($event)" [options]="unidadeOptions()" />
+    <app-select label="Turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)" [options]="turnoOptions" />
+    <app-select label="Status" [ngModel]="status()" (ngModelChange)="status.set($event)" [options]="statusOptions" />
+    <app-input label="Buscar sala" placeholder="Nome da sala..." [ngModel]="busca()" (ngModelChange)="busca.set($event)" />
+  </div>
+
+  <div class="painel-units-bar">
+    @for (u of unidadesOverview(); track u.id) {
+      <button
+        type="button"
+        class="painel-unit-chip"
+        [class.painel-unit-chip--active]="unidade() === u.id"
+        (click)="toggleUnidade(u.id)"
+      >
+        <span class="painel-unit-dot" [style.background]="u.cor"></span>
+        <span>{{ u.nome }}</span>
+      </button>
+    }
+  </div>
+
+  <app-card>
+    @if (rows().length === 0) {
+      <app-empty-state icon="meeting_room" title="Nenhuma sala encontrada" description="Ajuste os filtros para ver outras salas." />
+    } @else {
+      <div class="painel-table-wrap">
+        <table class="painel-table">
+          <thead>
+            <tr>
+              <th>Sala</th>
+              <th>Unidade</th>
+              <th>Tipo</th>
+              <th>Carteiras</th>
+              <th>Capacidade</th>
+              <th>Status</th>
+              <th>Turmas</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.id) {
+              <tr>
+                <td class="painel-cell-strong">{{ row.nome }}</td>
+                <td>
+                  <span class="painel-inline">
+                    <span class="painel-unit-dot" [style.background]="row.unidadeCor"></span>{{ row.unidadeNome }}
+                  </span>
+                </td>
+                <td class="painel-cell-soft">{{ row.tipo }}</td>
+                <td>{{ row.carteiras }}</td>
+                <td>{{ row.capacidade }}</td>
+                <td><app-badge [tone]="row.statusTone">{{ row.statusLabel }}</app-badge></td>
+                <td>
+                  <div class="painel-chips">
+                    @for (chip of row.turnoChips; track chip.turno) {
+                      <span
+                        class="painel-turno-chip"
+                        [class.painel-turno-chip--filled]="chip.hasTurma"
+                        [title]="chip.turma"
+                      >{{ chip.label }}</span>
+                    }
+                  </div>
+                </td>
+                <td class="painel-cell-action">
+                  <button type="button" class="painel-link" (click)="verPlanta(row)">Ver planta ›</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </app-card>
+</div>

@@ -1,0 +1,32 @@
+:host {
+  display: block;
+  background: var(--saea-surface);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elev-1);
+  padding: var(--sp-6);
+  font-family: var(--font-body);
+  box-sizing: border-box;
+}
+
+.saea-card-title {
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  color: var(--saea-ink);
+}
+.saea-card-subtitle {
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+  margin-top: 2px;
+}
+
+.saea-card-body--with-header {
+  margin-top: var(--sp-4);
+}
+
+::ng-deep [card-footer] {
+  display: block;
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--saea-border);
+}

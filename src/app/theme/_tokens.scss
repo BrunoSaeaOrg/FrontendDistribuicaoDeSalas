@@ -1,0 +1,88 @@
+// SAEA Design System — Tipografia, espaçamento, forma e movimento
+// Fonte: design_handoff_saea/tokens/{typography,spacing,shape,motion,mobile}.css
+
+@mixin custom-properties {
+  // Tipografia
+  --font-display: 'Newsreader', 'Iowan Old Style', Georgia, serif;
+  --font-body: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-md: 13px;
+  --fs-lg: 14px;
+  --fs-base: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 20px;
+  --fs-3xl: 22px;
+  --fs-4xl: 28px;
+  --fs-5xl: 34px;
+
+  // Espaçamento
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  // Forma
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+
+  // Movimento
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+
+  // Layout mobile
+  --touch-min: 44px;
+  --mobile-header-h: 56px;
+  --mobile-tabbar-h: 64px;
+  --fab-size: 56px;
+}
+
+@keyframes saea-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes saea-letterpulse {
+  0%,
+  60%,
+  100% {
+    color: var(--saea-chip-bg);
+    transform: scale(1);
+  }
+  20% {
+    color: var(--saea-primary);
+    transform: scale(1.15);
+  }
+}
+@keyframes saea-skeleton {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 150ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 150ms !important;
+  }
+}

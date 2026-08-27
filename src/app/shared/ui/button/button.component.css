@@ -1,0 +1,52 @@
+.saea-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  font-family: var(--font-body);
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    transform var(--dur-short) var(--ease-out),
+    box-shadow var(--dur-short) var(--ease-out),
+    background var(--dur-short) var(--ease-out);
+}
+.saea-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.saea-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.saea-btn--sm {
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-sm);
+}
+.saea-btn--md {
+  padding: var(--sp-3) var(--sp-6);
+  font-size: var(--fs-md);
+}
+
+.saea-btn--primary {
+  background: var(--saea-primary);
+  color: #fff;
+  box-shadow: var(--elev-1);
+}
+.saea-btn--secondary {
+  background: var(--saea-surface);
+  color: var(--saea-ink);
+  border: 1px solid var(--saea-border);
+}
+.saea-btn--ghost {
+  background: transparent;
+  color: var(--saea-primary-strong);
+}
+.saea-btn--danger {
+  background: var(--saea-danger);
+  color: #fff;
+  box-shadow: var(--elev-1);
+}

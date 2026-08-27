@@ -1,0 +1,139 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.turmas-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.turmas-filter {
+  max-width: 260px;
+}
+
+.turmas-table-wrap {
+  overflow-x: auto;
+}
+
+.turmas-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.turmas-table th {
+  text-align: left;
+  padding: var(--sp-3) var(--sp-2);
+  color: var(--saea-ink-faint);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--saea-border);
+}
+.turmas-table td {
+  padding: var(--sp-3) var(--sp-2);
+  border-bottom: 1px solid var(--saea-border);
+  vertical-align: top;
+}
+
+.turmas-cell-strong {
+  font-weight: 600;
+  color: var(--saea-ink);
+  white-space: nowrap;
+}
+
+.turmas-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.turmas-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.turmas-cell-turno {
+  min-width: 150px;
+}
+
+.turmas-turma {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.turmas-turma-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.turmas-turma-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.turmas-input {
+  font-size: var(--fs-sm);
+  padding: 4px 6px;
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+}
+.turmas-input--name {
+  font-weight: 600;
+}
+.turmas-input:not(.turmas-input--num):not(.turmas-input--name) {
+  flex: 1;
+  min-width: 70px;
+}
+.turmas-input--num {
+  width: 48px;
+}
+
+.turmas-remove {
+  border: none;
+  background: none;
+  color: var(--saea-ink-faint);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.turmas-readonly {
+  font-size: var(--fs-sm);
+  color: var(--saea-ink);
+}
+.turmas-readonly-soft {
+  color: var(--saea-ink-soft);
+}
+
+.turmas-excede {
+  font-size: var(--fs-2xs);
+  color: var(--saea-danger);
+  font-weight: 600;
+}
+
+.turmas-vincular {
+  border: 1px dashed var(--saea-border);
+  background: none;
+  color: var(--saea-ink-faint);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.turmas-livre {
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-faint);
+}

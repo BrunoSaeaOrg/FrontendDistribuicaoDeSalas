@@ -1,0 +1,43 @@
+<div class="sol-page">
+  @if (uiMode.editorMode()) {
+    <app-card title="Nova solicitação" subtitle="Peça a inclusão de novas carteiras em uma sala">
+      <div class="sol-form">
+        <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />
+        <app-select label="Sala" [ngModel]="salaSelecionadaId()" (ngModelChange)="salaId.set($event)" [options]="salaOptions()" />
+        <app-input label="Quantidade de carteiras" type="number" [ngModel]="quantidade()" (ngModelChange)="quantidade.set($event)" />
+        <app-input label="Justificativa" placeholder="Motivo do pedido..." [ngModel]="justificativa()" (ngModelChange)="justificativa.set($event)" />
+        <app-alert [tone]="alert().tone">{{ alert().text }}</app-alert>
+        <div>
+          <app-button variant="primary" [disabled]="!podeEnviar()" (clicked)="submit()">Enviar solicitação</app-button>
+        </div>
+      </div>
+    </app-card>
+  }
+  @if (uiMode.readOnlyMode()) {
+    <app-alert tone="primary">Somente coordenadores podem solicitar novas carteiras. Fale com a coordenação da unidade.</app-alert>
+  }
+
+  <app-card title="Solicitações">
+    @if (solicitacoesRows().length === 0) {
+      <app-empty-state icon="inbox" title="Nenhuma solicitação" />
+    }
+    <div class="sol-list">
+      @for (item of solicitacoesRows(); track item.solicitacao.id) {
+        <div class="sol-item">
+          <div class="sol-item-top">
+            <span class="sol-item-title">{{ item.solicitacao.salaNome }} · +{{ item.solicitacao.quantidade }} carteiras</span>
+            <app-badge [tone]="item.statusTone">{{ item.statusLabel }}</app-badge>
+          </div>
+          <div class="sol-item-just">{{ item.solicitacao.justificativa }}</div>
+          <div class="sol-item-date">{{ item.solicitacao.data }}</div>
+          @if (item.showActions) {
+            <div class="sol-item-actions">
+              <app-button variant="secondary" size="sm" (clicked)="recusar(item.solicitacao)">Recusar</app-button>
+              <app-button variant="primary" size="sm" (clicked)="aprovar(item.solicitacao)">Aprovar</app-button>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </app-card>
+</div>

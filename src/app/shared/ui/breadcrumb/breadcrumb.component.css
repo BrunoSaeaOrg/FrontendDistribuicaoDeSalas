@@ -1,0 +1,39 @@
+.saea-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-family: var(--font-body);
+}
+
+.saea-breadcrumb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--saea-primary-strong);
+  font-size: inherit;
+  font-family: inherit;
+}
+
+.saea-breadcrumb-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.saea-breadcrumb-item {
+  color: var(--saea-ink-soft);
+}
+.saea-breadcrumb-item--current {
+  color: var(--saea-ink);
+  font-weight: 600;
+}
+
+.saea-breadcrumb-sep {
+  color: var(--saea-ink-faint);
+  font-size: 13px;
+}

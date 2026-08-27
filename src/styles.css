@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined');
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+a {
+  color: var(--saea-primary-strong);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--saea-primary);
+  text-decoration: underline;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--saea-border);
+  border-radius: 999px;
+}
+
+/* Overlay dos diálogos (ConfirmDialog/Dialog) — véu escuro com blur leve, padrão SAEA. */
+.saea-dialog-backdrop {
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.saea-confirm-dialog-panel .mat-mdc-dialog-container {
+  --mdc-dialog-container-shape: var(--radius-xl);
+}
+.saea-confirm-dialog-panel .mdc-dialog__surface {
+  border-radius: var(--radius-xl);
+  box-shadow: var(--elev-3);
+  padding: var(--sp-6);
+  box-sizing: border-box;
+}

@@ -1,0 +1,41 @@
+// Tema Angular Material 3 com a paleta de marca da SAEA (gerada a partir de #2e9cb5
+// via `ng generate @angular/material:m3-theme` — ver src/app/theme/_theme-colors.scss).
+// Learn more: https://material.angular.dev/guide/theming
+@use '@angular/material' as mat;
+@use 'app/theme/theme-colors' as saea-palette;
+@use 'app/theme/colors' as saea;
+@use 'app/theme/tokens' as saea-tokens;
+
+html {
+  height: 100%;
+  @include mat.theme(
+    (
+      color: (
+        theme-type: light,
+        primary: saea-palette.$primary-palette,
+        tertiary: saea-palette.$tertiary-palette,
+      ),
+      typography: (
+        plain-family: 'IBM Plex Sans, Segoe UI, system-ui, -apple-system, sans-serif',
+        brand-family: 'Newsreader, Iowan Old Style, Georgia, serif',
+      ),
+      density: 0,
+    )
+  );
+
+  @include saea.custom-properties-light;
+  @include saea-tokens.custom-properties;
+}
+
+html[data-theme='dark'] {
+  @include saea.custom-properties-dark;
+}
+
+body {
+  color-scheme: light;
+  background-color: var(--saea-bg);
+  color: var(--saea-ink);
+  font: var(--mat-sys-body-medium);
+  margin: 0;
+  height: 100%;
+}

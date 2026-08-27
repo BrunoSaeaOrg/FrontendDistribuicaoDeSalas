@@ -1,0 +1,64 @@
+.saea-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-family: var(--font-body);
+}
+
+.saea-field-label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--saea-ink);
+}
+
+.saea-select-wrap {
+  position: relative;
+}
+
+.saea-select-control {
+  appearance: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: var(--fs-lg);
+  font-family: var(--font-body);
+  color: var(--saea-ink);
+  background: var(--saea-surface);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3) var(--sp-8) var(--sp-3) var(--sp-4);
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-short) var(--ease-out),
+    box-shadow var(--dur-short) var(--ease-out);
+}
+.saea-select-control:focus {
+  border-color: var(--saea-primary);
+  box-shadow: 0 0 0 3px rgba(46, 156, 181, 0.15);
+}
+.saea-select-control:disabled {
+  background: var(--saea-surface-sunken);
+  cursor: not-allowed;
+}
+.saea-select-control--error {
+  border-color: var(--saea-danger);
+}
+
+.saea-select-arrow {
+  position: absolute;
+  right: var(--sp-4);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--saea-ink-faint);
+  font-size: var(--fs-xs);
+  pointer-events: none;
+}
+
+.saea-field-error {
+  font-size: var(--fs-xs);
+  color: var(--saea-danger);
+}
+.saea-field-helper {
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}

@@ -1,0 +1,35 @@
+<div class="saea-shell">
+  <app-header />
+
+  <div class="saea-body">
+    <div class="saea-side-wrap">
+      <app-side-panel
+        [items]="navItems"
+        [collapsed]="navCollapsed()"
+        [activeRoute]="activeRoute()"
+        (toggle)="navCollapsed.set(!navCollapsed())"
+        (itemClick)="onItemClick($event)"
+        (signOut)="onSignOut()"
+      />
+    </div>
+
+    <main class="saea-main">
+      <div class="saea-main-top">
+        <app-breadcrumb [items]="breadcrumbItems()" />
+        <div class="saea-mode-toggle">
+          <span class="saea-mode-caption">{{ editorModeCaption() }}</span>
+          <app-switch
+            label="Modo coordenador"
+            [checked]="uiMode.editorMode()"
+            (checkedChange)="uiMode.toggle()"
+          />
+        </div>
+      </div>
+
+      <router-outlet />
+    </main>
+  </div>
+
+  <app-footer />
+  <app-toast-stack />
+</div>

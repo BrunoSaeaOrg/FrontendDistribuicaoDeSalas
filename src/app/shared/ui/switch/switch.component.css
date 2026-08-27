@@ -1,0 +1,45 @@
+.saea-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+.saea-switch--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.saea-switch-track {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--saea-border);
+  flex-shrink: 0;
+  transition: background var(--dur-short) var(--ease-out);
+  outline: none;
+}
+.saea-switch-track--checked {
+  background: var(--saea-primary);
+}
+
+.saea-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--elev-1);
+  transition: left var(--dur-short) var(--ease-out);
+}
+.saea-switch-track--checked .saea-switch-thumb {
+  left: 19px;
+}
+
+.saea-switch-label {
+  font-size: var(--fs-md);
+  color: var(--saea-ink);
+}

@@ -1,0 +1,49 @@
+.saea-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  background: var(--saea-surface);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elev-2);
+  padding: var(--sp-4);
+  max-width: 340px;
+  box-sizing: border-box;
+  font-family: var(--font-body);
+}
+
+.saea-toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+.saea-toast-icon--success {
+  background: var(--saea-success);
+}
+.saea-toast-icon--warning {
+  background: var(--saea-warning);
+}
+.saea-toast-icon--danger {
+  background: var(--saea-danger);
+}
+.saea-toast-icon--info {
+  background: var(--saea-primary-strong);
+}
+
+.saea-toast-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--saea-ink);
+}
+.saea-toast-description {
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+  margin-top: 2px;
+}

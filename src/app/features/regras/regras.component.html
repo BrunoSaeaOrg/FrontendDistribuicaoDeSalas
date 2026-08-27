@@ -1,0 +1,45 @@
+<div class="regras-page">
+  @if (uiMode.readOnlyMode()) {
+    <app-alert tone="primary">Somente coordenadores podem alterar as regras de ocupação.</app-alert>
+  }
+
+  <app-alert tone="info">
+    <b>Lei de ocupação: tamanho da sala ÷ 1,5 m².</b>
+    Exemplo 1: sala de 45 m² → 45 ÷ 1,5 = 30 pessoas (alunos + professor). Exemplo 2: sala de 60 m² → 60 ÷ 1,5 =
+    40 pessoas. É um limite máximo de evacuação, não uma meta — a escola não pode ultrapassá-lo. Descontar da área
+    total armários, colunas ou bancadas fixas antes de dividir. Ultrapassar o limite viola normas do Corpo de
+    Bombeiros e pode custar o AVCB.
+  </app-alert>
+
+  <app-card title="Regras de ocupação" subtitle="Usadas para calcular a capacidade física de cada sala">
+    <div class="regras-form">
+      <app-input
+        label="Área por pessoa (m²)"
+        type="number"
+        [ngModel]="regrasService.regras().areaPorAluno"
+        (ngModelChange)="onAreaChange($event)"
+        [disabled]="uiMode.readOnlyMode()"
+        helper="Norma de evacuação do Corpo de Bombeiros: capacidade = área da sala ÷ 1,5 m²."
+      />
+      <app-input
+        label="% máximo de utilização"
+        type="number"
+        [ngModel]="regrasService.regras().pctMaximoUtilizacao"
+        (ngModelChange)="onPctChange($event)"
+        [disabled]="uiMode.readOnlyMode()"
+        helper="Acima deste percentual da capacidade, a sala é marcada como 'Quase lotada'."
+      />
+      <app-switch
+        label="Permitir exceder a capacidade calculada com justificativa"
+        [checked]="regrasService.regras().permitirExcesso"
+        [disabled]="uiMode.readOnlyMode()"
+        (checkedChange)="regrasService.setPermitirExcesso($event)"
+      />
+      @if (uiMode.editorMode()) {
+        <div>
+          <app-button variant="ghost" (clicked)="restaurarPadroes()">Restaurar padrões</app-button>
+        </div>
+      }
+    </div>
+  </app-card>
+</div>

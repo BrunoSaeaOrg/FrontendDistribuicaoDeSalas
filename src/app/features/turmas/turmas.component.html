@@ -1,0 +1,80 @@
+<div class="turmas-page">
+  <div class="turmas-filter">
+    <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="unidade.set($event)" [options]="unidadeOptions()" />
+  </div>
+
+  <app-card>
+    <div class="turmas-table-wrap">
+      <table class="turmas-table">
+        <thead>
+          <tr>
+            <th>Sala</th>
+            <th>Unidade</th>
+            <th>Carteiras</th>
+            <th>Manhã</th>
+            <th>Tarde</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr>
+              <td class="turmas-cell-strong">{{ row.nome }}</td>
+              <td>
+                <span class="turmas-inline">
+                  <span class="turmas-dot" [style.background]="row.unidadeCor"></span>{{ row.unidadeNome }}
+                </span>
+              </td>
+              <td>{{ row.carteiras }}</td>
+              @for (cell of row.cells; track cell.turno) {
+                <td class="turmas-cell-turno">
+                  @if (cell.hasTurma) {
+                    <div class="turmas-turma">
+                      @if (uiMode.editorMode()) {
+                        <div class="turmas-turma-edit">
+                          <input
+                            class="turmas-input turmas-input--name"
+                            [ngModel]="cell.nomeProprio"
+                            (ngModelChange)="onNomeProprioChange(row.id, cell.turno, $event)"
+                            placeholder="Nome da turma"
+                          />
+                          <div class="turmas-turma-row">
+                            <input
+                              class="turmas-input"
+                              [ngModel]="cell.nome"
+                              (ngModelChange)="onNomeChange(row.id, cell.turno, $event)"
+                            />
+                            <input
+                              class="turmas-input turmas-input--num"
+                              type="number"
+                              [ngModel]="cell.alunos"
+                              (ngModelChange)="onAlunosChange(row.id, cell.turno, $event)"
+                            />
+                            <button type="button" class="turmas-remove" aria-label="Liberar" (click)="liberar(row.id, cell.turno)">×</button>
+                          </div>
+                        </div>
+                      } @else {
+                        <div class="turmas-readonly">
+                          {{ cell.nomeProprio }} <span class="turmas-readonly-soft">· {{ cell.nome }} · {{ cell.alunos }} al.</span>
+                        </div>
+                      }
+                      @if (cell.excede) {
+                        <span class="turmas-excede">▲ excede carteiras</span>
+                      }
+                    </div>
+                  }
+                  @if (cell.noTurma) {
+                    @if (uiMode.editorMode()) {
+                      <button type="button" class="turmas-vincular" (click)="vincular(row.id, cell.turno)">+ Vincular</button>
+                    } @else {
+                      <span class="turmas-livre">— Livre —</span>
+                    }
+                  }
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </app-card>
+</div>

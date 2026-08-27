@@ -1,0 +1,128 @@
+// SAEA Design System — Cores
+// Fonte: design_handoff_saea/tokens/colors.scss (sincronizado linha a linha)
+
+$primary: #2e9cb5;
+$primary-strong: #268298;
+$primary-gradient: linear-gradient(135deg, #3ac2e0 0%, #2e9cb5 100%);
+$primary-gradient-deep: linear-gradient(135deg, #2e9cb5 0%, #268298 100%);
+
+$bg: #f4f7f9;
+$surface: #ffffff;
+$surface-sunken: #fbfcfd;
+$chip-bg: #f1f5f9;
+$border: #e2e8f0;
+
+$ink: #1e293b;
+$ink-soft: #64748b;
+$ink-faint: #94a3b8;
+$inverse-surface: #1e293b;
+
+$danger: #d31919;
+$warning: #ee6211;
+$info: #b45309;
+$success: #15803d;
+
+// Calendário / timeline (não usado neste app, mantido para paridade com o design system)
+$holiday: #f4b740;
+$vacation: #ca8a04;
+$external: #7e22ce;
+
+// Cores por unidade (chips, tabelas, gráficos)
+$unit-sede: #43aee2;
+$unit-casj: #ff0000;
+$unit-liceu: #4ea72e;
+$unit-cansf: #0070c0;
+$unit-mendel: #ffc000;
+$unit-sta-rita-sp: #bd5015;
+$unit-sta-rita-go: #ffff00;
+$unit-sto-antonio: #7030a0;
+$unit-sta-monica: #781f70;
+$unit-sta-helena: #b5e6a2;
+$unit-d-fernando: #a6aaff;
+$unit-m-leonia: #f2ceef;
+
+// Modo escuro
+$dark-primary: #2c7284;
+$dark-primary-strong: #7fdcee;
+$dark-bg: #10151c;
+$dark-surface: #1a2129;
+$dark-surface-sunken: #141a21;
+$dark-chip-bg: #232c37;
+$dark-border: #2c3644;
+$dark-ink: #e6edf3;
+$dark-ink-soft: #9fb0c0;
+$dark-ink-faint: #64758a;
+$dark-danger: #f0655a;
+$dark-warning: #f4b344;
+$dark-info: #f4b344;
+$dark-success: #5ddb8b;
+$dark-holiday: #7a3e0a;
+$dark-vacation: #f0c94f;
+$dark-external: #c98cf0;
+
+// Gera as CSS custom properties --saea-* no :root (modo claro)
+@mixin custom-properties-light {
+  --saea-primary: #{$primary};
+  --saea-primary-strong: #{$primary-strong};
+  --saea-primary-gradient: #{$primary-gradient};
+  --saea-primary-gradient-deep: #{$primary-gradient-deep};
+  --saea-bg: #{$bg};
+  --saea-surface: #{$surface};
+  --saea-surface-sunken: #{$surface-sunken};
+  --saea-chip-bg: #{$chip-bg};
+  --saea-border: #{$border};
+  --saea-ink: #{$ink};
+  --saea-ink-soft: #{$ink-soft};
+  --saea-ink-faint: #{$ink-faint};
+  --saea-inverse-surface: #{$inverse-surface};
+  --saea-danger: #{$danger};
+  --saea-warning: #{$warning};
+  --saea-info: #{$info};
+  --saea-success: #{$success};
+  --saea-holiday: #{$holiday};
+  --saea-vacation: #{$vacation};
+  --saea-external: #{$external};
+  --saea-unit-sede: #{$unit-sede};
+  --saea-unit-casj: #{$unit-casj};
+  --saea-unit-liceu: #{$unit-liceu};
+  --saea-unit-cansf: #{$unit-cansf};
+  --saea-unit-mendel: #{$unit-mendel};
+  --saea-unit-sta-rita-sp: #{$unit-sta-rita-sp};
+  --saea-unit-sta-rita-go: #{$unit-sta-rita-go};
+  --saea-unit-sto-antonio: #{$unit-sto-antonio};
+  --saea-unit-sta-monica: #{$unit-sta-monica};
+  --saea-unit-sta-helena: #{$unit-sta-helena};
+  --saea-unit-d-fernando: #{$unit-d-fernando};
+  --saea-unit-m-leonia: #{$unit-m-leonia};
+  --elev-1: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --elev-2: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --elev-3: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+// Gera as CSS custom properties --saea-* para [data-theme='dark']
+@mixin custom-properties-dark {
+  color-scheme: dark;
+  --saea-primary: #{$dark-primary};
+  --saea-primary-strong: #{$dark-primary-strong};
+  --saea-primary-gradient: linear-gradient(135deg, #35859a 0%, #{$dark-primary} 100%);
+  --saea-primary-gradient-deep: var(--saea-primary-gradient);
+  --saea-bg: #{$dark-bg};
+  --saea-surface: #{$dark-surface};
+  --saea-surface-sunken: #{$dark-surface-sunken};
+  --saea-chip-bg: #{$dark-chip-bg};
+  --saea-border: #{$dark-border};
+  --saea-ink: #{$dark-ink};
+  --saea-ink-soft: #{$dark-ink-soft};
+  --saea-ink-faint: #{$dark-ink-faint};
+  --saea-inverse-surface: #1e293b;
+  --saea-danger: #{$dark-danger};
+  --saea-warning: #{$dark-warning};
+  --saea-info: #{$dark-info};
+  --saea-success: #{$dark-success};
+  --saea-holiday: #{$dark-holiday};
+  --saea-vacation: #{$dark-vacation};
+  --saea-external: #{$dark-external};
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --elev-2: 0 2px 10px rgba(0, 0, 0, 0.55);
+  --elev-3: 0 10px 28px rgba(0, 0, 0, 0.6);
+}

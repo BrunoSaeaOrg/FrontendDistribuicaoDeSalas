@@ -1,0 +1,124 @@
+<div class="ocup-page">
+  <div class="ocup-filters">
+    <app-select label="Ano letivo" [ngModel]="ano()" (ngModelChange)="ano.set($event)" [options]="anoOptions" />
+    <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="unidade.set($event)" [options]="unidadeOptions()" />
+
+    @if (showExtraFiltros()) {
+      <app-select label="Turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)" [options]="turnoOptions" />
+      <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="segmento.set($event)" [options]="segmentoOptions" />
+      <app-select label="Agrupar por" [ngModel]="agrupar()" (ngModelChange)="agrupar.set($event)" [options]="agruparOptions" />
+    }
+
+    <div class="ocup-tabs">
+      @for (tab of visTabs; track tab.value) {
+        <button
+          type="button"
+          class="ocup-tab"
+          [class.ocup-tab--active]="vis() === tab.value"
+          (click)="onVisChange(tab.value)"
+        >{{ tab.label }}</button>
+      }
+    </div>
+  </div>
+
+  <app-card>
+    @if (!hasData()) {
+      <app-empty-state icon="bar_chart" title="Sem dados para os filtros selecionados" />
+    } @else {
+
+      @if (vis() === 'tabela') {
+        <div class="ocup-table-wrap">
+          <table class="ocup-table">
+            <thead>
+              <tr>
+                <th>{{ agruparLabel() }}</th>
+                <th>Alunos</th>
+                <th>Capacidade</th>
+                <th>Ocupação</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (g of grupos(); track g.key) {
+                <tr>
+                  <td class="ocup-cell-strong">
+                    <span class="ocup-inline"><span class="ocup-dot" [style.background]="g.color"></span>{{ g.label }}</span>
+                  </td>
+                  <td>{{ g.alunos }}</td>
+                  <td>{{ g.capacidade }}</td>
+                  <td [style.color]="g.alunosColor" class="ocup-cell-strong">{{ g.pct }}%</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      @if (vis() === 'evolucao') {
+        <div class="ocup-evol">
+          <div class="ocup-evol-title">{{ unidadeEvolucao()?.nome }} — evolução mensal em {{ ano() }}</div>
+
+          <svg
+            class="ocup-evol-svg"
+            [attr.viewBox]="'0 0 ' + evolChartW + ' 120'"
+            (mousemove)="onEvolMouseMove($event, evolChartW, evolColW(), evolPadL)"
+            (mouseleave)="onEvolMouseLeave()"
+          >
+            <line x1="46" y1="20" x2="744" y2="20" stroke="var(--saea-border)" stroke-width="1" />
+            <line x1="46" y1="60" x2="744" y2="60" stroke="var(--saea-border)" stroke-width="1" />
+            <line x1="46" y1="100" x2="744" y2="100" stroke="var(--saea-border)" stroke-width="1" />
+            @if (evolHovered(); as h) {
+              <line
+                [attr.x1]="evolPointX(evolHoverIdx()!)" y1="10"
+                [attr.x2]="evolPointX(evolHoverIdx()!)" y2="110"
+                stroke="var(--saea-ink-soft)" stroke-width="1" stroke-dasharray="3,3"
+              />
+            }
+            @for (p of evolSeries(); track p.mes; let i = $index) {
+              <circle
+                [attr.cx]="evolPointX(i)"
+                [attr.cy]="20 + (1 - p.alunos / (evolMaxAlunos())) * 80"
+                [attr.r]="p.excede ? 5 : 3.5"
+                [attr.fill]="p.excede ? 'var(--saea-danger)' : 'var(--saea-primary)'"
+                stroke="#fff" stroke-width="1.5"
+              />
+              <text [attr.x]="evolPointX(i)" y="118" text-anchor="middle" font-size="11" fill="var(--saea-ink-soft)">{{ p.mes }}</text>
+            }
+          </svg>
+
+          @if (evolHovered(); as h) {
+            <div class="ocup-evol-tooltip">
+              <div class="ocup-evol-tooltip-title">{{ h.mes }}/{{ ano() }}</div>
+              <div class="ocup-evol-tooltip-row"><span class="ocup-dot" style="background:var(--saea-primary)"></span>Alunos <b>{{ h.alunos }}</b></div>
+              <div class="ocup-evol-tooltip-row"><span class="ocup-dot" style="background:var(--saea-ink-faint)"></span>Capacidade <b>{{ h.capacidade }}</b></div>
+              <div class="ocup-evol-tooltip-row"><span class="ocup-dot" style="background:var(--saea-warning)"></span>Ocupação <b>{{ h.pct }}%</b></div>
+              <div class="ocup-evol-tooltip-row"><span class="ocup-dot" style="background:var(--saea-danger)"></span>Acima da capacidade <b style="color:var(--saea-danger)">{{ h.excedentePct }}%</b></div>
+            </div>
+          }
+        </div>
+      }
+
+      @if (vis() === 'colunas') {
+        <div class="ocup-bars">
+          @for (b of barRows(); track b.key) {
+            <div class="ocup-bar-col" [title]="b.tooltip">
+              <div class="ocup-bar-stack">
+                <div class="ocup-bar-cap-label">{{ b.capacidade }}</div>
+                <div class="ocup-bar-track" [style.height.px]="b.capacidadeBarHeight">
+                  <div class="ocup-bar-fill ocup-bar-fill--pct" [style.height.px]="b.pctOfCapHeight"></div>
+                  <div class="ocup-bar-fill ocup-bar-fill--alunos" [style.height.px]="b.alunosOfCapHeight" [style.background]="b.alunosColor"></div>
+                </div>
+                <div class="ocup-bar-alunos-label" [style.color]="b.alunosColor">{{ b.alunos }} al.</div>
+                <div class="ocup-bar-pct-label">{{ b.pct }}%</div>
+              </div>
+              <div class="ocup-bar-legend">
+                <span class="ocup-dot" [style.background]="b.color"></span>
+                <span class="ocup-bar-legend-label">{{ b.label }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+    }
+  </app-card>
+</div>

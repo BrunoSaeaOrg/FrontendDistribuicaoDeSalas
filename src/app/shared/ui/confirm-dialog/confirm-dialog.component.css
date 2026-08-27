@@ -1,0 +1,73 @@
+.confirm-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.confirm-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: color-mix(in oklab, var(--saea-danger) 14%, var(--saea-surface));
+  color: var(--saea-danger);
+}
+.confirm-icon mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.confirm-title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  color: var(--saea-ink);
+}
+
+.confirm-description {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+}
+
+.confirm-actions {
+  margin-top: var(--sp-6);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+}
+
+.confirm-btn {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: var(--sp-2) var(--sp-5);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition:
+    transform var(--dur-micro) var(--ease-out),
+    background var(--dur-short) var(--ease-out);
+}
+.confirm-btn:active {
+  transform: scale(0.97);
+}
+
+.confirm-btn--cancel {
+  background: transparent;
+  color: var(--saea-ink-soft);
+}
+
+.confirm-btn--confirm {
+  background: var(--saea-primary);
+  color: #fff;
+}
+
+.confirm-btn--danger {
+  background: var(--saea-danger);
+}

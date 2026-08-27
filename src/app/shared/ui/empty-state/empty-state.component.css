@@ -1,0 +1,43 @@
+.saea-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-6);
+  font-family: var(--font-body);
+}
+
+.saea-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--saea-chip-bg);
+  color: var(--saea-ink-faint);
+}
+.saea-empty-icon mat-icon {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+}
+
+.saea-empty-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--saea-ink);
+}
+
+.saea-empty-description {
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+  margin-top: 4px;
+  max-width: 280px;
+}
+
+::ng-deep [action] {
+  display: block;
+  margin-top: var(--sp-2);
+}
