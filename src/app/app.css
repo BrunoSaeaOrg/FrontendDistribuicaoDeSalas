@@ -31,24 +31,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
-  padding-top: var(--sp-6);
+  padding-top: var(--sp-1);
 }
 
 .saea-main-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--sp-4);
   flex-wrap: wrap;
-}
-
-.saea-mode-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
-.saea-mode-caption {
-  font-size: var(--fs-sm);
-  color: var(--saea-ink-soft);
 }

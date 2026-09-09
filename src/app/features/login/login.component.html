@@ -1,0 +1,71 @@
+<div class="saea-login-page">
+  <div class="saea-login-brand">
+    <img src="assets/logo-color.png" alt="Logo SAEA" class="saea-login-brand__logo" />
+  </div>
+
+  <div class="saea-login-form-wrap">
+    <div class="saea-login-header">
+      <div class="saea-login-title">Distribuição de Salas</div>
+      <div class="saea-login-subtitle">Entre com suas credenciais</div>
+    </div>
+
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" novalidate autocomplete="on">
+      <div class="saea-full-width">
+        <div
+          class="saea-login-field"
+          [class.saea-login-field--error]="loginForm.get('usuario')?.invalid && loginForm.get('usuario')?.touched"
+        >
+          <mat-icon class="saea-login-field__icon">person</mat-icon>
+          <input
+            class="saea-login-field__input"
+            type="text"
+            formControlName="usuario"
+            placeholder="Digite seu usuário"
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
+          />
+        </div>
+        @if (loginForm.get('usuario')?.invalid && loginForm.get('usuario')?.touched) {
+          <p class="saea-login-field-error">Usuário é obrigatório</p>
+        }
+      </div>
+
+      <div class="saea-full-width">
+        <div
+          class="saea-login-field"
+          [class.saea-login-field--error]="loginForm.get('senha')?.invalid && loginForm.get('senha')?.touched"
+        >
+          <mat-icon class="saea-login-field__icon">lock</mat-icon>
+          <input
+            class="saea-login-field__input"
+            [type]="obscurePassword() ? 'password' : 'text'"
+            formControlName="senha"
+            placeholder="Digite sua senha"
+            autocomplete="current-password"
+          />
+          <span class="saea-login-field__toggle" (click)="togglePassword()">
+            <mat-icon>{{ obscurePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </span>
+        </div>
+        @if (loginForm.get('senha')?.invalid && loginForm.get('senha')?.touched) {
+          <p class="saea-login-field-error">Senha é obrigatória</p>
+        }
+      </div>
+
+      <button class="saea-login-button" [disabled]="isLoading() || loginForm.invalid" type="submit">
+        <span class="saea-login-button__content">
+          @if (isLoading()) {
+            <span class="saea-login-button__spinner"></span>
+            <span>Entrando...</span>
+          } @else {
+            <mat-icon class="saea-login-button__icon">login</mat-icon>
+            <span>Entrar</span>
+          }
+        </span>
+      </button>
+    </form>
+  </div>
+
+  <div class="saea-login-copyright">© {{ currentYear }} DESENVOLVIDO POR SISTEMAS SAEA</div>
+</div>

@@ -1,0 +1,242 @@
+.saea-login-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-height: 100vh;
+  padding: 32px 16px;
+  box-sizing: border-box;
+  background-color: var(--saea-bg);
+  background-image: url('/assets/login-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.saea-login-brand {
+  position: absolute;
+  top: 32px;
+  left: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.saea-login-brand__logo {
+  height: 56px;
+  width: auto;
+}
+
+.saea-login-form-wrap {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.saea-login-header {
+  text-align: center;
+}
+
+.saea-login-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--saea-ink);
+  margin: 0 0 4px;
+  line-height: 1.2;
+}
+
+.saea-login-subtitle {
+  font-size: 15px;
+  color: var(--saea-ink-soft);
+}
+
+.saea-login-form-wrap form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.saea-full-width {
+  width: 100%;
+}
+
+.saea-login-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--saea-border);
+  border-radius: 10px;
+  background: var(--saea-surface);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.saea-login-field:hover {
+  border-color: var(--saea-primary-strong);
+}
+
+.saea-login-field:focus-within {
+  border-color: var(--saea-primary-strong);
+  box-shadow: 0 0 0 1px var(--saea-primary-strong);
+}
+
+.saea-login-field--error {
+  border-color: var(--saea-danger) !important;
+  box-shadow: 0 0 0 1px var(--saea-danger) !important;
+}
+
+.saea-login-field__icon {
+  flex: none;
+  color: var(--saea-ink-soft);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.saea-login-field__toggle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--saea-ink-soft);
+  transition: opacity 0.15s;
+}
+
+.saea-login-field__toggle:hover {
+  opacity: 0.7;
+}
+
+.saea-login-field__toggle mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.saea-login-field__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: 400 15px var(--font-body);
+  color: var(--saea-ink);
+  padding: 0;
+  caret-color: var(--saea-primary-strong);
+}
+
+.saea-login-field__input::placeholder {
+  color: var(--saea-ink-faint);
+}
+
+.saea-login-field-error {
+  margin: -6px 0 0;
+  padding-left: 12px;
+  font-size: 13px;
+  color: var(--saea-danger);
+}
+
+.saea-login-button {
+  width: 100%;
+  height: 48px;
+  margin-top: 8px;
+  font: 600 16px var(--font-body);
+  letter-spacing: 0.3px;
+  border: none;
+  border-radius: 10px;
+  background: var(--saea-primary-gradient);
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--elev-2);
+  transition:
+    filter 0.15s,
+    box-shadow 0.15s;
+}
+
+.saea-login-button:hover:not(:disabled) {
+  filter: brightness(1.05);
+  box-shadow: var(--elev-3);
+}
+
+.saea-login-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.saea-login-button__content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.saea-login-button__icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.saea-login-button__spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: saea-spin 0.7s linear infinite;
+}
+
+.saea-login-copyright {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--saea-ink-soft);
+}
+
+@media (max-width: 600px) {
+  .saea-login-copyright {
+    bottom: 16px;
+    font-size: 9px;
+  }
+
+  .saea-login-page {
+    padding: 24px 16px;
+  }
+
+  .saea-login-brand {
+    top: 48px;
+    left: 0;
+    right: 0;
+    justify-content: center;
+  }
+
+  .saea-login-brand__logo {
+    height: 86px;
+  }
+
+  .saea-login-title {
+    font-size: 18px;
+  }
+
+  .saea-login-field {
+    min-height: 46px;
+  }
+
+  .saea-login-button {
+    height: 44px;
+    font-size: 15px;
+  }
+}

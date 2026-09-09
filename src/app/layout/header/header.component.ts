@@ -14,7 +14,6 @@ function saudacao(): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="saea-header">
-      <div class="saea-header-texture"></div>
       <img class="saea-header-logo" src="assets/logo-header-white.png" alt="SAEA" />
       <div class="saea-header-titles">
         <div class="saea-header-title">{{ saudacao }}</div>

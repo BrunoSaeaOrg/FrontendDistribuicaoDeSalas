@@ -2,14 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { UiModeService } from './core/services/ui-mode.service';
+import { AuthService } from './core/auth/auth.service';
 import { HeaderComponent } from './layout/header/header.component';
 import { FooterComponent } from './layout/footer/footer.component';
 import { SidePanelComponent, SidePanelItem } from './layout/side-panel/side-panel.component';
 import { BreadcrumbComponent, BreadcrumbItem } from './shared/ui/breadcrumb/breadcrumb.component';
-import { SwitchComponent } from './shared/ui/switch/switch.component';
 import { ToastStackComponent } from './shared/ui/toast/toast-stack.component';
-import { ToastService } from './core/services/toast.service';
 
 const NAV_ITEMS: SidePanelItem[] = [
   { icon: 'space_dashboard', label: 'Painel', description: 'Ocupação e capacidade das salas.', route: 'painel' },
@@ -28,8 +26,7 @@ const NAV_ITEMS: SidePanelItem[] = [
     HeaderComponent,
     FooterComponent,
     SidePanelComponent,
-    BreadcrumbComponent,
-    SwitchComponent,
+    // BreadcrumbComponent,
     ToastStackComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -39,9 +36,8 @@ const NAV_ITEMS: SidePanelItem[] = [
 export class App {
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
-  private readonly toast = inject(ToastService);
+  private readonly authService = inject(AuthService);
 
-  readonly uiMode = inject(UiModeService);
   readonly navItems = NAV_ITEMS;
   readonly navCollapsed = signal(false);
 
@@ -64,22 +60,19 @@ export class App {
   );
 
   readonly activeRoute = computed(() => this.currentUrl());
+  readonly isAuthRoute = computed(() => this.activeRoute() === 'login');
 
   readonly breadcrumbItems = computed<BreadcrumbItem[]>(() => [
     { label: 'Infraestrutura' },
     { label: this.currentBreadcrumbLabel() },
   ]);
 
-  readonly editorModeCaption = computed(() =>
-    this.uiMode.editorMode() ? 'Edição habilitada' : 'Somente consulta',
-  );
-
   onItemClick(item: SidePanelItem): void {
     this.router.navigate([item.route]);
   }
 
   onSignOut(): void {
-    this.toast.info('Sessão', 'Ação de saída não disponível neste protótipo.');
+    this.authService.logout();
   }
 
   private readBreadcrumb(): string {

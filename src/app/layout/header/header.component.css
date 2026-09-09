@@ -11,24 +11,12 @@
   box-sizing: border-box;
 }
 
-.saea-header-texture {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 45%;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.35) 1px, transparent 1.5px);
-  background-size: 10px 10px;
-  opacity: 0.5;
-  pointer-events: none;
-}
-
 .saea-header-logo {
   position: relative;
   z-index: 1;
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 56px;
+  height: 56px;
   object-fit: contain;
 }
 
