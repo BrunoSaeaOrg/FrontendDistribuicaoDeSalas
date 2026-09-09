@@ -77,3 +77,15 @@
 .saea-theme-knob--dark {
   left: 27px;
 }
+
+@media (max-height: 800px) {
+  .saea-header {
+    padding: var(--sp-2) var(--sp-5);
+    min-height: 44px;
+  }
+
+  .saea-header-logo {
+    width: 40px;
+    height: 40px;
+  }
+}

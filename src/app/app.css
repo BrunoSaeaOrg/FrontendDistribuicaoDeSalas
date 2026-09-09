@@ -1,5 +1,5 @@
 .saea-shell {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--saea-bg);
@@ -9,7 +9,6 @@
 
 .saea-body {
   flex: 1;
-  min-height: 0;
   display: flex;
   align-items: stretch;
   gap: var(--sp-5);
@@ -25,7 +24,7 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
   width: 100%;
   display: flex;
@@ -39,4 +38,19 @@
   align-items: center;
   gap: var(--sp-4);
   flex-wrap: wrap;
+}
+
+/* Notebooks (ex.: Dell G3 3500 1080p com escala do SO) têm menos altura
+   útil de viewport que monitores externos — reduz só o espaçamento
+   vertical do shell, sem alterar a experiência em desktop. */
+@media (max-height: 800px) {
+  .saea-body {
+    gap: var(--sp-4);
+    padding: 0 var(--sp-5) var(--sp-4) 0;
+  }
+
+  .saea-main {
+    gap: var(--sp-4);
+    padding-top: 0;
+  }
 }

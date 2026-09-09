@@ -1,9 +1,7 @@
 :host {
   display: flex;
   flex-direction: column;
-  min-height: 0;
   flex: 1;
-  overflow-y: auto;
 }
 
 .ocup-page {
@@ -49,12 +47,23 @@
   overflow-x: auto;
   min-height: 400px;
 }
+@media (max-height: 800px) {
+  .ocup-table-wrap {
+    overflow-y: auto;
+    max-height: 393px;
+    min-height: 0;
+  }
+}
 .ocup-table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--fs-sm);
 }
 .ocup-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--saea-surface);
   text-align: left;
   padding: var(--sp-3) var(--sp-2);
   color: var(--saea-ink-faint);

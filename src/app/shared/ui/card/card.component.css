@@ -30,3 +30,9 @@
   padding-top: var(--sp-4);
   border-top: 1px solid var(--saea-border);
 }
+
+@media (max-height: 800px) {
+  :host {
+    padding: var(--sp-4);
+  }
+}

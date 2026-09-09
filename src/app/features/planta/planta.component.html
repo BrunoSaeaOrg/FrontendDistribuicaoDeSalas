@@ -32,52 +32,58 @@
           <app-badge [tone]="statusInfo().tone">{{ statusInfo().label }}</app-badge>
         </div>
 
-        <div class="planta-progress-wrap">
-          <div class="planta-progress-labels">
-            <span>{{ sala()!.carteiras }} carteiras de {{ capacidade() }} possíveis</span>
-            <span>{{ capacidade() - sala()!.carteiras < 0 ? 0 : capacidade() - sala()!.carteiras }} vagas</span>
+        <div class="planta-info-row">
+          <div class="planta-legend">
+            <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--aluno"></span>Aluno sentado</span>
+            <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--vaga"></span>Carteira vaga</span>
+            <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--livre"></span>Espaço sem carteira</span>
+            <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--excedente"></span>Acima da capacidade</span>
           </div>
-          <div class="planta-progress-track">
-            <div class="planta-progress-fill" [style.width.%]="plantaPct()"></div>
-          </div>
-        </div>
 
-        <div class="planta-turma-label">
-          @if (turmaAtual(); as t) {
-            {{ t.nomeProprio }} · {{ t.nome }} · {{ t.alunos }} alunos
-          } @else {
-            Nenhuma turma vinculada neste turno
+          @if (uiMode.editorMode()) {
+            <div class="planta-hint">Arraste uma carteira até outra sala à direita, ou clique nela e depois em "Mover para cá".</div>
           }
         </div>
 
-        <div class="planta-room">
-          <div class="planta-room-board"></div>
-          <div class="planta-desks">
-            @for (desk of deskSlots(); track desk.index) {
-              <div
-                class="planta-desk planta-desk--{{ desk.kind }}"
-                [class.planta-desk--selected]="selectedDesk() === desk.index"
-                [attr.draggable]="desk.draggable"
-                [title]="desk.tooltip"
-                (click)="toggleDesk(desk)"
-                (dragstart)="onDeskDragStart($event, desk)"
-              >
-                <span class="material-icons planta-desk-icon">{{ desk.icon }}</span>
-              </div>
+        <div class="planta-status-row">
+          <div class="planta-progress-wrap">
+            <div class="planta-progress-labels">
+              <span>{{ sala()!.carteiras }} carteiras de {{ capacidade() }} possíveis</span>
+              <span>{{ capacidade() - sala()!.carteiras < 0 ? 0 : capacidade() - sala()!.carteiras }} vagas</span>
+            </div>
+            <div class="planta-progress-track">
+              <div class="planta-progress-fill" [style.width.%]="plantaPct()"></div>
+            </div>
+          </div>
+
+          <div class="planta-turma-label">
+            @if (turmaAtual(); as t) {
+              {{ t.nomeProprio }} · {{ t.nome }} · {{ t.alunos }} alunos
+            } @else {
+              Nenhuma turma vinculada neste turno
             }
           </div>
         </div>
 
-        <div class="planta-legend">
-          <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--aluno"></span>Aluno sentado</span>
-          <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--vaga"></span>Carteira vaga</span>
-          <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--livre"></span>Espaço sem carteira</span>
-          <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--excedente"></span>Acima da capacidade</span>
+        <div class="planta-room-wrap">
+          <div class="planta-room">
+            <div class="planta-room-board"></div>
+            <div class="planta-desks">
+              @for (desk of deskSlots(); track desk.index) {
+                <div
+                  class="planta-desk planta-desk--{{ desk.kind }}"
+                  [class.planta-desk--selected]="selectedDesk() === desk.index"
+                  [attr.draggable]="desk.draggable"
+                  [title]="desk.tooltip"
+                  (click)="toggleDesk(desk)"
+                  (dragstart)="onDeskDragStart($event, desk)"
+                >
+                  <span class="material-icons planta-desk-icon">{{ desk.icon }}</span>
+                </div>
+              }
+            </div>
+          </div>
         </div>
-
-        @if (uiMode.editorMode()) {
-          <div class="planta-hint">Arraste uma carteira até outra sala à direita, ou clique nela e depois em "Mover para cá".</div>
-        }
       </app-card>
 
       <app-card title="Outras salas da unidade">

@@ -1,30 +1,7 @@
-:host {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
-}
-
 .painel-page {
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
-  min-height: 0;
-  flex: 1;
-}
-
-.painel-page > app-card:last-child {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-.painel-page > app-card:last-child ::ng-deep .saea-card-body {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
 }
 
 .painel-filters {
@@ -73,8 +50,20 @@
 .painel-table-wrap {
   overflow-x: auto;
   overflow-y: auto;
-  flex: 1;
-  min-height: 0;
+  max-height: 576px;
+}
+
+@media (max-height: 800px) {
+  .painel-table-wrap {
+    max-height: 386px;
+  }
+}
+
+.painel-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--saea-surface);
+  z-index: 1;
 }
 
 .painel-table {
