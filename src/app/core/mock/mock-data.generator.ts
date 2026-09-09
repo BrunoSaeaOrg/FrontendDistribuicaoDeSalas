@@ -62,9 +62,11 @@ export function gerarSalas(unidades: Unidade[]): Sala[] {
       for (let i = 0; i < qty; i++) {
         contador++;
         const area = Math.round(def.areaMin + rng() * (def.areaMax - def.areaMin));
-        const capBase = Math.max(10, Math.floor((area * 0.78) / 1.5));
-        const variacao = 0.7 + rng() * 0.42;
-        const carteiras = Math.max(8, Math.round(capBase * variacao));
+        const capLegal = Math.max(1, Math.floor(area / 1.5));
+        const overloadSala = rng() < 0.12;
+        const carteiras = overloadSala
+          ? capLegal + 1 + Math.floor(rng() * 3)
+          : Math.max(8, Math.min(capLegal, Math.round(capLegal * (0.7 + rng() * 0.3))));
         const nome =
           def.tipo === 'Sala de aula'
             ? `Sala ${String(contador).padStart(2, '0')}`
@@ -75,11 +77,7 @@ export function gerarSalas(unidades: Unidade[]): Sala[] {
         (['manha', 'tarde'] as Turno[]).forEach((turno) => {
           if (rng() < 0.88) {
             const nomeT = pick(nomesDia);
-            const capLegal = Math.max(1, Math.floor(area / 1.5));
-            const overload = rng() < 0.12;
-            const alunos = overload
-              ? Math.max(capLegal + 2, Math.round(capLegal * (1.05 + rng() * 0.2)))
-              : Math.max(6, Math.min(capLegal, Math.round(carteiras * (0.72 + rng() * 0.25))));
+            const alunos = Math.max(6, Math.min(carteiras, Math.round(carteiras * (0.72 + rng() * 0.25))));
             turnos[turno] = { nome: nomeT, nomeProprio: pick(nomesProprios), alunos };
           } else {
             turnos[turno] = null;
@@ -104,9 +102,10 @@ export function gerarSalas(unidades: Unidade[]): Sala[] {
     const alvo = idx === 0 ? salasDaUnidade : salasDaUnidade.slice(0, 1);
     alvo.forEach((s) => {
       const capLegal = Math.max(1, Math.floor(s.area / 1.5));
+      s.carteiras = capLegal + 2 + Math.floor(rng() * 3);
       (['manha', 'tarde'] as Turno[]).forEach((turno) => {
         const turma = s.turnos[turno];
-        if (turma) turma.alunos = capLegal + 2 + Math.floor(rng() * 3);
+        if (turma) turma.alunos = s.carteiras;
       });
     });
   });

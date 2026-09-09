@@ -73,10 +73,12 @@
                 <div
                   class="planta-desk planta-desk--{{ desk.kind }}"
                   [class.planta-desk--selected]="selectedDesk() === desk.index"
+                  [class.planta-desk--dragging]="isDraggingDesk() && selectedDesk() === desk.index"
                   [attr.draggable]="desk.draggable"
                   [title]="desk.tooltip"
                   (click)="toggleDesk(desk)"
                   (dragstart)="onDeskDragStart($event, desk)"
+                  (dragend)="onDeskDragEnd()"
                 >
                   <span class="material-icons planta-desk-icon">{{ desk.icon }}</span>
                 </div>
@@ -98,7 +100,7 @@
             >
               <div>
                 <div class="planta-outra-nome">{{ room.nome }}</div>
-                <div class="planta-outra-meta">{{ room.tipo }} · {{ room.carteiras }}/{{ room.capacidade }} carteiras</div>
+                <div class="planta-outra-meta">{{ room.tipo }} · {{ room.ocupadas }}/{{ room.carteiras }} carteiras ocupadas</div>
               </div>
               <div class="planta-outra-actions">
                 <app-badge [tone]="room.statusInfo.tone">{{ room.statusInfo.label }}</app-badge>

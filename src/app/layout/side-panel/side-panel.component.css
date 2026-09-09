@@ -66,9 +66,18 @@
   cursor: pointer;
   border: none;
   background: none;
-  padding: 0;
+  padding: var(--sp-2);
+  margin: 0 calc(var(--sp-2) * -1);
+  border-radius: var(--radius-md);
   text-align: left;
   font-family: inherit;
+  transition: background var(--dur-short) var(--ease-out);
+}
+.saea-side-item--active {
+  background: color-mix(in srgb, var(--saea-primary) 16%, transparent);
+}
+.saea-side--collapsed .saea-side-item {
+  justify-content: center;
 }
 
 .saea-side-item-icon {

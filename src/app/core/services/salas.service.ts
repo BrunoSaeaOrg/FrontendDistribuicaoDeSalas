@@ -43,6 +43,10 @@ export class SalasService {
     return Math.max(1, Math.floor(sala.area / (areaPorAluno || 1.5)));
   }
 
+  alunosNoTurno(sala: Sala, turno: Turno): number {
+    return sala.turnos[turno]?.alunos ?? 0;
+  }
+
   statusInfo(sala: Sala): StatusInfo {
     const cap = this.capacidade(sala);
     const ratio = sala.carteiras / cap;

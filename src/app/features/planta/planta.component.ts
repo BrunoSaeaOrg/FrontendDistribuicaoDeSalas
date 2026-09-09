@@ -43,6 +43,7 @@ export class PlantaComponent {
   readonly serie = signal('todas');
   readonly selectedDesk = signal<number | null>(null);
   readonly dragOverSalaId = signal<string | null>(null);
+  readonly isDraggingDesk = signal(false);
 
   readonly unidadeOptions = computed<SelectOption[]>(() =>
     this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
@@ -166,14 +167,15 @@ export class PlantaComponent {
   readonly outrasSalas = computed(() => {
     const sala = this.sala();
     if (!sala) return [];
+    const turno = this.turno();
     return this.salasDaUnidade()
       .filter((s) => s.id !== sala.id)
       .map((s) => ({
         id: s.id,
         nome: s.nome,
         tipo: s.tipo,
+        ocupadas: this.salasService.alunosNoTurno(s, turno),
         carteiras: s.carteiras,
-        capacidade: this.salasService.capacidade(s),
         statusInfo: this.salasService.statusInfo(s),
       }));
   });
@@ -208,12 +210,24 @@ export class PlantaComponent {
 
   onDeskDragStart(event: DragEvent, slot: DeskSlot): void {
     if (!slot.draggable) return;
-    event.dataTransfer?.setData('text/plain', 'desk');
+    event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', String(slot.index));
+    }
     this.selectedDesk.set(slot.index);
+    this.isDraggingDesk.set(true);
+  }
+
+  onDeskDragEnd(): void {
+    this.isDraggingDesk.set(false);
+    this.dragOverSalaId.set(null);
   }
 
   onRoomDragOver(event: DragEvent, roomId: string): void {
+    if (!this.isDraggingDesk()) return;
     event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
     if (this.dragOverSalaId() !== roomId) this.dragOverSalaId.set(roomId);
   }
   onRoomDragLeave(): void {
@@ -226,6 +240,7 @@ export class PlantaComponent {
     this.salasService.moveCarteira(sala.id, roomId, this.uiMode.editorMode());
     this.dragOverSalaId.set(null);
     this.selectedDesk.set(null);
+    this.isDraggingDesk.set(false);
   }
 
   moverParaCa(roomId: string): void {

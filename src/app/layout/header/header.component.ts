@@ -35,6 +35,6 @@ function saudacao(): string {
 })
 export class HeaderComponent {
   readonly theme = inject(ThemeService);
-  readonly subtitle = input<string>('SAEA · Gestão de Infraestrutura Escolar');
+  readonly subtitle = input<string>('Distribuição de Salas');
   readonly saudacao = saudacao();
 }

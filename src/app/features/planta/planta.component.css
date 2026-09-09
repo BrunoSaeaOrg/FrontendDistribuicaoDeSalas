@@ -171,6 +171,9 @@
   outline-offset: 2px;
   transform: scale(1.05);
 }
+.planta-desk--dragging {
+  opacity: 0.4;
+}
 .planta-desk-icon {
   font-size: 16px;
 }
