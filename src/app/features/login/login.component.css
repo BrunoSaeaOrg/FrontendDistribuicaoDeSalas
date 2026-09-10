@@ -200,10 +200,26 @@
   bottom: 24px;
   left: 0;
   right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   text-align: center;
   font-size: 10px;
   letter-spacing: 0.02em;
   color: var(--saea-ink-soft);
+}
+
+.saea-login-copyright b {
+  font-weight: 700;
+  color: var(--saea-ink);
+}
+
+.saea-login-copyright__logo {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 @media (max-width: 600px) {

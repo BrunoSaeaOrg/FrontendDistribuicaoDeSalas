@@ -23,3 +23,8 @@
   color: var(--saea-ink-faint);
   font-weight: 500;
 }
+
+.saea-footer-text b {
+  font-weight: 700;
+  color: var(--saea-ink);
+}

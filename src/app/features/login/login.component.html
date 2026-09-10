@@ -67,5 +67,12 @@
     </form>
   </div>
 
-  <div class="saea-login-copyright">© {{ currentYear }} DESENVOLVIDO POR SISTEMAS SAEA</div>
+  <div class="saea-login-copyright">
+    <img
+      [src]="theme.isDark() ? 'assets/logo-header-white.png' : 'assets/logo-color.png'"
+      alt="SAEA"
+      class="saea-login-copyright__logo"
+    />
+    <span>© {{ currentYear }} · DESENVOLVIDO POR <b>SISTEMAS SAEA</b></span>
+  </div>
 </div>
