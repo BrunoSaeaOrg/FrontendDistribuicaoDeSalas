@@ -50,3 +50,47 @@ button {
   padding: var(--sp-6);
   box-sizing: border-box;
 }
+
+/*
+ * Em telas baixas o header encolhe (56px -> 44px) e os respiros do shell
+ * diminuem, entao o desconto de altura do menu lateral acompanha.
+ * Precisa ficar aqui (global, no mesmo seletor `html` de _tokens.scss):
+ * o CSS de componente e encapsulado e nao alcancaria a variavel.
+ */
+@media (max-height: 800px) {
+  html {
+    --saea-side-gutter: 104px;
+  }
+}
+
+/*
+ * Altura de card padronizada (regra do projeto): todo card de conteudo tem a
+ * mesma altura do menu lateral, para os rodapes alinharem em qualquer tela.
+ *
+ * --saea-card-h espelha o clamp() de .saea-side (side-panel.component.css).
+ * Mudou la, muda aqui.
+ */
+html {
+  --saea-card-h: clamp(420px, calc(100dvh - var(--saea-side-gutter)), 800px);
+}
+
+/*
+ * A classe .saea-card-fill e aplicada no <app-card>; o estilo dela vive em
+ * card.component.css (:host(.saea-card-fill)), porque o :host do componente
+ * sobrescreveria uma regra global de mesma especificidade.
+ *
+ * Telas com filtros acima do card devem declarar --saea-card-offset no
+ * container da pagina (altura dos filtros + gaps), senao o card empurra o
+ * rodape para fora da viewport.
+ */
+
+/*
+ * Filho direto do corpo do card que deve absorver a sobra e rolar.
+ * min-height:0 e obrigatorio: sem ele o flex item nao encolhe e vaza o card.
+ */
+.saea-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

@@ -10,7 +10,8 @@
 .saea-body {
   flex: 1;
   display: flex;
-  align-items: stretch;
+  /* flex-start (em vez de stretch) impede o menu lateral de esticar ate o rodape. */
+  align-items: flex-start;
   gap: var(--sp-5);
   padding: 0 var(--sp-6) var(--sp-6) 0;
   box-sizing: border-box;
@@ -18,6 +19,8 @@
 
 .saea-side-wrap {
   flex-shrink: 0;
+  /* Mantem o contexto de rolagem para o position:sticky do painel. */
+  align-self: stretch;
 }
 
 .saea-main {

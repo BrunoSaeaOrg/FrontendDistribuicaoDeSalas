@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { effect, Injectable, signal } from '@angular/core';
 import { gerarSolicitacoes } from '../mock/mock-data.generator';
 import { Sala, Solicitacao } from '../models';
 import { SalasService } from './salas.service';
@@ -8,12 +8,24 @@ import { ToastService } from './toast.service';
 export class SolicitacoesService {
   private readonly _solicitacoes = signal<Solicitacao[]>([]);
   readonly solicitacoes = this._solicitacoes.asReadonly();
+  private seeded = false;
 
   constructor(
     private readonly salasService: SalasService,
     private readonly toast: ToastService,
   ) {
-    this._solicitacoes.set(gerarSolicitacoes(this.salasService.salas()));
+    effect(() => {
+      const salas = this.salasService.salas();
+      if (salas.length === 0) {
+        // Logout / troca de usuario zera as salas: libera o seed para a proxima carga.
+        this.seeded = false;
+        this._solicitacoes.set([]);
+        return;
+      }
+      if (this.seeded) return;
+      this.seeded = true;
+      this._solicitacoes.set(gerarSolicitacoes(salas));
+    });
   }
 
   criar(sala: Sala, quantidade: number, justificativa: string): void {

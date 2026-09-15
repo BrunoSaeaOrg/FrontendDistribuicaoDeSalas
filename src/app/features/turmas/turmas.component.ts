@@ -2,8 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
-import { Turno } from '../../core/models';
+import { Turno, TurmaLivre } from '../../core/models';
 import { CardComponent } from '../../shared/ui/card/card.component';
+import { ConfirmDialogService } from '../../shared/ui/confirm-dialog/confirm-dialog.service';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
 interface TurmaCell {
@@ -14,10 +15,12 @@ interface TurmaCell {
   nomeProprio: string;
   alunos: number;
   excede: boolean;
+  turmasLivres: TurmaLivre[];
 }
 
 interface TurmaRow {
   id: string;
+  unidadeId: string;
   nome: string;
   unidadeNome: string;
   unidadeCor: string;
@@ -37,6 +40,7 @@ const TURNOS: Turno[] = ['manha', 'tarde'];
 })
 export class TurmasComponent {
   private readonly salasService = inject(SalasService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
   readonly uiMode = inject(UiModeService);
 
   readonly unidade = signal('todas');
@@ -63,25 +67,37 @@ export class TurmasComponent {
           nomeProprio: t?.nomeProprio ?? '',
           alunos: t?.alunos ?? 0,
           excede: !!t && t.alunos > s.carteiras,
+          turmasLivres: this.salasService.turmasLivresPara(s, turno),
         };
       });
-      return { id: s.id, nome: s.nome, unidadeNome: u.nome, unidadeCor: u.cor, carteiras: s.carteiras, cells };
+      return { id: s.id, unidadeId: s.unidadeId, nome: s.nome, unidadeNome: u.nome, unidadeCor: u.cor, carteiras: s.carteiras, cells };
     });
   });
 
-  onNomeProprioChange(salaId: string, turno: Turno, value: string): void {
-    this.salasService.setTurmaField(salaId, turno, 'nomeProprio', value);
+  turmaLivreOptions(cell: TurmaCell): SelectOption[] {
+    return [
+      { value: '', label: 'Selecione uma turma...' },
+      ...cell.turmasLivres.map((t) => ({ value: t.codTurma, label: `${t.nome} (${t.alunos} alunos)` })),
+    ];
   }
-  onNomeChange(salaId: string, turno: Turno, value: string): void {
-    this.salasService.setTurmaField(salaId, turno, 'nome', value);
+
+  async liberar(row: TurmaRow, cell: TurmaCell): Promise<void> {
+    const sala = this.salasService.sala(row.id);
+    if (!sala) return;
+    const ok = await this.confirmDialog.confirm({
+      title: 'Liberar turma da sala?',
+      description: `${cell.nomeProprio} deixará de ocupar ${row.nome} no turno da ${cell.turno === 'manha' ? 'manhã' : 'tarde'}.`,
+      confirmLabel: 'Liberar',
+      danger: true,
+    });
+    if (ok) this.salasService.liberarTurno(sala, cell.turno);
   }
-  onAlunosChange(salaId: string, turno: Turno, value: string): void {
-    this.salasService.setTurmaField(salaId, turno, 'alunos', value);
-  }
-  liberar(salaId: string, turno: Turno): void {
-    this.salasService.liberarTurno(salaId, turno);
-  }
-  vincular(salaId: string, turno: Turno): void {
-    this.salasService.vincularTurno(salaId, turno);
+
+  vincular(row: TurmaRow, cell: TurmaCell, codTurma: string): void {
+    if (!codTurma) return;
+    const sala = this.salasService.sala(row.id);
+    const turma = cell.turmasLivres.find((t) => t.codTurma === codTurma);
+    if (!sala || !turma) return;
+    this.salasService.vincularTurno(sala, turma);
   }
 }

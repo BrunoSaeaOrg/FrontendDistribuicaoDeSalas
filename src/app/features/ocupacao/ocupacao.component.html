@@ -5,7 +5,7 @@
 
     @if (showExtraFiltros()) {
       <app-select label="Turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)" [options]="turnoOptions" />
-      <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="segmento.set($event)" [options]="segmentoOptions" />
+      <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="segmento.set($event)" [options]="segmentoOptions()" />
       <app-select label="Agrupar por" [ngModel]="agrupar()" (ngModelChange)="agrupar.set($event)" [options]="agruparOptions" />
     }
 

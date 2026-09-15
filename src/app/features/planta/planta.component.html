@@ -2,7 +2,7 @@
   <div class="planta-filters">
     <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />
     <app-select label="Ano letivo" [ngModel]="'2026'" [options]="anoOptions" />
-    <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="onSegmentoChange($event)" [options]="segmentoOptions" />
+    <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="onSegmentoChange($event)" [options]="segmentoOptions()" />
     <app-select label="Série" [ngModel]="serie()" (ngModelChange)="onSerieChange($event)" [options]="serieOptions()" />
     <app-select label="Sala" [ngModel]="sala()?.id ?? ''" (ngModelChange)="onSalaChange($event)" [options]="salaOptions()" />
     <div class="planta-tabs">
@@ -36,20 +36,15 @@
           <div class="planta-legend">
             <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--aluno"></span>Aluno sentado</span>
             <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--vaga"></span>Carteira vaga</span>
-            <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--livre"></span>Espaço sem carteira</span>
             <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--excedente"></span>Acima da capacidade</span>
           </div>
-
-          @if (uiMode.editorMode()) {
-            <div class="planta-hint">Arraste uma carteira até outra sala à direita, ou clique nela e depois em "Mover para cá".</div>
-          }
         </div>
 
         <div class="planta-status-row">
           <div class="planta-progress-wrap">
             <div class="planta-progress-labels">
-              <span>{{ sala()!.carteiras }} carteiras de {{ capacidade() }} possíveis</span>
-              <span>{{ capacidade() - sala()!.carteiras < 0 ? 0 : capacidade() - sala()!.carteiras }} vagas</span>
+              <span>{{ turmaAtual()?.alunos ?? 0 }} alunos de {{ capacidade() }} carteiras</span>
+              <span>{{ capacidade() - (turmaAtual()?.alunos ?? 0) < 0 ? 0 : capacidade() - (turmaAtual()?.alunos ?? 0) }} vagas</span>
             </div>
             <div class="planta-progress-track">
               <div class="planta-progress-fill" [style.width.%]="plantaPct()"></div>
@@ -70,16 +65,7 @@
             <div class="planta-room-board"></div>
             <div class="planta-desks">
               @for (desk of deskSlots(); track desk.index) {
-                <div
-                  class="planta-desk planta-desk--{{ desk.kind }}"
-                  [class.planta-desk--selected]="selectedDesk() === desk.index"
-                  [class.planta-desk--dragging]="isDraggingDesk() && selectedDesk() === desk.index"
-                  [attr.draggable]="desk.draggable"
-                  [title]="desk.tooltip"
-                  (click)="toggleDesk(desk)"
-                  (dragstart)="onDeskDragStart($event, desk)"
-                  (dragend)="onDeskDragEnd()"
-                >
+                <div class="planta-desk planta-desk--{{ desk.kind }}" [title]="desk.tooltip">
                   <span class="material-icons planta-desk-icon">{{ desk.icon }}</span>
                 </div>
               }
@@ -91,22 +77,13 @@
       <app-card title="Outras salas da unidade">
         <div class="planta-outras">
           @for (room of outrasSalas(); track room.id) {
-            <div
-              class="planta-outra-row"
-              [class.planta-outra-row--over]="dragOverSalaId() === room.id"
-              (dragover)="onRoomDragOver($event, room.id)"
-              (dragleave)="onRoomDragLeave()"
-              (drop)="onRoomDrop($event, room.id)"
-            >
+            <div class="planta-outra-row">
               <div>
                 <div class="planta-outra-nome">{{ room.nome }}</div>
                 <div class="planta-outra-meta">{{ room.tipo }} · {{ room.ocupadas }}/{{ room.carteiras }} carteiras ocupadas</div>
               </div>
               <div class="planta-outra-actions">
                 <app-badge [tone]="room.statusInfo.tone">{{ room.statusInfo.label }}</app-badge>
-                @if (hasSelectedDesk()) {
-                  <button type="button" class="planta-mover-btn" (click)="moverParaCa(room.id)">Mover para cá</button>
-                }
               </div>
             </div>
           }

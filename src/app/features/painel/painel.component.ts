@@ -66,9 +66,12 @@ export class PainelComponent {
   readonly unidadesOverview = computed(() =>
     this.salasService.unidades().map((u) => {
       const uSalas = this.salasService.salasDaUnidade(u.id);
-      const cart = uSalas.reduce((a, s) => a + s.carteiras, 0);
+      const ocupados = uSalas.reduce(
+        (a, s) => a + Math.max(this.salasService.alunosNoTurno(s, 'manha'), this.salasService.alunosNoTurno(s, 'tarde')),
+        0,
+      );
       const cap = uSalas.reduce((a, s) => a + this.salasService.capacidade(s), 0);
-      const pct = cap > 0 ? Math.round((cart / cap) * 100) : 0;
+      const pct = cap > 0 ? Math.round((ocupados / cap) * 100) : 0;
       return { id: u.id, nome: u.nome.toUpperCase(), cor: u.cor, pct, salas: uSalas.length };
     }),
   );

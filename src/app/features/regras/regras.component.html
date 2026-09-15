@@ -11,8 +11,16 @@
     Bombeiros e pode custar o AVCB.
   </app-alert>
 
-  <app-card title="Regras de ocupação" subtitle="Usadas para calcular a capacidade física de cada sala">
+  <app-card title="Regras de ocupação" subtitle="Salvas por unidade no TOTVS">
     <div class="regras-form">
+      <app-select
+        label="Unidade"
+        [options]="filialOptions()"
+        [ngModel]="codFilial()"
+        (ngModelChange)="codFilial.set($event)"
+        [disabled]="uiMode.readOnlyMode()"
+        helper="As regras são gravadas na unidade selecionada."
+      />
       <app-input
         label="Área por pessoa (m²)"
         type="number"
@@ -35,8 +43,18 @@
         [disabled]="uiMode.readOnlyMode()"
         (checkedChange)="regrasService.setPermitirExcesso($event)"
       />
+      <app-input
+        label="Observações"
+        [ngModel]="obs()"
+        (ngModelChange)="obs.set($event)"
+        [disabled]="uiMode.readOnlyMode()"
+        placeholder="Motivo da alteração (opcional)"
+      />
       @if (uiMode.editorMode()) {
-        <div>
+        <div class="regras-actions">
+          <app-button [disabled]="!podeSalvar()" (clicked)="salvar()">
+            {{ regrasService.salvando() ? 'Salvando...' : 'Salvar regras' }}
+          </app-button>
           <app-button variant="ghost" (clicked)="restaurarPadroes()">Restaurar padrões</app-button>
         </div>
       }

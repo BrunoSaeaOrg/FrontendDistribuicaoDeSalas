@@ -2,6 +2,17 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
+  /*
+   * Desconto para o card alinhar com o rodape do menu lateral: filtros (~72px)
+   * + barra de unidades (~46px) + os 2 gaps entre eles.
+   */
+  --saea-card-offset: calc(72px + 46px + var(--sp-5) * 2);
+}
+
+/* Filtros e barra de unidades nao esticam: a altura sobra para o card. */
+.painel-filters,
+.painel-units-bar {
+  flex-shrink: 0;
 }
 
 .painel-filters {
@@ -47,16 +58,16 @@
   display: inline-block;
 }
 
+/*
+ * A altura vem do card (.saea-card-fill). Declara os dois eixos junto com o
+ * flex: o CSS do componente carrega depois do styles.css global, entao um
+ * `overflow-x` isolado aqui anularia o `overflow-y` de .saea-scroll.
+ */
 .painel-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-x: auto;
   overflow-y: auto;
-  max-height: 576px;
-}
-
-@media (max-height: 800px) {
-  .painel-table-wrap {
-    max-height: 386px;
-  }
 }
 
 .painel-table thead th {
@@ -138,4 +149,10 @@
   font-size: var(--fs-sm);
   cursor: pointer;
   white-space: nowrap;
+}
+
+@media (max-height: 800px) {
+  .painel-page {
+    --saea-card-offset: calc(72px + 46px + var(--sp-4) * 2);
+  }
 }

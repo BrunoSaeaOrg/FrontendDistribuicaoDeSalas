@@ -16,3 +16,10 @@
   flex-direction: column;
   gap: var(--sp-5);
 }
+
+.regras-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}

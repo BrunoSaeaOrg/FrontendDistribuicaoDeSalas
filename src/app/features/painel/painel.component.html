@@ -20,11 +20,11 @@
     }
   </div>
 
-  <app-card>
+  <app-card class="saea-card-fill">
     @if (rows().length === 0) {
       <app-empty-state icon="meeting_room" title="Nenhuma sala encontrada" description="Ajuste os filtros para ver outras salas." />
     } @else {
-      <div class="painel-table-wrap">
+      <div class="painel-table-wrap saea-scroll">
         <table class="painel-table">
           <thead>
             <tr>

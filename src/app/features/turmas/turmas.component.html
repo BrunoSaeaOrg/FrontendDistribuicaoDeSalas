@@ -29,42 +29,28 @@
                 <td class="turmas-cell-turno">
                   @if (cell.hasTurma) {
                     <div class="turmas-turma">
-                      @if (uiMode.editorMode()) {
-                        <div class="turmas-turma-edit">
-                          <input
-                            class="turmas-input turmas-input--name"
-                            [ngModel]="cell.nomeProprio"
-                            (ngModelChange)="onNomeProprioChange(row.id, cell.turno, $event)"
-                            placeholder="Nome da turma"
-                          />
-                          <div class="turmas-turma-row">
-                            <input
-                              class="turmas-input"
-                              [ngModel]="cell.nome"
-                              (ngModelChange)="onNomeChange(row.id, cell.turno, $event)"
-                            />
-                            <input
-                              class="turmas-input turmas-input--num"
-                              type="number"
-                              [ngModel]="cell.alunos"
-                              (ngModelChange)="onAlunosChange(row.id, cell.turno, $event)"
-                            />
-                            <button type="button" class="turmas-remove" aria-label="Liberar" (click)="liberar(row.id, cell.turno)">×</button>
-                          </div>
-                        </div>
-                      } @else {
-                        <div class="turmas-readonly">
-                          {{ cell.nomeProprio }} <span class="turmas-readonly-soft">· {{ cell.nome }} · {{ cell.alunos }} al.</span>
-                        </div>
-                      }
+                      <div class="turmas-readonly">
+                        {{ cell.nomeProprio }} <span class="turmas-readonly-soft">· {{ cell.alunos }} al.</span>
+                      </div>
                       @if (cell.excede) {
                         <span class="turmas-excede">▲ excede carteiras</span>
+                      }
+                      @if (uiMode.editorMode()) {
+                        <button type="button" class="turmas-remove-btn" (click)="liberar(row, cell)">Liberar</button>
                       }
                     </div>
                   }
                   @if (cell.noTurma) {
                     @if (uiMode.editorMode()) {
-                      <button type="button" class="turmas-vincular" (click)="vincular(row.id, cell.turno)">+ Vincular</button>
+                      @if (cell.turmasLivres.length > 0) {
+                        <app-select
+                          [options]="turmaLivreOptions(cell)"
+                          [ngModel]="''"
+                          (ngModelChange)="vincular(row, cell, $event)"
+                        />
+                      } @else {
+                        <span class="turmas-livre">— Nenhuma turma disponível —</span>
+                      }
                     } @else {
                       <span class="turmas-livre">— Livre —</span>
                     }

@@ -70,13 +70,10 @@ export class OcupacaoComponent {
     { value: 'manha', label: 'Manhã' },
     { value: 'tarde', label: 'Tarde' },
   ];
-  readonly segmentoOptions: SelectOption[] = [
+  readonly segmentoOptions = computed<SelectOption[]>(() => [
     { value: 'todas', label: 'Todos os segmentos' },
-    { value: 'Educação Infantil', label: 'Educação Infantil' },
-    { value: 'Fundamental I', label: 'Fundamental I' },
-    { value: 'Fundamental II', label: 'Fundamental II' },
-    { value: 'Ensino Médio', label: 'Ensino Médio' },
-  ];
+    ...this.salasService.segmentos().map((s) => ({ value: s, label: s })),
+  ]);
   readonly agruparOptions: { value: Agrupador; label: string }[] = [
     { value: 'unidade', label: 'Unidade' },
     { value: 'turno', label: 'Turno' },
@@ -107,7 +104,7 @@ export class OcupacaoComponent {
           unidadeNome: u.nome,
           unidadeCor: u.cor,
           turno,
-          segmento: this.salasService.segmentoFromNome(t.nome),
+          segmento: t.segmento,
           serie: this.salasService.serieFromNome(t.nome),
           turma: t.nomeProprio || t.nome,
           alunos: t.alunos,

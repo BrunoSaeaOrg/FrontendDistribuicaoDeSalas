@@ -8,7 +8,16 @@
   flex-direction: column;
   padding: var(--sp-4);
   box-sizing: border-box;
-  height: 100%;
+  /*
+   * Altura elastica: cresce ate 800px no desktop, mas nunca ultrapassa o espaco
+   * visivel do notebook. O 3o argumento do clamp() desconta header + rodape +
+   * respiros do shell (--saea-side-gutter), entao o menu para exatamente na
+   * borda da viewport em vez de transbordar.
+   */
+  height: clamp(420px, calc(100dvh - var(--saea-side-gutter)), 800px);
+  /* Acompanha a rolagem em vez de esticar junto com a pagina. */
+  position: sticky;
+  top: var(--sp-4);
   overflow: hidden;
   font-family: var(--font-body);
 }
@@ -53,10 +62,16 @@
 .saea-side-list {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-5);
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  /*
+   * O gap encolhe com a altura disponivel: em telas baixas os 6 itens se
+   * aproximam em vez de estourarem para fora do painel.
+   */
+  gap: clamp(var(--sp-2), 1.4vh, var(--sp-5));
+  /* Absorve a folga vertical para o botao "Sair" ficar ancorado embaixo. */
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Sem scroll: os itens de navegacao cabem inteiros, sem barra interna. */
+  overflow: hidden;
 }
 
 .saea-side-item {
@@ -129,7 +144,8 @@
   border: none;
   background: none;
   padding: 0;
-  margin-top: var(--sp-5);
+  margin-top: clamp(var(--sp-3), 1.4vh, var(--sp-5));
+  flex-shrink: 0;
   font-family: inherit;
   text-align: left;
 }

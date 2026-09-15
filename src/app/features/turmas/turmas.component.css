@@ -73,44 +73,15 @@
   gap: 4px;
 }
 
-.turmas-turma-edit {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.turmas-turma-row {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.turmas-input {
-  font-size: var(--fs-sm);
-  padding: 4px 6px;
-  border: 1px solid var(--saea-border);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-body);
-}
-.turmas-input--name {
-  font-weight: 600;
-}
-.turmas-input:not(.turmas-input--num):not(.turmas-input--name) {
-  flex: 1;
-  min-width: 70px;
-}
-.turmas-input--num {
-  width: 48px;
-}
-
-.turmas-remove {
+.turmas-remove-btn {
+  align-self: flex-start;
   border: none;
   background: none;
-  color: var(--saea-ink-faint);
+  color: var(--saea-danger);
   cursor: pointer;
-  font-size: 16px;
-  padding: 0 2px;
-  line-height: 1;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  padding: 0;
 }
 
 .turmas-readonly {
@@ -125,16 +96,6 @@
   font-size: var(--fs-2xs);
   color: var(--saea-danger);
   font-weight: 600;
-}
-
-.turmas-vincular {
-  border: 1px dashed var(--saea-border);
-  background: none;
-  color: var(--saea-ink-faint);
-  border-radius: var(--radius-sm);
-  padding: 4px 10px;
-  font-size: var(--fs-xs);
-  cursor: pointer;
 }
 
 .turmas-livre {

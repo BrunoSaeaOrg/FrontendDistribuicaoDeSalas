@@ -65,10 +65,13 @@ export class SolicitacoesComponent {
     return sala ? this.salasService.capacidade(sala) : 0;
   });
 
-  readonly resultante = computed(() => {
+  private readonly ocupacaoAtual = computed(() => {
     const sala = this.salaAtual();
-    return sala ? sala.carteiras + (Number(this.quantidade()) || 0) : 0;
+    if (!sala) return 0;
+    return Math.max(this.salasService.alunosNoTurno(sala, 'manha'), this.salasService.alunosNoTurno(sala, 'tarde'));
   });
+
+  readonly resultante = computed(() => this.ocupacaoAtual() + (Number(this.quantidade()) || 0));
 
   readonly excede = computed(() => {
     const sala = this.salaAtual();
@@ -106,7 +109,7 @@ export class SolicitacoesComponent {
     if (qtd <= 0) {
       return {
         tone: 'info',
-        text: `${sala.nome} tem ${sala.carteiras} carteira(s) hoje, capacidade calculada de ${cap}.`,
+        text: `${sala.nome} tem ${this.ocupacaoAtual()} aluno(s) hoje, capacidade de ${cap} carteiras.`,
       };
     }
     if (!this.excede() && !this.quaseLotada()) {
@@ -129,7 +132,7 @@ export class SolicitacoesComponent {
     }
     return {
       tone: 'danger',
-      text: `Sem espaço físico: ${sala.nome} comporta no máximo ${cap} carteiras (hoje: ${sala.carteiras}). O pedido de +${qtd} excede em ${this.resultante() - cap}.`,
+      text: `Sem espaço físico: ${sala.nome} comporta no máximo ${cap} carteiras (hoje: ${this.ocupacaoAtual()} alunos). O pedido de +${qtd} excede em ${this.resultante() - cap}.`,
     };
   });
 

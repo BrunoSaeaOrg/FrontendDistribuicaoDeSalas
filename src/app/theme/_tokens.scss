@@ -29,6 +29,11 @@
   --sp-10: 40px;
   --sp-12: 48px;
 
+  // Espaco vertical que o shell consome fora do menu lateral:
+  // header (56) + rodape (~32) + respiros (sp-4 topo + sp-6 base). Serve de
+  // desconto no clamp() de altura do side-panel.
+  --saea-side-gutter: 128px;
+
   // Forma
   --radius-sm: 12px;
   --radius-md: 18px;

@@ -24,6 +24,36 @@
   margin-top: var(--sp-4);
 }
 
+/*
+ * Altura padronizada (regra do projeto): o card acompanha a altura do menu
+ * lateral. Precisa ficar AQUI e nao no styles.css global: `:host` tem a mesma
+ * especificidade de uma classe, e sendo o CSS do componente carregado depois,
+ * o `display:block` do :host sobrescreveria um `display:flex` global.
+ */
+:host(.saea-card-fill) {
+  height: calc(var(--saea-card-h) - var(--saea-card-offset, 0px));
+  display: flex;
+  flex-direction: column;
+  /* Nada escapa das bordas arredondadas do card. */
+  overflow: hidden;
+}
+
+/*
+ * Quando o card usa altura fixa (.saea-card-fill), o corpo precisa repassar a
+ * folga vertical ao conteudo — sem isso a area rolavel interna nao recebe
+ * altura e vaza para fora do card.
+ */
+:host(.saea-card-fill) .saea-card-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+:host(.saea-card-fill) .saea-card-header {
+  flex-shrink: 0;
+}
+
 ::ng-deep [card-footer] {
   display: block;
   margin-top: var(--sp-4);
