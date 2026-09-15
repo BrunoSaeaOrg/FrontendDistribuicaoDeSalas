@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ApiSalaDto, ApiTurmaDto, ApiTurmaXSalaDto } from '../models/ocupacao-api.model';
+import { ApiRegraDto, ApiSalaDto, ApiTurmaDto, ApiTurmaXSalaDto } from '../models/ocupacao-api.model';
 
 @Injectable({ providedIn: 'root' })
 export class OcupacaoApiService {
@@ -29,6 +29,12 @@ export class OcupacaoApiService {
     });
   }
 
+  getRegras(codFilial: number): Observable<ApiRegraDto[]> {
+    return this.http.post<ApiRegraDto[]>(`${this.baseUrl}/OC_SAL_REGRAS`, {
+      CODFILIAL: String(codFilial),
+    });
+  }
+
   salvarRegras(request: {
     codFilial: number;
     areaPorPessoa: number;
@@ -41,7 +47,8 @@ export class OcupacaoApiService {
       // O TOTVS espera o decimal no formato brasileiro (1,5).
       AREAPORPESSOA: String(request.areaPorPessoa).replace('.', ','),
       PERCMAXUTIL: String(request.percMaxUtil),
-      PERMEXCEDER: request.permExceder ? '1' : '0',
+      // Padrao RM (antigo TOTVS) para campo SN: 1 = Sim, 2 = Nao.
+      PERMEXCEDER: request.permExceder ? '1' : '2',
       OBS: request.obs,
     });
   }

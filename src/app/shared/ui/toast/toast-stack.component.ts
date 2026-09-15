@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { ToastService } from '../../../core/services/toast.service';
 import { ToastComponent } from './toast.component';
 
@@ -9,7 +9,7 @@ import { ToastComponent } from './toast.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="saea-toast-stack">
-      @for (toast of toastService.toasts(); track toast.id) {
+      @for (toast of toastsRecenteAoTopo(); track toast.id) {
         <app-toast [toast]="toast" />
       }
     </div>
@@ -18,4 +18,7 @@ import { ToastComponent } from './toast.component';
 })
 export class ToastStackComponent {
   readonly toastService = inject(ToastService);
+
+  // A pilha nasce no canto superior direito: o mais recente fica no topo.
+  readonly toastsRecenteAoTopo = computed(() => [...this.toastService.toasts()].reverse());
 }

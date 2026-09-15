@@ -38,3 +38,13 @@ export interface ApiTurmaDto {
   TURNO: string;
   OCUPACAO: number;
 }
+
+export interface ApiRegraDto {
+  CODFILIAL: number;
+  FILIAL: string;
+  AREAPORPESSOA: number;
+  PERCMAXUTIL: number;
+  /** Padrao RM (antigo TOTVS) para campo SN: 1 = Sim, 2 = Nao. */
+  PERMEXCEDER: 1 | 2;
+  OBS: string;
+}

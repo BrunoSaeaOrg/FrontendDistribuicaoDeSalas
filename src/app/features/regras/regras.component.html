@@ -3,73 +3,63 @@
     <app-alert tone="primary">Somente coordenadores podem alterar as regras de ocupação.</app-alert>
   }
 
-  <app-card class="regras-card" title="Regras de ocupação" subtitle="Salvas por unidade no TOTVS">
-    <button
-      type="button"
-      class="regras-info-trigger"
-      [class.regras-info-trigger--open]="leiAberta()"
-      (click)="leiAberta.set(!leiAberta())"
-      (blur)="leiAberta.set(false)"
-      aria-label="Ver a lei de ocupação"
-      [attr.aria-expanded]="leiAberta()"
-    >
-      i
-    </button>
-    @if (leiAberta()) {
-      <div class="regras-info-popover" role="tooltip">
-        <b>A Instrução Técnica nº 11 </b>
-        (IT 11 - Saídas de Emergência) do Corpo de Bombeiros determina o limite de 1 pessoa a cada 1,50 m² de área útil. Cálculo: Tamanho da sala ÷ 1,5 m². 
-        Exemplo: sala de 45 m² → 45 ÷ 1,5 = 30 pessoas (alunos + professor). É um limite máximo de evacuação, não uma meta — a escola não deve ultrapassá-lo. 
-        Descontar da área total armários, colunas ou bancadas fixas antes de dividir. 
-        Ultrapassar o limite pode gerar advertências, multas e a cassação do AVCB
+  <div class="regras-row">
+    <app-card class="regras-card" title="Regras de ocupação" subtitle="Salvas por unidade no TOTVS">
+      <div class="regras-form">
+        <app-select
+          label="Unidade"
+          [options]="filialOptions()"
+          [ngModel]="codFilial()"
+          (ngModelChange)="codFilial.set($event)"
+          [disabled]="uiMode.readOnlyMode()"
+          helper="As regras são gravadas na unidade selecionada."
+        />
+        <app-input
+          label="Área por pessoa (m²)"
+          type="number"
+          [ngModel]="regrasService.regras().areaPorAluno"
+          (ngModelChange)="onAreaChange($event)"
+          [disabled]="uiMode.readOnlyMode()"
+          helper="Norma de evacuação do Corpo de Bombeiros: capacidade = área da sala ÷ 1,5 m²."
+        />
+        <app-input
+          label="% máximo de utilização"
+          type="number"
+          [ngModel]="regrasService.regras().pctMaximoUtilizacao"
+          (ngModelChange)="onPctChange($event)"
+          [disabled]="uiMode.readOnlyMode()"
+          helper="Acima deste percentual da capacidade, a sala é marcada como 'Quase lotada'."
+        />
+        <app-switch
+          label="Permitir exceder a capacidade calculada com justificativa"
+          [checked]="regrasService.regras().permitirExcesso"
+          [disabled]="uiMode.readOnlyMode()"
+          (checkedChange)="regrasService.setPermitirExcesso($event)"
+        />
+        <app-input
+          label="Observações"
+          [ngModel]="regrasService.obs()"
+          (ngModelChange)="regrasService.setObs($event)"
+          [disabled]="uiMode.readOnlyMode()"
+          placeholder="Motivo da alteração (opcional)"
+        />
+        @if (uiMode.editorMode()) {
+          <div class="regras-actions">
+            <app-button [disabled]="!podeSalvar()" (clicked)="salvar()">
+              {{ regrasService.salvando() ? 'Salvando...' : 'Salvar regras' }}
+            </app-button>
+            <app-button variant="ghost" (clicked)="restaurarPadroes()">Restaurar padrões</app-button>
+          </div>
+        }
       </div>
-    }
-    <div class="regras-form">
-      <app-select
-        label="Unidade"
-        [options]="filialOptions()"
-        [ngModel]="codFilial()"
-        (ngModelChange)="codFilial.set($event)"
-        [disabled]="uiMode.readOnlyMode()"
-        helper="As regras são gravadas na unidade selecionada."
-      />
-      <app-input
-        label="Área por pessoa (m²)"
-        type="number"
-        [ngModel]="regrasService.regras().areaPorAluno"
-        (ngModelChange)="onAreaChange($event)"
-        [disabled]="uiMode.readOnlyMode()"
-        helper="Norma de evacuação do Corpo de Bombeiros: capacidade = área da sala ÷ 1,5 m²."
-      />
-      <app-input
-        label="% máximo de utilização"
-        type="number"
-        [ngModel]="regrasService.regras().pctMaximoUtilizacao"
-        (ngModelChange)="onPctChange($event)"
-        [disabled]="uiMode.readOnlyMode()"
-        helper="Acima deste percentual da capacidade, a sala é marcada como 'Quase lotada'."
-      />
-      <app-switch
-        label="Permitir exceder a capacidade calculada com justificativa"
-        [checked]="regrasService.regras().permitirExcesso"
-        [disabled]="uiMode.readOnlyMode()"
-        (checkedChange)="regrasService.setPermitirExcesso($event)"
-      />
-      <app-input
-        label="Observações"
-        [ngModel]="obs()"
-        (ngModelChange)="obs.set($event)"
-        [disabled]="uiMode.readOnlyMode()"
-        placeholder="Motivo da alteração (opcional)"
-      />
-      @if (uiMode.editorMode()) {
-        <div class="regras-actions">
-          <app-button [disabled]="!podeSalvar()" (clicked)="salvar()">
-            {{ regrasService.salvando() ? 'Salvando...' : 'Salvar regras' }}
-          </app-button>
-          <app-button variant="ghost" (clicked)="restaurarPadroes()">Restaurar padrões</app-button>
-        </div>
-      }
+    </app-card>
+
+    <div class="regras-info-popover" role="note">
+      <b>A Instrução Técnica nº 11 </b>
+      (IT 11 - Saídas de Emergência) do Corpo de Bombeiros determina o limite de 1 pessoa a cada 1,50 m² de área útil. Cálculo: Tamanho da sala ÷ 1,5 m².
+      Exemplo: sala de 45 m² → 45 ÷ 1,5 = 30 pessoas (alunos + professor). É um limite máximo de evacuação, não uma meta — a escola não deve ultrapassá-lo.
+      Descontar da área total armários, colunas ou bancadas fixas antes de dividir.
+      Ultrapassar o limite pode gerar advertências, multas e a cassação do AVCB
     </div>
-  </app-card>
+  </div>
 </div>

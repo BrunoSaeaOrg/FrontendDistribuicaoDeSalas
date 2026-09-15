@@ -12,7 +12,6 @@
  * e empurra o footer pra fora da viewport (min-height:auto implicito).
  */
 .regras-page {
-  max-width: 560px;
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
@@ -23,8 +22,17 @@
   padding-right: var(--sp-2);
 }
 
-.regras-page > app-card {
-  flex-shrink: 0;
+/* Card de regras e texto da lei lado a lado; empilha quando a tela estreita. */
+.regras-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sp-5);
+}
+
+.regras-card {
+  flex: 1 1 460px;
+  min-width: 0;
 }
 
 .regras-form {
@@ -41,44 +49,14 @@
 }
 
 /*
- * Ancora o botao/popover de info no canto do card (em vez do app-alert fixo
- * ocupando uma linha inteira acima do formulario) — libera a altura toda
- * para o conteudo do card, que e o que sobra pra rolar em telas baixas.
+ * Texto da lei, sempre visivel ao lado do card. Sem header (titulo/subtitulo)
+ * como o card ao lado, entao o padding e o mesmo em todos os lados — nao ha
+ * motivo pra reservar espaco extra no topo so pra "imitar" a altura do header
+ * do card vizinho.
  */
-.regras-card {
-  position: relative;
-}
-
-.regras-info-trigger {
-  position: absolute;
-  top: var(--sp-6);
-  right: var(--sp-6);
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: none;
-  background: var(--saea-primary-strong);
-  color: #fff;
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  font-family: var(--font-body);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.regras-info-trigger:hover,
-.regras-info-trigger--open {
-  background: var(--saea-primary);
-}
-
 .regras-info-popover {
-  position: absolute;
-  top: calc(var(--sp-6) + 32px);
-  right: var(--sp-6);
-  z-index: 10;
-  width: min(360px, calc(100% - var(--sp-6) * 2));
+  flex: 1 1 280px;
+  min-width: 0;
   background: var(--saea-surface);
   border: 1px solid var(--saea-border);
   border-radius: var(--radius-lg);
