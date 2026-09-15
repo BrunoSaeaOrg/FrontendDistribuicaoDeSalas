@@ -18,12 +18,12 @@
   </div>
 
   @if (!sala()) {
-    <app-card>
+    <app-card class="saea-card-fill">
       <app-empty-state icon="meeting_room" title="Nenhuma sala encontrada" description="Ajuste os filtros para ver outras salas." />
     </app-card>
   } @else {
     <div class="planta-grid">
-      <app-card>
+      <app-card class="saea-card-fill">
         <div class="planta-head">
           <div>
             <div class="planta-nome">{{ sala()!.nome }}</div>
@@ -62,7 +62,6 @@
 
         <div class="planta-room-wrap">
           <div class="planta-room">
-            <div class="planta-room-board"></div>
             <div class="planta-desks">
               @for (desk of deskSlots(); track desk.index) {
                 <div class="planta-desk planta-desk--{{ desk.kind }}" [title]="desk.tooltip">
@@ -74,8 +73,8 @@
         </div>
       </app-card>
 
-      <app-card title="Outras salas da unidade">
-        <div class="planta-outras">
+      <app-card class="saea-card-fill" title="Outras salas da unidade">
+        <div class="planta-outras saea-scroll">
           @for (room of outrasSalas(); track room.id) {
             <div class="planta-outra-row">
               <div>

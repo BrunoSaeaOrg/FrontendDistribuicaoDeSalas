@@ -35,6 +35,7 @@ export class RegrasComponent {
 
   readonly codFilial = signal('');
   readonly obs = signal('');
+  readonly leiAberta = signal(false);
 
   readonly filialOptions = computed<SelectOption[]>(() => [
     { value: '', label: 'Selecione a unidade...' },

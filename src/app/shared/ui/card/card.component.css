@@ -25,13 +25,22 @@
 }
 
 /*
- * Altura padronizada (regra do projeto): o card acompanha a altura do menu
- * lateral. Precisa ficar AQUI e nao no styles.css global: `:host` tem a mesma
+ * Altura padronizada (regra do projeto): o card ocupa toda a folga vertical
+ * que sobra na coluna da pagina, que por sua vez tem a mesma altura do menu
+ * lateral (via align-items:stretch em .saea-body — ver app.css). Por isso
+ * flex:1 aqui, e NAO uma altura absoluta com desconto estimado: um numero
+ * fixo para "altura dos filtros" sempre dessincroniza da altura real
+ * (padding, quebra de linha, fonte) e desalinha o rodape do card com o do
+ * menu. `min-height:0` e obrigatorio: sem ele um flex item nao encolhe
+ * abaixo do conteudo e o card vaza a coluna.
+ *
+ * Precisa ficar AQUI e nao no styles.css global: `:host` tem a mesma
  * especificidade de uma classe, e sendo o CSS do componente carregado depois,
  * o `display:block` do :host sobrescreveria um `display:flex` global.
  */
 :host(.saea-card-fill) {
-  height: calc(var(--saea-card-h) - var(--saea-card-offset, 0px));
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   /* Nada escapa das bordas arredondadas do card. */

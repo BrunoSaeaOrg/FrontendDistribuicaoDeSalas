@@ -1,6 +1,6 @@
 <div class="sol-page">
   @if (uiMode.editorMode()) {
-    <app-card title="Nova solicitação" subtitle="Peça a inclusão de novas carteiras em uma sala">
+    <app-card class="saea-card-fill" title="Nova solicitação" subtitle="Peça a inclusão de novas carteiras em uma sala">
       <div class="sol-form">
         <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />
         <app-select label="Sala" [ngModel]="salaSelecionadaId()" (ngModelChange)="salaId.set($event)" [options]="salaOptions()" />
@@ -17,7 +17,7 @@
     <app-alert tone="primary">Somente coordenadores podem solicitar novas carteiras. Fale com a coordenação da unidade.</app-alert>
   }
 
-  <app-card title="Solicitações">
+  <app-card class="saea-card-fill" title="Solicitações">
     @if (solicitacoesRows().length === 0) {
       <app-empty-state icon="inbox" title="Nenhuma solicitação" />
     }

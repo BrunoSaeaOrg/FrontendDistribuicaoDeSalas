@@ -2,13 +2,29 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
 }
 
+/*
+ * A coluna toda (alerta + card) precisa caber na altura de .saea-main e rolar
+ * por dentro quando o conteudo (varios avisos, formulario grande) excede o
+ * espaco — sem flex:1/min-height:0/overflow-y aqui a pagina estoura o shell
+ * e empurra o footer pra fora da viewport (min-height:auto implicito).
+ */
 .regras-page {
   max-width: 560px;
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: var(--sp-2);
+}
+
+.regras-page > app-card {
+  flex-shrink: 0;
 }
 
 .regras-form {
@@ -22,4 +38,53 @@
   align-items: center;
   gap: var(--sp-3);
   flex-wrap: wrap;
+}
+
+/*
+ * Ancora o botao/popover de info no canto do card (em vez do app-alert fixo
+ * ocupando uma linha inteira acima do formulario) — libera a altura toda
+ * para o conteudo do card, que e o que sobra pra rolar em telas baixas.
+ */
+.regras-card {
+  position: relative;
+}
+
+.regras-info-trigger {
+  position: absolute;
+  top: var(--sp-6);
+  right: var(--sp-6);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: var(--saea-primary-strong);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-family: var(--font-body);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.regras-info-trigger:hover,
+.regras-info-trigger--open {
+  background: var(--saea-primary);
+}
+
+.regras-info-popover {
+  position: absolute;
+  top: calc(var(--sp-6) + 32px);
+  right: var(--sp-6);
+  z-index: 10;
+  width: min(360px, calc(100% - var(--sp-6) * 2));
+  background: var(--saea-surface);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elev-3);
+  padding: var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--saea-ink);
+  line-height: 1.5;
 }

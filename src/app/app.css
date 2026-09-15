@@ -1,5 +1,14 @@
 .saea-shell {
-  min-height: 100vh;
+  /*
+   * height (nao min-height): trava o shell na altura da viewport para que
+   * align-items:stretch em .saea-body funcione nos DOIS sentidos. Com
+   * min-height, um card com muito conteudo (ex.: unidade com dezenas de
+   * salas) estica .saea-main, que estica .saea-body, que estica o shell —
+   * o stretch passa a copiar a altura do MAIOR item em vez da altura do
+   * menu lateral, e o scroll interno dos cards (.saea-scroll) nunca entra
+   * em acao porque o pai nunca fica sem espaco.
+   */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--saea-bg);
@@ -9,9 +18,14 @@
 
 .saea-body {
   flex: 1;
+  min-height: 0;
   display: flex;
-  /* flex-start (em vez de stretch) impede o menu lateral de esticar ate o rodape. */
-  align-items: flex-start;
+  /*
+   * stretch: .saea-main recebe a MESMA altura de .saea-side-wrap por
+   * construcao do flexbox — nao por formulas CSS duplicadas em dois lugares
+   * (que exigem estimar a altura dos filtros e sempre dessincronizam).
+   */
+  align-items: stretch;
   gap: var(--sp-5);
   padding: 0 var(--sp-6) var(--sp-6) 0;
   box-sizing: border-box;
@@ -19,8 +33,6 @@
 
 .saea-side-wrap {
   flex-shrink: 0;
-  /* Mantem o contexto de rolagem para o position:sticky do painel. */
-  align-self: stretch;
 }
 
 .saea-main {
@@ -33,7 +45,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
-  padding-top: var(--sp-1);
+  padding-top: var(--sp-4);
 }
 
 .saea-main-top {
@@ -54,6 +66,7 @@
 
   .saea-main {
     gap: var(--sp-4);
-    padding-top: 0;
+    /* Continua espelhando o top do menu lateral neste breakpoint. */
+    padding-top: var(--sp-4);
   }
 }

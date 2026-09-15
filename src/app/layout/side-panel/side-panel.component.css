@@ -9,12 +9,14 @@
   padding: var(--sp-4);
   box-sizing: border-box;
   /*
-   * Altura elastica: cresce ate 800px no desktop, mas nunca ultrapassa o espaco
-   * visivel do notebook. O 3o argumento do clamp() desconta header + rodape +
-   * respiros do shell (--saea-side-gutter), entao o menu para exatamente na
-   * borda da viewport em vez de transbordar.
+   * Altura elastica: cresce ate 800px no desktop, mas nunca ultrapassa o
+   * espaco visivel do notebook. O menu define a altura da COLUNA inteira
+   * (via align-items:stretch em .saea-body); .saea-main e os cards passam a
+   * medir --saea-card-h so como referencia de layout interno, nunca como
+   * segunda fonte de altura duplicada.
    */
-  height: clamp(420px, calc(100dvh - var(--saea-side-gutter)), 800px);
+  height: var(--saea-card-h);
+  flex-shrink: 0;
   /* Acompanha a rolagem em vez de esticar junto com a pagina. */
   position: sticky;
   top: var(--sp-4);

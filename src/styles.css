@@ -64,24 +64,35 @@ button {
 }
 
 /*
- * Altura de card padronizada (regra do projeto): todo card de conteudo tem a
- * mesma altura do menu lateral, para os rodapes alinharem em qualquer tela.
+ * Altura base do menu lateral (--saea-card-h, usada por .saea-side). O card
+ * NAO usa mais este token diretamente: .saea-body tem align-items:stretch,
+ * entao .saea-main recebe a mesma altura do menu por construcao do flexbox,
+ * e cada tela repassa essa altura ao card via `:host { flex: 1 }` + o
+ * container da pagina em flex column. Isso elimina qualquer necessidade de
+ * estimar em pixels a altura de filtros/barras acima do card — o flexbox
+ * calcula a folga de verdade, sem numeros magicos que dessincronizam.
  *
- * --saea-card-h espelha o clamp() de .saea-side (side-panel.component.css).
- * Mudou la, muda aqui.
+ * Ver: app.css (.saea-body), side-panel.component.css (.saea-side),
+ * card.component.css (:host(.saea-card-fill) usa flex:1, nao height fixa).
  */
 html {
   --saea-card-h: clamp(420px, calc(100dvh - var(--saea-side-gutter)), 800px);
 }
 
 /*
- * A classe .saea-card-fill e aplicada no <app-card>; o estilo dela vive em
- * card.component.css (:host(.saea-card-fill)), porque o :host do componente
- * sobrescreveria uma regra global de mesma especificidade.
+ * Aplicada no <app-card>: veja a classe .saea-card-fill.
+ * O estilo dela vive em card.component.css (:host(.saea-card-fill)), porque
+ * o :host do componente sobrescreveria uma regra global de mesma
+ * especificidade (CSS de componente carrega depois do styles.css global).
  *
- * Telas com filtros acima do card devem declarar --saea-card-offset no
- * container da pagina (altura dos filtros + gaps), senao o card empurra o
- * rodape para fora da viewport.
+ * Checklist para uma nova tela seguir a regra de altura:
+ *   1. :host do componente da tela: { display:flex; flex-direction:column;
+ *      flex:1; min-height:0; }
+ *   2. Container raiz do template (ex. .foo-page): { flex:1; min-height:0;
+ *      display:flex; flex-direction:column; }
+ *   3. Filtros/barras acima do card: flex-shrink:0 (nao participam da folga)
+ *   4. <app-card class="saea-card-fill"> — cresce para preencher o resto
+ *   5. Conteudo interno que deve rolar: classe .saea-scroll (abaixo)
  */
 
 /*

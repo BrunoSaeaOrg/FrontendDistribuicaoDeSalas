@@ -3,15 +3,27 @@
     <app-alert tone="primary">Somente coordenadores podem alterar as regras de ocupação.</app-alert>
   }
 
-  <app-alert tone="info">
-    <b>Lei de ocupação: tamanho da sala ÷ 1,5 m².</b>
-    Exemplo 1: sala de 45 m² → 45 ÷ 1,5 = 30 pessoas (alunos + professor). Exemplo 2: sala de 60 m² → 60 ÷ 1,5 =
-    40 pessoas. É um limite máximo de evacuação, não uma meta — a escola não pode ultrapassá-lo. Descontar da área
-    total armários, colunas ou bancadas fixas antes de dividir. Ultrapassar o limite viola normas do Corpo de
-    Bombeiros e pode custar o AVCB.
-  </app-alert>
-
-  <app-card title="Regras de ocupação" subtitle="Salvas por unidade no TOTVS">
+  <app-card class="regras-card" title="Regras de ocupação" subtitle="Salvas por unidade no TOTVS">
+    <button
+      type="button"
+      class="regras-info-trigger"
+      [class.regras-info-trigger--open]="leiAberta()"
+      (click)="leiAberta.set(!leiAberta())"
+      (blur)="leiAberta.set(false)"
+      aria-label="Ver a lei de ocupação"
+      [attr.aria-expanded]="leiAberta()"
+    >
+      i
+    </button>
+    @if (leiAberta()) {
+      <div class="regras-info-popover" role="tooltip">
+        <b>A Instrução Técnica nº 11 </b>
+        (IT 11 - Saídas de Emergência) do Corpo de Bombeiros determina o limite de 1 pessoa a cada 1,50 m² de área útil. Cálculo: Tamanho da sala ÷ 1,5 m². 
+        Exemplo: sala de 45 m² → 45 ÷ 1,5 = 30 pessoas (alunos + professor). É um limite máximo de evacuação, não uma meta — a escola não deve ultrapassá-lo. 
+        Descontar da área total armários, colunas ou bancadas fixas antes de dividir. 
+        Ultrapassar o limite pode gerar advertências, multas e a cassação do AVCB
+      </div>
+    }
     <div class="regras-form">
       <app-select
         label="Unidade"

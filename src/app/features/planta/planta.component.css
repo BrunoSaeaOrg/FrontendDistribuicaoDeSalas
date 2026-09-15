@@ -2,17 +2,30 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
 }
 
 .planta-page {
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
+  /*
+   * A pagina inteira preenche a altura de .saea-main (flex:1 no :host).
+   * Filtros ficam flex-shrink:0 e o .planta-grid abaixo absorve a folga —
+   * dispensa qualquer numero fixo de "altura dos filtros".
+   */
+  flex: 1;
+  min-height: 0;
 }
 @media (max-height: 800px) {
   .planta-page {
     gap: var(--sp-3);
   }
+}
+
+/* Filtros nao esticam: a altura sobra para o grid de cards abaixo. */
+.planta-filters {
+  flex-shrink: 0;
 }
 
 .planta-filters {
@@ -51,8 +64,25 @@
 .planta-grid {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
+  /*
+   * grid-template-rows força a UNICA linha do grid a ter altura definida
+   * (1fr do espaco do proprio grid). Sem isso, um item de grid tem
+   * min-height:auto implicito — respeita a altura intrinseca do conteudo
+   * (a grade de carteiras) e ESTICA o grid, o card, a pagina e o shell
+   * inteiro, empurrando tudo para fora da viewport.
+   */
+  grid-template-rows: 1fr;
   gap: var(--sp-5);
-  align-items: start;
+  /* stretch (nao start): os dois cards compartilham a mesma altura. */
+  align-items: stretch;
+  /* Absorve a folga vertical da pagina (o que sobra abaixo dos filtros). */
+  flex: 1;
+  min-height: 0;
+}
+.planta-grid > app-card {
+  /* Reforça o que grid-template-rows:1fr já implica: o item nao cresce
+     além da linha do grid por causa do min-height:auto padrao. */
+  min-height: 0;
 }
 @media (max-width: 880px) {
   .planta-grid {
@@ -66,6 +96,7 @@
   align-items: flex-start;
   gap: var(--sp-4);
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .planta-nome {
@@ -85,6 +116,7 @@
   gap: var(--sp-5);
   margin-top: var(--sp-4);
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .planta-progress-wrap {
@@ -120,39 +152,45 @@
   text-overflow: ellipsis;
 }
 
+/*
+ * A altura vem do card (.saea-card-fill): absorve a folga e rola por dentro,
+ * em vez de um max-height fixo que nao acompanhava a viewport.
+ */
 .planta-room-wrap {
   margin-top: var(--sp-5);
-  max-height: 560px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-}
-
-@media (max-height: 800px) {
-  .planta-room-wrap {
-    max-height: 280px;
-  }
+  overscroll-behavior: contain;
+  /* Coluna flex para a moldura da sala ocupar toda a area disponivel. */
+  display: flex;
+  flex-direction: column;
 }
 
 .planta-room {
-  border: 1px solid var(--saea-border);
-  border-radius: var(--radius-md);
   padding: var(--sp-5);
-  background: var(--saea-surface-sunken);
+  /*
+   * Preenche a area do card em vez de parar na altura das carteiras — evita a
+   * faixa vazia entre a moldura e a borda inferior do card. flex-shrink:1 (nao
+   * 0) + min-height:0 permite a moldura encolher quando a grade de carteiras
+   * (deskSlots) e maior que o espaco do card — sem isso a moldura nunca cede e
+   * estoura .planta-room-wrap mesmo com overflow-y:auto no pai.
+   */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
-.planta-room-board {
-  height: 8px;
-  background: var(--saea-ink-faint);
-  opacity: 0.4;
-  border-radius: 4px;
-  width: 60%;
-  margin: 0 auto var(--sp-5);
-}
-
 .planta-desks {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 10px;
   max-width: 420px;
-  margin: 0 auto;
+  /* Centraliza no espaco restante da moldura (auto vertical + horizontal). */
+  margin: auto;
+  align-content: center;
+  width: 100%;
 }
 
 .planta-desk {
@@ -223,22 +261,21 @@
   border: 1px dashed var(--saea-danger);
 }
 
+/*
+ * A altura vem do card (.saea-card-fill). Declara flex + overflow aqui junto:
+ * o CSS do componente carrega depois do global, entao uma regra parcial
+ * anularia o .saea-scroll.
+ */
 .planta-outras {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  /* Altura fixa: a lista rola dentro do card em vez de esticar a pagina. */
-  max-height: 420px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   /* Espaco para a barra de rolagem nao encostar na borda das linhas. */
   padding-right: var(--sp-2);
   overscroll-behavior: contain;
-}
-
-@media (max-height: 800px) {
-  .planta-outras {
-    max-height: 280px;
-  }
 }
 
 .planta-outra-row {
@@ -246,6 +283,7 @@
   justify-content: space-between;
   align-items: center;
   gap: var(--sp-3);
+  flex-shrink: 0;
   padding: var(--sp-3);
   border-radius: var(--radius-md);
   border: 1px solid var(--saea-border);

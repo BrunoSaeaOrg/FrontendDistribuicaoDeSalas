@@ -1,12 +1,21 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .painel-page {
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
   /*
-   * Desconto para o card alinhar com o rodape do menu lateral: filtros (~72px)
-   * + barra de unidades (~46px) + os 2 gaps entre eles.
+   * A pagina preenche a altura de .saea-main (via :host flex:1 acima).
+   * Filtros e barra de unidades ficam flex-shrink:0; o card (.saea-card-fill)
+   * absorve o que sobra por conta propria — sem estimar a altura deles em px.
    */
-  --saea-card-offset: calc(72px + 46px + var(--sp-5) * 2);
+  flex: 1;
+  min-height: 0;
 }
 
 /* Filtros e barra de unidades nao esticam: a altura sobra para o card. */
@@ -151,8 +160,3 @@
   white-space: nowrap;
 }
 
-@media (max-height: 800px) {
-  .painel-page {
-    --saea-card-offset: calc(72px + 46px + var(--sp-4) * 2);
-  }
-}

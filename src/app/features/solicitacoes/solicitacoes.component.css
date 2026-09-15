@@ -2,13 +2,21 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
 }
 
 .sol-page {
   display: grid;
   grid-template-columns: 1fr 1.3fr;
   gap: var(--sp-5);
-  align-items: start;
+  /* stretch (nao start): os dois cards compartilham a mesma altura,
+     igual ao menu lateral — mesmo padrao usado em .planta-grid. */
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+.sol-page > app-card {
+  min-height: 0;
 }
 
 @media (max-width: 880px) {
@@ -27,13 +35,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-}
-
-@media (max-height: 800px) {
-  .sol-list {
-    max-height: 460px;
-    overflow-y: auto;
-  }
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: var(--sp-2);
 }
 
 .sol-item {
