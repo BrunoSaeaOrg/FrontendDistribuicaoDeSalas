@@ -48,3 +48,27 @@ export interface ApiRegraDto {
   PERMEXCEDER: 1 | 2;
   OBS: string;
 }
+
+/** Status de uma solicitacao em OC_SOLICITACOES: P = Pendente, A = Aprovada, R = Recusada. */
+export type ApiStatusSolicitacao = 'P' | 'A' | 'R';
+
+/**
+ * Diferente de ApiSalaDto/ApiTurmaDto/ApiRegraDto (que sao JsonElement cru repassado do
+ * TOTVS Formula Visual, em ALL-CAPS): SolicitacaoDto e uma classe C# forte (PascalCase),
+ * entao o ASP.NET Core serializa em camelCase - nao ha campo `sucesso`, o proprio objeto
+ * e a resposta em caso de sucesso.
+ */
+export interface ApiSolicitacaoDto {
+  codSolicitacao: number;
+  codFilial: number;
+  codBloco: string;
+  codPredio: string;
+  codSala: string;
+  quantidade: number;
+  justificativa: string;
+  status: ApiStatusSolicitacao;
+  codUsuarioSolicitante: string;
+  dataSolicitacao: string | null;
+  codUsuarioDecisao: string | null;
+  dataDecisao: string | null;
+}

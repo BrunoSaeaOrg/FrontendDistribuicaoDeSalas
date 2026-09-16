@@ -130,7 +130,7 @@ export class SalasService {
       error: (err) => {
         this._error.set('Não foi possível carregar as salas.');
         this._loading.set(false);
-        this.toast.danger('Falha ao carregar salas', err.message || 'Não foi possível contatar o servidor.');
+        this.toast.danger('Falha ao carregar salas','Não foi possível contatar o servidor.');
       },
     });
   }
@@ -141,6 +141,17 @@ export class SalasService {
 
   sala(id: string): Sala | undefined {
     return this._salas().find((s) => s.id === id);
+  }
+
+  /** Localiza uma sala pelas chaves TOTVS (usado para resolver nome/unidade em Solicitações). */
+  salaPorChave(codFilial: number, codBloco: string, codPredio: string, codSala: string): Sala | undefined {
+    return this._salas().find(
+      (s) =>
+        s.codFilial === codFilial &&
+        s.codBloco === codBloco &&
+        s.codPredio === codPredio &&
+        s.codSala === codSala,
+    );
   }
 
   salasDaUnidade(unidadeId: string): Sala[] {
@@ -197,11 +208,11 @@ export class SalasService {
             this.toast.success('Turma vinculada', `${turma.nome} vinculada a ${sala.nome}.`);
             this.carregar();
           } else {
-            this.toast.danger('Não foi possível vincular', 'O TOTVS recusou a operação.');
+            this.toast.danger('Não foi possível vincular', 'tente novamente');
           }
         },
         error: (err) => {
-          this.toast.danger('Falha ao vincular turma', err.message || 'Não foi possível contatar o servidor.');
+          this.toast.danger('Falha ao vincular turma','Não foi possível contatar o servidor.');
         },
       });
   }
@@ -225,11 +236,11 @@ export class SalasService {
             this.toast.success('Turma liberada', `${turma.nome} não está mais vinculada a ${sala.nome}.`);
             this.carregar();
           } else {
-            this.toast.danger('Não foi possível liberar', 'O TOTVS recusou a operação.');
+            this.toast.danger('Não foi possível liberar', 'tente novamente');
           }
         },
         error: (err) => {
-          this.toast.danger('Falha ao liberar turma', err.message || 'Não foi possível contatar o servidor.');
+          this.toast.danger('Falha ao liberar turma',  'Não foi possível contatar o servidor.');
         },
       });
   }

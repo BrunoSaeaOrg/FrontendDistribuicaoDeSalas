@@ -40,7 +40,7 @@ export class RegrasService {
       },
       error: (err) => {
         this._carregando.set(false);
-        this.toast.danger('Falha ao carregar regras', err.message || 'Não foi possível contatar o servidor.');
+        this.toast.danger('Falha ao carregar regras', 'Não foi possível contatar o servidor.');
       },
     });
   }
@@ -89,12 +89,12 @@ export class RegrasService {
           if (res.CodRetorno === 1) {
             this.toast.success('Regras salvas', `Aplicadas à filial ${codFilial}.`);
           } else {
-            this.toast.danger('Não foi possível salvar', res.Data || 'O TOTVS recusou a operação.');
+            this.toast.danger('Não foi possível salvar');
           }
         },
         error: (err) => {
           this._salvando.set(false);
-          this.toast.danger('Falha ao salvar regras', err.message || 'Não foi possível contatar o servidor.');
+          this.toast.danger('Falha ao salvar regras', 'Não foi possível contatar o servidor.');
         },
       });
   }

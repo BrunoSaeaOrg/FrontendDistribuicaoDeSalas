@@ -64,6 +64,23 @@
   font-size: var(--fs-sm);
 }
 
+.sol-item-unidade {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-2xs);
+  color: var(--saea-ink-soft);
+  white-space: nowrap;
+}
+
+.sol-item-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
 .sol-item-just {
   font-size: var(--fs-xs);
   color: var(--saea-ink-soft);

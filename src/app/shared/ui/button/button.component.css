@@ -50,3 +50,14 @@
   color: #fff;
   box-shadow: var(--elev-1);
 }
+
+.saea-btn__spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.9;
+  animation: saea-spin 700ms linear infinite;
+}

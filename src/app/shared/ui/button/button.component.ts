@@ -11,10 +11,15 @@ export type ButtonSize = 'sm' | 'md';
     <button
       type="button"
       class="saea-btn saea-btn--{{ variant() }} saea-btn--{{ size() }}"
-      [disabled]="disabled()"
+      [disabled]="disabled() || loading()"
       (click)="clicked.emit($event)"
     >
-      <ng-content />
+      @if (loading()) {
+        <span class="saea-btn__spinner"></span>
+        <span>{{ loadingText() }}</span>
+      } @else {
+        <ng-content />
+      }
     </button>
   `,
   styleUrl: './button.component.css',
@@ -23,5 +28,7 @@ export class ButtonComponent {
   readonly variant = input<ButtonVariant>('primary');
   readonly size = input<ButtonSize>('md');
   readonly disabled = input(false);
+  readonly loading = input(false);
+  readonly loadingText = input('Enviando...');
   readonly clicked = output<MouseEvent>();
 }

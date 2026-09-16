@@ -2,7 +2,14 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { ApiRegraDto, ApiSalaDto, ApiTurmaDto, ApiTurmaXSalaDto } from '../models/ocupacao-api.model';
+import {
+  ApiRegraDto,
+  ApiSalaDto,
+  ApiSolicitacaoDto,
+  ApiStatusSolicitacao,
+  ApiTurmaDto,
+  ApiTurmaXSalaDto,
+} from '../models/ocupacao-api.model';
 
 @Injectable({ providedIn: 'root' })
 export class OcupacaoApiService {
@@ -68,6 +75,45 @@ export class OcupacaoApiService {
       CODBLOCO: request.codBloco,
       CODPREDIO: request.codPredio,
       CODSALA: request.codSala,
+    });
+  }
+
+  getSolicitacoes(codUsuario: string, codFilial: number): Observable<ApiSolicitacaoDto[]> {
+    return this.http.post<ApiSolicitacaoDto[]>(`${this.baseUrl}/OC_SAL_SOLICITACOES`, {
+      CODUSUARIO: codUsuario,
+      CODFILIAL: String(codFilial),
+    });
+  }
+
+  criarSolicitacao(request: {
+    codUsuario: string;
+    codFilial: number;
+    codBloco: string;
+    codPredio: string;
+    codSala: string;
+    quantidade: number;
+    justificativa: string;
+  }): Observable<ApiSolicitacaoDto> {
+    return this.http.post<ApiSolicitacaoDto>(`${this.baseUrl}/OC_SAL_SOLICITACAO_CRIAR`, {
+      CODUSUARIO: request.codUsuario,
+      CODFILIAL: String(request.codFilial),
+      CODBLOCO: request.codBloco,
+      CODPREDIO: request.codPredio,
+      CODSALA: request.codSala,
+      QUANTIDADE: request.quantidade,
+      JUSTIFICATIVA: request.justificativa,
+    });
+  }
+
+  decidirSolicitacao(request: {
+    codUsuario: string;
+    codSolicitacao: number;
+    decisao: ApiStatusSolicitacao;
+  }): Observable<ApiSolicitacaoDto> {
+    return this.http.post<ApiSolicitacaoDto>(`${this.baseUrl}/OC_SAL_SOLICITACAO_DECIDIR`, {
+      CODUSUARIO: request.codUsuario,
+      CODSOLICITACAO: request.codSolicitacao,
+      DECISAO: request.decisao,
     });
   }
 }

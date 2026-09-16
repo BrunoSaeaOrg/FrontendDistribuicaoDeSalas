@@ -38,6 +38,8 @@ export class SolicitacoesComponent {
   private readonly confirmDialog = inject(ConfirmDialogService);
   readonly uiMode = inject(UiModeService);
 
+  readonly enviando = this.solicitacoesService.enviando;
+
   readonly unidadeId = signal(this.salasService.unidades()[0]?.id ?? '');
   readonly salaId = signal('');
   readonly quantidade = signal(2);
@@ -137,12 +139,19 @@ export class SolicitacoesComponent {
   });
 
   readonly solicitacoesRows = computed(() =>
-    this.solicitacoesService.solicitacoes().map((s) => ({
-      solicitacao: s,
-      statusLabel: { pendente: 'Pendente', aprovada: 'Aprovada', recusada: 'Recusada' }[s.status],
-      statusTone: ({ pendente: 'warning', aprovada: 'success', recusada: 'danger' } as const)[s.status],
-      showActions: this.uiMode.editorMode() && s.status === 'pendente',
-    })),
+    this.solicitacoesService.solicitacoes().map((s) => {
+      const unidade = this.salasService.unidade(s.unidadeId);
+      return {
+        solicitacao: s,
+        unidadeNome: unidade?.nome ?? '',
+        unidadeCor: unidade?.cor ?? 'transparent',
+        statusLabel: { pendente: 'Pendente', aprovada: 'Aprovada', recusada: 'Recusada' }[s.status],
+        statusTone: ({ pendente: 'warning', aprovada: 'success', recusada: 'danger' } as const)[s.status],
+        showActions: this.uiMode.editorMode() && s.status === 'pendente',
+        decidindoAprovar: this.solicitacoesService.decidindoComo(s.codSolicitacao) === 'A',
+        decidindoRecusar: this.solicitacoesService.decidindoComo(s.codSolicitacao) === 'R',
+      };
+    }),
   );
 
   onUnidadeChange(uid: string): void {
