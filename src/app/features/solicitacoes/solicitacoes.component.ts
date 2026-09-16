@@ -4,12 +4,10 @@ import { RegrasService } from '../../core/services/regras.service';
 import { SalasService } from '../../core/services/salas.service';
 import { SolicitacoesService } from '../../core/services/solicitacoes.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
-import { Solicitacao } from '../../core/models';
 import { AlertComponent, AlertTone } from '../../shared/ui/alert/alert.component';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
-import { ConfirmDialogService } from '../../shared/ui/confirm-dialog/confirm-dialog.service';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
@@ -35,7 +33,6 @@ export class SolicitacoesComponent {
   private readonly salasService = inject(SalasService);
   private readonly regrasService = inject(RegrasService);
   private readonly solicitacoesService = inject(SolicitacoesService);
-  private readonly confirmDialog = inject(ConfirmDialogService);
   readonly uiMode = inject(UiModeService);
 
   readonly enviando = this.solicitacoesService.enviando;
@@ -147,9 +144,7 @@ export class SolicitacoesComponent {
         unidadeCor: unidade?.cor ?? 'transparent',
         statusLabel: { pendente: 'Pendente', aprovada: 'Aprovada', recusada: 'Recusada' }[s.status],
         statusTone: ({ pendente: 'warning', aprovada: 'success', recusada: 'danger' } as const)[s.status],
-        showActions: this.uiMode.editorMode() && s.status === 'pendente',
-        decidindoAprovar: this.solicitacoesService.decidindoComo(s.codSolicitacao) === 'A',
-        decidindoRecusar: this.solicitacoesService.decidindoComo(s.codSolicitacao) === 'R',
+        pendente: s.status === 'pendente',
       };
     }),
   );
@@ -166,24 +161,5 @@ export class SolicitacoesComponent {
     this.solicitacoesService.criar(sala, Number(this.quantidade()) || 0, this.justificativa());
     this.quantidade.set(1);
     this.justificativa.set('');
-  }
-
-  async aprovar(sol: Solicitacao): Promise<void> {
-    const ok = await this.confirmDialog.confirm({
-      title: 'Aprovar solicitação?',
-      description: `${sol.quantidade} carteira(s) serão adicionadas em ${sol.salaNome}.`,
-      confirmLabel: 'Aprovar',
-    });
-    if (ok) this.solicitacoesService.aprovar(sol);
-  }
-
-  async recusar(sol: Solicitacao): Promise<void> {
-    const ok = await this.confirmDialog.confirm({
-      title: 'Recusar solicitação?',
-      description: `O pedido de ${sol.salaNome} será marcado como recusado.`,
-      confirmLabel: 'Recusar',
-      danger: true,
-    });
-    if (ok) this.solicitacoesService.recusar(sol);
   }
 }

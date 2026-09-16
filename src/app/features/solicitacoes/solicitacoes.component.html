@@ -32,33 +32,13 @@
         <div class="sol-item">
           <div class="sol-item-top">
             <span class="sol-item-title">{{ item.solicitacao.salaNome }} · +{{ item.solicitacao.quantidade }} carteiras</span>
-            <app-badge [tone]="item.statusTone">{{ item.statusLabel }}</app-badge>
+            <app-badge [tone]="item.statusTone" [class.sol-badge-pulse]="item.pendente">{{ item.statusLabel }}</app-badge>
           </div>
           <span class="sol-item-unidade">
             <span class="sol-item-dot" [style.background]="item.unidadeCor"></span>{{ item.unidadeNome }}
           </span>
           <div class="sol-item-just">{{ item.solicitacao.justificativa }}</div>
           <div class="sol-item-date">{{ item.solicitacao.data }}</div>
-          @if (item.showActions) {
-            <div class="sol-item-actions">
-              <app-button
-                variant="secondary"
-                size="sm"
-                [disabled]="item.decidindoAprovar"
-                [loading]="item.decidindoRecusar"
-                loadingText="Recusando..."
-                (clicked)="recusar(item.solicitacao)"
-              >Recusar</app-button>
-              <app-button
-                variant="primary"
-                size="sm"
-                [disabled]="item.decidindoRecusar"
-                [loading]="item.decidindoAprovar"
-                loadingText="Aprovando..."
-                (clicked)="aprovar(item.solicitacao)"
-              >Aprovar</app-button>
-            </div>
-          }
         </div>
       }
     </div>
