@@ -250,4 +250,40 @@ export class SalasService {
       list.map((s) => (s.id === salaId ? { ...s, carteiras: s.carteiras + quantidade } : s)),
     );
   }
+
+  /** Move `quantidade` carteira(s) vaga(s) de uma sala para outra (drag-and-drop da tela Planta). */
+  transferirCarteira(origem: Sala, destino: Sala, quantidade = 1): void {
+    const codUsuario = this.authService.currentUser()?.username ?? '';
+    if (!codUsuario) return;
+    this.ocupacaoApi
+      .transferirCarteira({
+        codUsuario,
+        origem: {
+          codFilial: origem.codFilial,
+          codBloco: origem.codBloco,
+          codPredio: origem.codPredio,
+          codSala: origem.codSala,
+        },
+        destino: {
+          codFilial: destino.codFilial,
+          codBloco: destino.codBloco,
+          codPredio: destino.codPredio,
+          codSala: destino.codSala,
+        },
+        quantidade,
+      })
+      .subscribe({
+        next: (res) => {
+          if (res.sucesso === 1) {
+            this.toast.success('Carteira transferida', `${origem.nome} → ${destino.nome}.`);
+            this.carregar();
+          } else {
+            this.toast.danger('Não foi possível transferir', 'tente novamente');
+          }
+        },
+        error: () => {
+          this.toast.danger('Falha ao transferir carteira', 'Não foi possível contatar o servidor.');
+        },
+      });
+  }
 }

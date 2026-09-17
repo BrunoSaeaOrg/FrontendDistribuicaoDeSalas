@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { SalasService } from '../../core/services/salas.service';
+import { UiModeService } from '../../core/services/ui-mode.service';
 import { Turno } from '../../core/models';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
@@ -30,6 +31,12 @@ const TURNOS: Turno[] = ['manha', 'tarde'];
 export class PlantaComponent {
   private readonly salasService = inject(SalasService);
   private readonly route = inject(ActivatedRoute);
+  readonly uiMode = inject(UiModeService);
+
+  /** Carteira vaga sendo arrastada no momento (null quando não há arraste em curso). */
+  readonly arrastando = signal(false);
+  /** Sala sobre a qual o arraste está passando (destaque de zona de drop). */
+  readonly dropAlvoId = signal<string | null>(null);
 
   readonly unidadeId = signal(
     this.route.snapshot.queryParamMap.get('unidade') || this.salasService.unidades()[0]?.id || '',
@@ -173,5 +180,41 @@ export class PlantaComponent {
   }
   onSerieChange(v: string): void {
     this.serie.set(v);
+  }
+
+  onDeskDragStart(desk: DeskSlot, event: DragEvent): void {
+    if (desk.kind !== 'vaga' || !this.uiMode.editorMode()) {
+      event.preventDefault();
+      return;
+    }
+    this.arrastando.set(true);
+    event.dataTransfer?.setData('text/plain', String(desk.index));
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  }
+
+  onDeskDragEnd(): void {
+    this.arrastando.set(false);
+    this.dropAlvoId.set(null);
+  }
+
+  onOutraSalaDragOver(salaId: string, event: DragEvent): void {
+    if (!this.arrastando()) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    this.dropAlvoId.set(salaId);
+  }
+
+  onOutraSalaDragLeave(salaId: string): void {
+    if (this.dropAlvoId() === salaId) this.dropAlvoId.set(null);
+  }
+
+  onOutraSalaDrop(destinoId: string, event: DragEvent): void {
+    event.preventDefault();
+    const origem = this.sala();
+    const destino = this.salasService.sala(destinoId);
+    this.arrastando.set(false);
+    this.dropAlvoId.set(null);
+    if (!origem || !destino) return;
+    this.salasService.transferirCarteira(origem, destino, 1);
   }
 }

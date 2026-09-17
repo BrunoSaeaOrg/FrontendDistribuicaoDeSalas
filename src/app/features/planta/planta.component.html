@@ -64,7 +64,14 @@
           <div class="planta-room">
             <div class="planta-desks">
               @for (desk of deskSlots(); track desk.index) {
-                <div class="planta-desk planta-desk--{{ desk.kind }}" [title]="desk.tooltip">
+                <div
+                  class="planta-desk planta-desk--{{ desk.kind }}"
+                  [class.planta-desk--draggable]="desk.kind === 'vaga' && uiMode.editorMode()"
+                  [title]="desk.kind === 'vaga' && uiMode.editorMode() ? 'Arraste para mover esta carteira para outra sala' : desk.tooltip"
+                  [draggable]="desk.kind === 'vaga' && uiMode.editorMode()"
+                  (dragstart)="onDeskDragStart(desk, $event)"
+                  (dragend)="onDeskDragEnd()"
+                >
                   <span class="material-icons planta-desk-icon">{{ desk.icon }}</span>
                 </div>
               }
@@ -76,10 +83,17 @@
       <app-card class="saea-card-fill" title="Outras salas da unidade">
         <div class="planta-outras saea-scroll">
           @for (room of outrasSalas(); track room.id) {
-            <div class="planta-outra-row">
+            <div
+              class="planta-outra-row"
+              [class.planta-outra-row--dropzone]="arrastando()"
+              [class.planta-outra-row--droptarget]="dropAlvoId() === room.id"
+              (dragover)="onOutraSalaDragOver(room.id, $event)"
+              (dragleave)="onOutraSalaDragLeave(room.id)"
+              (drop)="onOutraSalaDrop(room.id, $event)"
+            >
               <div>
                 <div class="planta-outra-nome">{{ room.nome }}</div>
-                <div class="planta-outra-meta">{{ room.tipo }} · {{ room.ocupadas }}/{{ room.carteiras }} carteiras ocupadas</div>
+                <div class="planta-outra-meta">{{ room.tipo }} · {{ room.ocupadas }} de {{ room.carteiras }} carteiras ocupadas</div>
               </div>
               <div class="planta-outra-actions">
                 <app-badge [tone]="room.statusInfo.tone">{{ room.statusInfo.label }}</app-badge>

@@ -116,4 +116,24 @@ export class OcupacaoApiService {
       DECISAO: request.decisao,
     });
   }
+
+  transferirCarteira(request: {
+    codUsuario: string;
+    origem: { codFilial: number; codBloco: string; codPredio: string; codSala: string };
+    destino: { codFilial: number; codBloco: string; codPredio: string; codSala: string };
+    quantidade: number;
+  }): Observable<{ sucesso: number }> {
+    return this.http.post<{ sucesso: number }>(`${this.baseUrl}/OC_SAL_CARTEIRA_TRANSFERIR`, {
+      CODUSUARIO: request.codUsuario,
+      CODFILIALORIGEM: String(request.origem.codFilial),
+      CODBLOCOORIGEM: request.origem.codBloco,
+      CODPREDIOORIGEM: request.origem.codPredio,
+      CODSALAORIGEM: request.origem.codSala,
+      CODFILIALDESTINO: String(request.destino.codFilial),
+      CODBLOCODESTINO: request.destino.codBloco,
+      CODPREDIODESTINO: request.destino.codPredio,
+      CODSALADESTINO: request.destino.codSala,
+      QUANTIDADE: request.quantidade,
+    });
+  }
 }

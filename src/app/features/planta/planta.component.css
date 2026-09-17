@@ -218,6 +218,16 @@
   color: var(--saea-ink-soft);
   border: 1px solid var(--saea-border);
 }
+.planta-desk--draggable {
+  cursor: grab;
+}
+.planta-desk--draggable:hover {
+  transform: translateY(-2px);
+  border-color: var(--saea-primary);
+}
+.planta-desk--draggable:active {
+  cursor: grabbing;
+}
 .planta-desk--excedente {
   background: rgba(211, 25, 25, 0.08);
   color: var(--saea-danger);
@@ -291,6 +301,17 @@
   transition:
     background 120ms ease,
     border-color 120ms ease;
+}
+
+/* Zona de drop ativa: aparece assim que uma carteira vaga começa a ser arrastada. */
+.planta-outra-row--dropzone {
+  border-style: dashed;
+  border-color: var(--saea-primary);
+}
+.planta-outra-row--droptarget {
+  background: var(--saea-chip-bg);
+  border-style: solid;
+  border-color: var(--saea-primary-strong);
 }
 .planta-outra-nome {
   font-weight: 600;
