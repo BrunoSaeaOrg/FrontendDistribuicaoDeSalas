@@ -3,8 +3,10 @@ import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/ro
 import { filter, map, startWith } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from './core/auth/auth.service';
+import { BreakpointService } from './core/services/breakpoint.service';
 import { HeaderComponent } from './layout/header/header.component';
 import { FooterComponent } from './layout/footer/footer.component';
+import { MobileNavComponent } from './layout/mobile-nav/mobile-nav.component';
 import { SidePanelComponent, SidePanelItem } from './layout/side-panel/side-panel.component';
 import { BreadcrumbComponent, BreadcrumbItem } from './shared/ui/breadcrumb/breadcrumb.component';
 import { ToastStackComponent } from './shared/ui/toast/toast-stack.component';
@@ -25,6 +27,7 @@ const NAV_ITEMS: SidePanelItem[] = [
     RouterOutlet,
     HeaderComponent,
     FooterComponent,
+    MobileNavComponent,
     SidePanelComponent,
     // BreadcrumbComponent,
     ToastStackComponent,
@@ -37,6 +40,7 @@ export class App {
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
+  readonly breakpoint = inject(BreakpointService);
 
   readonly navItems = NAV_ITEMS;
   readonly navCollapsed = signal(false);
@@ -50,7 +54,7 @@ export class App {
     { initialValue: 'painel' },
   );
 
-  private readonly currentBreadcrumbLabel = toSignal(
+  readonly currentBreadcrumbLabel = toSignal(
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
       map(() => this.readBreadcrumb()),

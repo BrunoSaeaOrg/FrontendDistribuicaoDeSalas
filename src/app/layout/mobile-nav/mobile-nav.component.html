@@ -1,0 +1,50 @@
+<header class="mnav-header">
+  <button type="button" class="mnav-icon-btn" aria-label="Abrir menu" (click)="open.set(true)">
+    <mat-icon>menu</mat-icon>
+  </button>
+  <div class="mnav-mid">
+    <div class="mnav-crumb">{{ title() }}</div>
+    <div class="mnav-title">{{ currentLabel() }}</div>
+  </div>
+  <button
+    type="button"
+    class="mnav-icon-btn"
+    [attr.aria-label]="theme.isDark() ? 'Ativar tema claro' : 'Ativar tema escuro'"
+    (click)="theme.toggle()"
+  >
+    <mat-icon>{{ theme.isDark() ? 'dark_mode' : 'light_mode' }}</mat-icon>
+  </button>
+</header>
+
+<div class="mnav-scrim" [class.mnav-scrim--open]="open()" (click)="open.set(false)"></div>
+
+<nav class="mnav-drawer" [class.mnav-drawer--open]="open()" aria-label="Menu de navegação">
+  <div class="mnav-drawer-head">
+    <img class="mnav-brand" src="assets/logo-header-white.png" alt="SAEA" />
+    <div class="mnav-brand-name">{{ title() }}</div>
+  </div>
+
+  <div class="mnav-drawer-list">
+    @for (item of items(); track item.route) {
+      <button
+        type="button"
+        class="mnav-drawer-item"
+        [class.mnav-drawer-item--active]="activeRoute() === item.route"
+        (click)="onItemClick(item)"
+      >
+        <span class="mnav-drawer-item-icon"><mat-icon>{{ item.icon }}</mat-icon></span>
+        <span class="mnav-drawer-item-text">
+          <span class="mnav-drawer-item-label">{{ item.label }}</span>
+          @if (item.description) {
+            <span class="mnav-drawer-item-description">{{ item.description }}</span>
+          }
+        </span>
+      </button>
+    }
+  </div>
+
+  <button type="button" class="mnav-drawer-signout" (click)="onSignOut()">
+    <span class="mnav-drawer-item-icon"><mat-icon>logout</mat-icon></span>
+    <span class="mnav-drawer-item-label">{{ signOutLabel() }}</span>
+  </button>
+</nav>

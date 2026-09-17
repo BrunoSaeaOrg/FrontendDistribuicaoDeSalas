@@ -1,6 +1,20 @@
 @if (isAuthRoute()) {
   <router-outlet />
   <app-toast-stack />
+} @else if (breakpoint.isMobile()) {
+  <div class="saea-shell saea-shell--mobile">
+    <app-mobile-nav
+      [items]="navItems"
+      [activeRoute]="activeRoute()"
+      [currentLabel]="currentBreadcrumbLabel()"
+      (itemClick)="onItemClick($event)"
+      (signOut)="onSignOut()"
+    />
+
+    <main class="saea-main saea-main--mobile">
+      <router-outlet />
+    </main>
+  </div>
 } @else {
   <div class="saea-shell">
     <app-header />

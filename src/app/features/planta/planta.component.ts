@@ -6,6 +6,7 @@ import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
 import { Turno } from '../../core/models';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
+import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
@@ -24,7 +25,7 @@ const TURNOS: Turno[] = ['manha', 'tarde'];
 @Component({
   selector: 'app-planta',
   standalone: true,
-  imports: [FormsModule, BadgeComponent, CardComponent, EmptyStateComponent, SelectComponent],
+  imports: [FormsModule, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './planta.component.html',
   styleUrl: './planta.component.css',
@@ -189,6 +190,83 @@ export class PlantaComponent {
         statusInfo: this.salasService.statusInfo(s),
       }));
   });
+
+  /** Carteiras vagas na sala atual, no turno selecionado — teto de quantidade transferível. */
+  readonly vagasNaSalaAtual = computed(() => {
+    const sala = this.sala();
+    if (!sala) return 0;
+    return Math.max(0, this.capacidade() - this.salasService.alunosNoTurno(sala, this.turno()));
+  });
+
+  readonly podeTransferir = computed(() => this.uiMode.editorMode() && this.vagasNaSalaAtual() > 0);
+
+  // ---------- modal "Transferir carteiras" (wizard mobile em 2 passos) ----------
+  readonly transferOpen = signal(false);
+  readonly transferStep = signal<1 | 2 | 3>(1);
+  readonly transferDestinoId = signal('');
+  readonly transferQuantidade = signal(1);
+
+  readonly transferDestinoOptions = computed<SelectOption[]>(() =>
+    this.outrasSalas().map((s) => ({ value: s.id, label: `${s.nome} (${s.carteiras} carteiras)` })),
+  );
+
+  readonly transferDestino = computed(() => this.salasService.sala(this.transferDestinoId() ?? ''));
+
+  readonly transferPreview = computed(() => {
+    const origem = this.sala();
+    const destino = this.transferDestino();
+    const qtd = this.transferQuantidade();
+    if (!origem || !destino) return null;
+    return {
+      origemNome: origem.nome,
+      destinoNome: destino.nome,
+      origemAntes: origem.carteiras,
+      origemDepois: origem.carteiras - qtd,
+      destinoAntes: destino.carteiras,
+      destinoDepois: destino.carteiras + qtd,
+    };
+  });
+
+  abrirTransferModal(): void {
+    this.transferStep.set(1);
+    this.transferDestinoId.set(this.outrasSalas()[0]?.id ?? '');
+    this.transferQuantidade.set(1);
+    this.transferOpen.set(true);
+  }
+
+  fecharTransferModal(): void {
+    this.transferOpen.set(false);
+  }
+
+  onTransferDestinoChange(id: string): void {
+    this.transferDestinoId.set(id);
+  }
+
+  transferQuantidadeMenos(): void {
+    this.transferQuantidade.update((q) => Math.max(1, q - 1));
+  }
+
+  transferQuantidadeMais(): void {
+    const max = this.vagasNaSalaAtual();
+    this.transferQuantidade.update((q) => Math.min(max, q + 1));
+  }
+
+  transferAvancar(): void {
+    if (!this.transferDestinoId()) return;
+    this.transferStep.set(2);
+  }
+
+  transferVoltar(): void {
+    this.transferStep.set(1);
+  }
+
+  transferConfirmar(): void {
+    const origem = this.sala();
+    const destino = this.transferDestino();
+    if (!origem || !destino) return;
+    this.salasService.transferirCarteira(origem, destino, this.transferQuantidade());
+    this.transferStep.set(3);
+  }
 
   onUnidadeChange(uid: string): void {
     this.unidadeId.set(uid);

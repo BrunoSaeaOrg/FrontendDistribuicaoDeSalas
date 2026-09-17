@@ -75,3 +75,23 @@
     padding: var(--sp-4);
   }
 }
+
+/*
+ * Mobile: a tela inteira já é o contêiner — a moldura do card (borda, sombra,
+ * padding lateral, radius) só rouba largura útil sem ganho visual, deixando
+ * menos espaço para grades/tabelas/listas. Vira uma seção plana, com respiro
+ * só vertical entre seções (o padding horizontal da página já existe no
+ * shell — ver .saea-main--mobile em app.css).
+ */
+@media (max-width: 880px) {
+  :host {
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: var(--sp-4) 0;
+    background: transparent;
+  }
+  :host + :host {
+    border-top: 1px solid var(--saea-border);
+  }
+}

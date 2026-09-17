@@ -70,3 +70,19 @@
     padding-top: var(--sp-4);
   }
 }
+
+/* Shell mobile: sem sidebar, header compacto (app-mobile-nav) ocupa o topo. */
+.saea-shell--mobile {
+  height: 100dvh;
+}
+
+.saea-main--mobile {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: var(--sp-4) var(--sp-4) var(--sp-4);
+  box-sizing: border-box;
+  overflow-y: auto;
+}

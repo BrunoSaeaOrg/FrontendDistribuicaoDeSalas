@@ -87,6 +87,50 @@
 @media (max-width: 880px) {
   .planta-grid {
     grid-template-columns: 1fr;
+    /*
+     * Em coluna única os dois cards NÃO podem mais dividir 1fr de uma única
+     * linha (isso os espremia pela metade da altura, cada um cortando o
+     * próprio conteúdo). Cada card assume sua altura natural e a página
+     * inteira rola — comportamento normal de lista em mobile.
+     */
+    grid-template-rows: auto auto;
+    align-items: start;
+    flex: none;
+  }
+  .planta-grid.planta-grid > app-card.saea-card-fill {
+    /*
+     * app-card.saea-card-fill é flex:1 1 0 por padrão (ver card.component.css,
+     * regra :host(.saea-card-fill) — especificidade 0,2,0) — ele espera um pai
+     * flex/grid que lhe garanta altura (o `stretch` do desktop). Em coluna
+     * única o grid vira `auto`; a classe duplicada eleva a especificidade
+     * (0,3,1) para vencer o host do componente de forma determinística, sem
+     * depender da ordem de carregamento dos dois arquivos CSS — caso contrário
+     * o card colapsa para min-height:0, levando junto todo o conteúdo interno.
+     */
+    flex: none;
+    min-height: 0;
+  }
+  /*
+   * .planta-room-wrap normalmente vive de "esticar dentro do card" (flex:1 1
+   * auto, herdando altura do app-card esticado pelo grid). Em coluna única o
+   * card passa a ter altura automática — sem uma altura mínima própria aqui,
+   * a moldura da sala (grade de carteiras) colapsa para quase zero.
+   */
+  .planta-room-wrap {
+    min-height: 360px;
+    max-height: 60vh;
+    flex: none;
+  }
+  /*
+   * Mesmo caso de .planta-room-wrap: .planta-outras é flex:1 1 auto (vive de
+   * esticar dentro do card). Sem teto de altura aqui, a lista "Outras salas"
+   * expande para caber TODAS as linhas, e a página inteira vira um scroll
+   * gigante (unidades com muitas salas chegavam a travar a rolagem). Mantém o
+   * scroll interno contido, mesmo padrão do desktop, só que com valor fixo.
+   */
+  .planta-outras {
+    flex: none;
+    max-height: 45vh;
   }
 }
 
@@ -245,6 +289,12 @@
   margin-top: var(--sp-3);
 }
 
+.planta-transfer-btn-icon {
+  font-size: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
 .planta-legend {
   display: flex;
   gap: var(--sp-4);
@@ -343,4 +393,260 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+}
+
+/* ===================== Modal "Transferir carteiras" (wizard 2 passos) ===================== */
+
+.transfer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(10, 14, 18, 0.45);
+}
+
+.transfer-modal {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - var(--sp-5) * 2));
+  max-height: min(600px, calc(100dvh - var(--sp-6) * 2));
+  background: var(--saea-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elev-3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (max-width: 480px) {
+  .transfer-modal {
+    left: 0;
+    top: 0;
+    transform: none;
+    width: 100%;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+  }
+}
+
+.transfer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-bottom: 1px solid var(--saea-border);
+  flex-shrink: 0;
+}
+.transfer-close {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--saea-chip-bg);
+  color: var(--saea-ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.transfer-close .material-icons {
+  font-size: 18px;
+}
+.transfer-head-title {
+  flex: 1;
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  color: var(--saea-ink);
+}
+.transfer-head-step {
+  font-size: var(--fs-2xs);
+  color: var(--saea-ink-soft);
+  font-family: var(--font-mono, monospace);
+}
+
+.transfer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-5);
+}
+
+.transfer-dots {
+  display: flex;
+  gap: 5px;
+  margin-bottom: var(--sp-5);
+}
+.transfer-dot {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--saea-chip-bg);
+}
+.transfer-dot--done {
+  background: var(--saea-primary);
+}
+
+.transfer-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.transfer-field label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--saea-ink);
+}
+.transfer-fake-input {
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--saea-ink);
+  background: var(--saea-bg);
+}
+
+.transfer-qty-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0;
+}
+.transfer-qty-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--saea-border);
+  background: var(--saea-bg);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--saea-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.transfer-qty-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.transfer-qty-val {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  min-width: 48px;
+  text-align: center;
+  color: var(--saea-ink);
+}
+
+.transfer-confirm-hint {
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+  margin: 0 0 var(--sp-4);
+}
+
+.transfer-compare {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.transfer-compare-col {
+  flex: 1;
+  background: var(--saea-bg);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+  text-align: center;
+}
+.transfer-compare-label {
+  font-size: var(--fs-2xs);
+  color: var(--saea-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+}
+.transfer-compare-value {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin-top: var(--sp-2);
+  color: var(--saea-ink);
+}
+.transfer-compare-col--before .transfer-compare-value {
+  color: var(--saea-danger);
+}
+.transfer-compare-col--after .transfer-compare-value {
+  color: var(--saea-success);
+}
+.transfer-compare-arrow {
+  color: var(--saea-ink-faint);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.transfer-summary {
+  margin-top: var(--sp-5);
+}
+.transfer-summary-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--saea-border);
+  font-size: var(--fs-sm);
+}
+.transfer-summary-line:last-child {
+  border-bottom: none;
+}
+.transfer-summary-line span:first-child {
+  color: var(--saea-ink-soft);
+}
+.transfer-summary-line span:last-child {
+  font-weight: 600;
+  color: var(--saea-ink);
+}
+
+.transfer-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--sp-6) var(--sp-4);
+}
+.transfer-success-icon {
+  font-size: 48px;
+  color: var(--saea-success);
+  margin-bottom: var(--sp-4);
+}
+.transfer-success-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  color: var(--saea-ink);
+  margin-bottom: var(--sp-2);
+}
+.transfer-success-sub {
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+  max-width: 32ch;
+  margin: 0;
+}
+
+.transfer-foot {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-top: 1px solid var(--saea-border);
+  flex-shrink: 0;
+}
+.transfer-foot > app-button {
+  flex: 1;
+  display: flex;
 }

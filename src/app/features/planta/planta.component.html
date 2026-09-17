@@ -44,6 +44,13 @@
               <span class="planta-legend-dot planta-legend-dot--excedente"><span class="material-icons planta-legend-icon">priority_high</span></span>Acima da capacidade
             </span>
           </div>
+
+          @if (podeTransferir()) {
+            <app-button variant="secondary" size="sm" (clicked)="abrirTransferModal()">
+              <span class="material-icons planta-transfer-btn-icon">swap_horiz</span>
+              Transferir carteiras
+            </app-button>
+          }
         </div>
 
         <div class="planta-status-row">
@@ -115,6 +122,122 @@
           }
         </div>
       </app-card>
+    </div>
+  }
+
+  @if (transferOpen()) {
+    <div class="transfer-scrim" (click)="fecharTransferModal()"></div>
+    <div class="transfer-modal" role="dialog" aria-modal="true" aria-label="Transferir carteiras">
+      <div class="transfer-head">
+        <button type="button" class="transfer-close" aria-label="Fechar" (click)="fecharTransferModal()">
+          <span class="material-icons">close</span>
+        </button>
+        <div class="transfer-head-title">Transferir carteiras</div>
+        <div class="transfer-head-step">
+          @if (transferStep() === 1) { Passo 1 de 2 }
+          @else if (transferStep() === 2) { Passo 2 de 2 }
+          @else { Concluído }
+        </div>
+      </div>
+
+      <div class="transfer-body">
+        @if (transferStep() === 1) {
+          <div class="transfer-dots">
+            <div class="transfer-dot transfer-dot--done"></div>
+            <div class="transfer-dot"></div>
+          </div>
+
+          <div class="transfer-field">
+            <label>Sala de origem</label>
+            <div class="transfer-fake-input">
+              <span>{{ sala()?.nome }} ({{ vagasNaSalaAtual() }} vagas)</span>
+            </div>
+          </div>
+
+          <app-select
+            label="Sala de destino"
+            [ngModel]="transferDestinoId()"
+            (ngModelChange)="onTransferDestinoChange($event)"
+            [options]="transferDestinoOptions()"
+          />
+
+          <div class="transfer-field">
+            <label>Quantidade de carteiras</label>
+            <div class="transfer-qty-row">
+              <button
+                type="button"
+                class="transfer-qty-btn"
+                [disabled]="transferQuantidade() <= 1"
+                (click)="transferQuantidadeMenos()"
+              >−</button>
+              <div class="transfer-qty-val">{{ transferQuantidade() }}</div>
+              <button
+                type="button"
+                class="transfer-qty-btn"
+                [disabled]="transferQuantidade() >= vagasNaSalaAtual()"
+                (click)="transferQuantidadeMais()"
+              >+</button>
+            </div>
+          </div>
+        }
+
+        @if (transferStep() === 2 && transferPreview(); as prev) {
+          <div class="transfer-dots">
+            <div class="transfer-dot transfer-dot--done"></div>
+            <div class="transfer-dot transfer-dot--done"></div>
+          </div>
+          <p class="transfer-confirm-hint">Confira antes de confirmar:</p>
+
+          <div class="transfer-compare">
+            <div class="transfer-compare-col transfer-compare-col--before">
+              <div class="transfer-compare-label">{{ prev.origemNome }} (origem)</div>
+              <div class="transfer-compare-value">{{ prev.origemAntes }} → {{ prev.origemDepois }}</div>
+            </div>
+            <span class="material-icons transfer-compare-arrow">swap_horiz</span>
+            <div class="transfer-compare-col transfer-compare-col--after">
+              <div class="transfer-compare-label">{{ prev.destinoNome }} (destino)</div>
+              <div class="transfer-compare-value">{{ prev.destinoAntes }} → {{ prev.destinoDepois }}</div>
+            </div>
+          </div>
+
+          <div class="transfer-summary">
+            <div class="transfer-summary-line">
+              <span>Quantidade</span>
+              <span>{{ transferQuantidade() }} carteira(s)</span>
+            </div>
+            <div class="transfer-summary-line">
+              <span>Origem</span>
+              <span>{{ prev.origemNome }}</span>
+            </div>
+            <div class="transfer-summary-line">
+              <span>Destino</span>
+              <span>{{ prev.destinoNome }}</span>
+            </div>
+          </div>
+        }
+
+        @if (transferStep() === 3) {
+          <div class="transfer-success">
+            <span class="material-icons transfer-success-icon">check_circle</span>
+            <div class="transfer-success-title">Transferência concluída</div>
+            <p class="transfer-success-sub">As capacidades das duas salas já foram atualizadas.</p>
+          </div>
+        }
+      </div>
+
+      <div class="transfer-foot">
+        @if (transferStep() === 1) {
+          <app-button variant="ghost" (clicked)="fecharTransferModal()">Cancelar</app-button>
+          <app-button variant="primary" [disabled]="!transferDestinoId()" (clicked)="transferAvancar()">Continuar</app-button>
+        }
+        @if (transferStep() === 2) {
+          <app-button variant="ghost" (clicked)="transferVoltar()">Voltar</app-button>
+          <app-button variant="primary" (clicked)="transferConfirmar()">Confirmar transferência</app-button>
+        }
+        @if (transferStep() === 3) {
+          <app-button variant="primary" (clicked)="fecharTransferModal()">Concluir</app-button>
+        }
+      </div>
     </div>
   }
 </div>
