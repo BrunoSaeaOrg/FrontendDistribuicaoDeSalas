@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { RegrasService } from '../../core/services/regras.service';
 import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
 import { Turno } from '../../core/models';
@@ -30,6 +31,7 @@ const TURNOS: Turno[] = ['manha', 'tarde'];
 })
 export class PlantaComponent {
   private readonly salasService = inject(SalasService);
+  private readonly regrasService = inject(RegrasService);
   private readonly route = inject(ActivatedRoute);
   readonly uiMode = inject(UiModeService);
 
@@ -99,6 +101,29 @@ export class PlantaComponent {
   readonly statusInfo = computed(() => {
     const sala = this.sala();
     return sala ? this.salasService.statusInfo(sala) : { label: '', tone: 'success' as const, key: 'disponivel' as const };
+  });
+
+  /**
+   * Cor da barra de ocupação, interpolada continuamente (cinza → laranja → vermelho)
+   * conforme a ocupação se aproxima e ultrapassa o limite configurado em Regras de
+   * ocupação — em vez de 3 degraus fixos, que davam um salto brusco só ao cruzar o
+   * limite exato (ex: 88% ainda parecia "tudo bem" mesmo bem perto do alerta).
+   */
+  readonly progressColor = computed(() => {
+    const limite = this.regrasService.regras().pctMaximoUtilizacao ?? 90;
+    const pct = this.plantaPct();
+    const disponivel = { r: 148, g: 163, b: 184 }; // --saea-ink-faint
+    const alerta = { r: 238, g: 98, b: 17 }; // --saea-warning
+    const perigo = { r: 211, g: 25, b: 25 }; // --saea-danger
+
+    const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);
+    const mix = (from: { r: number; g: number; b: number }, to: { r: number; g: number; b: number }, t: number) =>
+      `rgb(${lerp(from.r, to.r, t)}, ${lerp(from.g, to.g, t)}, ${lerp(from.b, to.b, t)})`;
+
+    if (pct <= 0) return mix(disponivel, disponivel, 0);
+    if (pct >= 100) return mix(perigo, perigo, 0);
+    if (pct <= limite) return mix(disponivel, alerta, pct / limite);
+    return mix(alerta, perigo, (pct - limite) / (100 - limite));
   });
 
   readonly turnoTabs: { turno: Turno; label: string }[] = [

@@ -34,9 +34,15 @@
 
         <div class="planta-info-row">
           <div class="planta-legend">
-            <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--aluno"></span>Aluno sentado</span>
-            <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--vaga"></span>Carteira vaga</span>
-            <span class="planta-legend-item"><span class="planta-legend-dot planta-legend-dot--excedente"></span>Acima da capacidade</span>
+            <span class="planta-legend-item">
+              <span class="planta-legend-dot planta-legend-dot--aluno"><span class="material-icons planta-legend-icon">person</span></span>Aluno sentado
+            </span>
+            <span class="planta-legend-item">
+              <span class="planta-legend-dot planta-legend-dot--vaga"><span class="material-icons planta-legend-icon">event_seat</span></span>Carteira vaga
+            </span>
+            <span class="planta-legend-item">
+              <span class="planta-legend-dot planta-legend-dot--excedente"><span class="material-icons planta-legend-icon">priority_high</span></span>Acima da capacidade
+            </span>
           </div>
         </div>
 
@@ -47,7 +53,11 @@
               <span>{{ capacidade() - (turmaAtual()?.alunos ?? 0) < 0 ? 0 : capacidade() - (turmaAtual()?.alunos ?? 0) }} vagas</span>
             </div>
             <div class="planta-progress-track">
-              <div class="planta-progress-fill" [style.width.%]="plantaPct()"></div>
+              <div
+                class="planta-progress-fill"
+                [style.width.%]="plantaPct()"
+                [style.background]="progressColor()"
+              ></div>
             </div>
           </div>
 

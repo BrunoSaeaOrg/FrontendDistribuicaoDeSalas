@@ -139,7 +139,10 @@
 .planta-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: var(--saea-primary);
+  background: var(--saea-ink-faint);
+  transition:
+    background var(--dur-short) var(--ease-out),
+    width var(--dur-short) var(--ease-out);
 }
 
 .planta-turma-label {
@@ -246,28 +249,41 @@
   display: flex;
   gap: var(--sp-4);
   flex-wrap: wrap;
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-xs);
   color: var(--saea-ink-soft);
 }
 .planta-legend-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-2);
 }
 .planta-legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+.planta-legend-icon {
+  font-size: 14px;
+  line-height: 1;
 }
 .planta-legend-dot--aluno {
   background: var(--saea-primary);
+  color: #fff;
+  border: 1px solid var(--saea-primary-strong);
 }
 .planta-legend-dot--vaga {
   background: var(--saea-chip-bg);
+  color: var(--saea-ink-soft);
   border: 1px solid var(--saea-border);
 }
 .planta-legend-dot--excedente {
+  background: rgba(211, 25, 25, 0.08);
+  color: var(--saea-danger);
   border: 1px dashed var(--saea-danger);
 }
 
