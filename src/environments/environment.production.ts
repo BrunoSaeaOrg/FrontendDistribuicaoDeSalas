@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://projetos.saea.org.br/api-distribuicao-salas/api',
+  apiUrl: 'https://api.saea.org.br/api_ocupacao_salas/api',
 };

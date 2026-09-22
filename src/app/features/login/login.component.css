@@ -8,7 +8,6 @@
   padding: 32px 16px;
   box-sizing: border-box;
   background-color: var(--saea-bg);
-  background-image: url('/assets/login-bg.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

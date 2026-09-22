@@ -24,6 +24,7 @@ export class LoginComponent {
   readonly obscurePassword = signal(true);
   readonly isLoading = signal(false);
   readonly currentYear = new Date().getFullYear();
+  readonly backgroundImageUrl = `url('${document.baseURI}assets/login-bg.png')`;
 
   readonly loginForm = this.formBuilder.group({
     usuario: ['', Validators.required],
