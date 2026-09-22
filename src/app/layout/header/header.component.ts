@@ -35,6 +35,6 @@ function saudacao(): string {
 })
 export class HeaderComponent {
   readonly theme = inject(ThemeService);
-  readonly subtitle = input<string>('Distribuição de Salas');
+  readonly subtitle = input<string>('Ocupação de Salas');
   readonly saudacao = saudacao();
 }

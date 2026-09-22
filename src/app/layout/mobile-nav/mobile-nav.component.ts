@@ -14,7 +14,7 @@ import { SidePanelItem } from '../side-panel/side-panel.component';
 export class MobileNavComponent {
   readonly theme = inject(ThemeService);
 
-  readonly title = input('Distribuição de Salas');
+  readonly title = input('Ocupação de Salas');
   readonly currentLabel = input('Painel');
   readonly items = input<SidePanelItem[]>([]);
   readonly activeRoute = input<string>('');
