@@ -1,5 +1,18 @@
+/*
+ * Sem :host, o elemento custom <app-button> é display:inline por padrão — um
+ * pai que tenta esticá-lo (ex: `app-button { flex: 1 }` num footer de ações
+ * lado a lado) estica só a caixa do host, não o <button> real dentro dele,
+ * que continua com largura de conteúdo (inline-flex). Resultado: botões do
+ * mesmo footer com larguras diferentes, "desalinhados" entre si. block +
+ * width:100% no <button> faz o botão real sempre preencher o host.
+ */
+:host {
+  display: inline-block;
+}
+
 .saea-btn {
   display: inline-flex;
+  width: 100%;
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
@@ -9,6 +22,7 @@
   border-radius: var(--radius-pill);
   cursor: pointer;
   white-space: nowrap;
+  box-sizing: border-box;
   transition:
     transform var(--dur-short) var(--ease-out),
     box-shadow var(--dur-short) var(--ease-out),
