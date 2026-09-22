@@ -11,7 +11,7 @@ import { CardComponent } from '../../shared/ui/card/card.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
-type DeskKind = 'aluno' | 'vaga' | 'excedente';
+type DeskKind = 'aluno' | 'vaga' | 'excedente' | 'espaco';
 
 interface DeskSlot {
   index: number;
@@ -94,14 +94,21 @@ export class PlantaComponent {
     return this.salasService.sala(id ?? '') ?? this.salasDaUnidade()[0];
   });
 
+  /** Carteiras fisicas da sala (nao a capacidade normativa) — base do drag-and-drop. */
   readonly capacidade = computed(() => {
+    const sala = this.sala();
+    return sala ? sala.carteiras : 0;
+  });
+
+  /** Capacidade normativa da sala (area/1,5m² etc.) — teto do "espaço disponível" na grade. */
+  readonly capacidadeNormativa = computed(() => {
     const sala = this.sala();
     return sala ? this.salasService.capacidade(sala) : 0;
   });
 
   readonly statusInfo = computed(() => {
     const sala = this.sala();
-    return sala ? this.salasService.statusInfo(sala) : { label: '', tone: 'success' as const, key: 'disponivel' as const };
+    return sala ? this.salasService.statusInfoCarteiras(sala) : { label: '', tone: 'success' as const, key: 'disponivel' as const };
   });
 
   /**
@@ -149,9 +156,10 @@ export class PlantaComponent {
     const sala = this.sala();
     if (!sala) return [];
     const cap = this.capacidade();
+    const capNorm = Math.max(cap, this.capacidadeNormativa());
     const turma = this.turmaAtual();
     const alunos = turma?.alunos ?? 0;
-    const totalSlots = Math.max(cap, alunos);
+    const totalSlots = Math.max(cap, capNorm, alunos);
     const slots: DeskSlot[] = [];
     for (let i = 0; i < totalSlots; i++) {
       let kind: DeskKind;
@@ -165,6 +173,14 @@ export class PlantaComponent {
         kind = 'vaga';
         icon = 'event_seat';
         tooltip = 'Carteira vaga neste turno';
+      } else if (i < alunos) {
+        kind = 'excedente';
+        icon = 'priority_high';
+        tooltip = 'Além das carteiras físicas da sala';
+      } else if (i < capNorm) {
+        kind = 'espaco';
+        icon = 'add';
+        tooltip = 'Cabe carteira aqui, dentro da capacidade da sala';
       } else {
         kind = 'excedente';
         icon = 'priority_high';
@@ -187,7 +203,7 @@ export class PlantaComponent {
         tipo: s.tipo,
         ocupadas: this.salasService.alunosNoTurno(s, turno),
         carteiras: s.carteiras,
-        statusInfo: this.salasService.statusInfo(s),
+        statusInfo: this.salasService.statusInfoCarteiras(s),
       }));
   });
 

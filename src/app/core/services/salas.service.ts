@@ -82,7 +82,7 @@ export class SalasService {
   readonly totalVagas = computed(() =>
     this._salas().reduce((a, s) => {
       const ocupacao = Math.max(this.alunosNoTurno(s, 'manha'), this.alunosNoTurno(s, 'tarde'));
-      return a + Math.max(0, this.capacidade(s) - ocupacao);
+      return a + Math.max(0, s.carteiras - ocupacao);
     }, 0),
   );
 
@@ -163,21 +163,31 @@ export class SalasService {
   }
 
   capacidade(sala: Sala): number {
-    return sala.carteiras;
+    return sala.capacidade;
   }
 
   alunosNoTurno(sala: Sala, turno: Turno): number {
     return sala.turnos[turno]?.alunos ?? 0;
   }
 
-  statusInfo(sala: Sala): StatusInfo {
-    const cap = this.capacidade(sala);
+  /** Status a partir da ocupacao (maior turno) sobre uma capacidade de referencia. */
+  private statusPorCapacidade(sala: Sala, cap: number): StatusInfo {
     const maiorOcupacao = Math.max(0, ...(['manha', 'tarde'] as Turno[]).map((t) => this.alunosNoTurno(sala, t)));
     const ratio = cap > 0 ? maiorOcupacao / cap : 0;
     const limite = (this.regrasService.regras().pctMaximoUtilizacao ?? 90) / 100;
     if (ratio > 1) return { label: 'Excedida', tone: 'danger', key: 'excedida' as StatusOcupacao };
     if (ratio >= limite) return { label: 'Quase lotada', tone: 'warning', key: 'quase' as StatusOcupacao };
     return { label: 'Disponível', tone: 'success', key: 'disponivel' as StatusOcupacao };
+  }
+
+  /** Status conforme a capacidade normativa (CAPACIDADE) — usado em Solicitacoes, Painel e Ocupacao. */
+  statusInfo(sala: Sala): StatusInfo {
+    return this.statusPorCapacidade(sala, this.capacidade(sala));
+  }
+
+  /** Status conforme as carteiras fisicas (CARTEIRAS) — usado na tela Planta (drag-and-drop). */
+  statusInfoCarteiras(sala: Sala): StatusInfo {
+    return this.statusPorCapacidade(sala, sala.carteiras);
   }
 
   /**
@@ -281,8 +291,9 @@ export class SalasService {
             this.toast.danger('Não foi possível transferir', 'tente novamente');
           }
         },
-        error: () => {
-          this.toast.danger('Falha ao transferir carteira', 'Não foi possível contatar o servidor.');
+        error: (err) => {
+          const mensagem = err?.error?.message ?? 'Não foi possível contatar o servidor.';
+          this.toast.danger('Falha ao transferir carteira', mensagem);
         },
       });
   }

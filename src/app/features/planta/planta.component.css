@@ -280,6 +280,11 @@
   color: var(--saea-danger);
   border: 1px dashed var(--saea-danger);
 }
+.planta-desk--espaco {
+  background: transparent;
+  color: var(--saea-ink-faint);
+  border: 1px dashed var(--saea-border);
+}
 
 .planta-info-row {
   display: flex;
@@ -335,6 +340,11 @@
   background: rgba(211, 25, 25, 0.08);
   color: var(--saea-danger);
   border: 1px dashed var(--saea-danger);
+}
+.planta-legend-dot--espaco {
+  background: transparent;
+  color: var(--saea-ink-faint);
+  border: 1px dashed var(--saea-border);
 }
 
 /*

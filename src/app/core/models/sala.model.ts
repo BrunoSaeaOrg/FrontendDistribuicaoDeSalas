@@ -17,7 +17,10 @@ export interface Sala {
   nome: string;
   tipo: string;
   area: number;
+  /** Quantidade fisica de carteiras na sala (API: CARTEIRAS). Usado no drag-and-drop de carteiras. */
   carteiras: number;
+  /** Capacidade normativa da sala, ex. area / 1,5m2 (API: CAPACIDADE). Usado em solicitacoes, painel e ocupacao. */
+  capacidade: number;
   turnos: Turnos;
   codFilial: number;
   codBloco: string;
