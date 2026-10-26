@@ -1,6 +1,7 @@
+/* Sem overflow: hidden e com z-index: o menu do avatar sai do header e passa por cima do conteúdo. */
 .saea-header {
   position: relative;
-  overflow: hidden;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: var(--sp-4);
@@ -24,6 +25,7 @@
   position: relative;
   z-index: 1;
   flex: 1;
+  min-width: 0;
   text-align: center;
 }
 
@@ -31,6 +33,10 @@
   color: #fff;
   font-weight: 700;
   font-size: var(--fs-lg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .saea-header-subtitle {

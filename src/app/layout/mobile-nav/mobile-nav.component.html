@@ -14,6 +14,7 @@
   >
     <mat-icon>{{ theme.isDark() ? 'dark_mode' : 'light_mode' }}</mat-icon>
   </button>
+  <app-user-avatar />
 </header>
 
 <div class="mnav-scrim" [class.mnav-scrim--open]="open()" (click)="open.set(false)"></div>
@@ -42,9 +43,4 @@
       </button>
     }
   </div>
-
-  <button type="button" class="mnav-drawer-signout" (click)="onSignOut()">
-    <span class="mnav-drawer-item-icon"><mat-icon>logout</mat-icon></span>
-    <span class="mnav-drawer-item-label">{{ signOutLabel() }}</span>
-  </button>
 </nav>

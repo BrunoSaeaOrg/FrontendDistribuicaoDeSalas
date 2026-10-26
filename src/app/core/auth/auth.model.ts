@@ -19,3 +19,19 @@ export interface EncryptionKeyResponse {
   keyId: string;
   publicKey: string;
 }
+
+/** Resposta de POST /auth/password/recovery e /password/reset; as recusas vêm como erro HTTP com `message`. */
+export interface PasswordRecoveryResponse {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Linha de FV.APP.DESKUSER. NOME e FOTO são confirmados (o formato do conteúdo da FOTO ainda
+ * não: ver fotoParaSrc no UsuarioService) — demais campos ficam no indice generico.
+ */
+export interface DadosUsuarioDto {
+  NOME?: string;
+  FOTO?: string | null;
+  [campo: string]: unknown;
+}

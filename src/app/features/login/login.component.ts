@@ -5,11 +5,16 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { PasswordRecoveryComponent } from './password-recovery/password-recovery.component';
 
+/**
+ * Tela de login. "Esqueceu sua senha?" troca o formulário pelo PasswordRecoveryComponent
+ * na mesma tela (fundo, logo e rodapé continuam) e volta com o usuário preenchido.
+ */
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule, MatIconModule],
+  imports: [ReactiveFormsModule, MatIconModule, PasswordRecoveryComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
@@ -23,6 +28,8 @@ export class LoginComponent {
 
   readonly obscurePassword = signal(true);
   readonly isLoading = signal(false);
+  /** O formulário de login deu lugar ao "Esqueceu sua senha?". */
+  readonly recuperandoSenha = signal(false);
   readonly currentYear = new Date().getFullYear();
   readonly backgroundImageUrl = `url('${document.baseURI}assets/login-bg.png')`;
 
@@ -33,6 +40,17 @@ export class LoginComponent {
 
   togglePassword(): void {
     this.obscurePassword.update((v) => !v);
+  }
+
+  abrirRecuperacaoSenha(): void {
+    this.recuperandoSenha.set(true);
+  }
+
+  /** Volta do "Esqueceu sua senha?" com o usuário que a pessoa usou lá. */
+  voltarDaRecuperacao(usuario: string): void {
+    if (usuario) this.loginForm.controls.usuario.setValue(usuario);
+    this.loginForm.controls.senha.reset('');
+    this.recuperandoSenha.set(false);
   }
 
   onSubmit(): void {
@@ -47,15 +65,16 @@ export class LoginComponent {
         if (response.success) {
           this.router.navigate(['/painel']);
         } else {
-          this.toast.danger('Não foi possível entrar', response.message || 'Usuário ou senha inválidos.');
+          this.toast.danger('Não foi possível entrar', 'Usuário ou senha inválidos.');
         }
       },
+      // Nunca mostra a mensagem crua da API/RM: pode ter dado sensível ou jargão de sistema.
       error: (err) => {
         this.isLoading.set(false);
         if (err.status === 401 || err.status === 400) {
           this.toast.danger('Não foi possível entrar', 'Usuário ou senha inválidos.');
         } else {
-          this.toast.danger('Falha de comunicação', err.message || 'Não foi possível contatar o servidor.');
+          this.toast.danger('Não foi possível entrar', 'Falha de comunicação com o servidor.');
         }
       },
     });

@@ -176,17 +176,3 @@
   margin-top: 1px;
   line-height: 1.35;
 }
-
-.mnav-drawer-signout {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  min-height: 44px;
-  border: none;
-  border-top: 1px solid var(--saea-border);
-  background: none;
-  padding: var(--sp-4);
-  cursor: pointer;
-  font-family: inherit;
-  flex-shrink: 0;
-}

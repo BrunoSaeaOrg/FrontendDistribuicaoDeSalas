@@ -194,6 +194,38 @@
   animation: saea-spin 0.7s linear infinite;
 }
 
+/* "Esqueceu sua senha?" e os links da recuperação (que reaproveita este arquivo) */
+.saea-login-forgot {
+  align-self: center;
+  padding: 0;
+  border: none;
+  background: none;
+  font: 400 13px var(--font-body);
+  color: var(--saea-primary-strong);
+  cursor: pointer;
+}
+
+.saea-login-forgot:hover {
+  text-decoration: underline;
+}
+
+/* Recuperação: o formulário é mais alto que o do login. Fica no centro quando cabe
+   (margin auto) e, quando não cabe, cresce para baixo com o rodapé no fluxo, em vez de
+   passar por baixo do logo e do rodapé. */
+.saea-login-page--recuperacao {
+  justify-content: flex-start;
+  padding-bottom: 24px;
+}
+
+.saea-login-page--recuperacao .saea-login-form-wrap {
+  margin-block: auto;
+}
+
+.saea-login-page--recuperacao .saea-login-copyright {
+  position: static;
+  margin-top: 24px;
+}
+
 .saea-login-copyright {
   position: absolute;
   bottom: 24px;
@@ -240,6 +272,12 @@
 
   .saea-login-brand__logo {
     height: 86px;
+  }
+
+  /* Recuperação: começa abaixo do logo, que aqui fica centralizado no topo */
+  .saea-login-page--recuperacao {
+    padding-top: calc(48px + 86px + 16px);
+    padding-bottom: 16px;
   }
 
   .saea-login-title {

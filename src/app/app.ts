@@ -2,8 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { AuthService } from './core/auth/auth.service';
 import { BreakpointService } from './core/services/breakpoint.service';
+import { UsuarioService } from './core/services/usuario.service';
 import { HeaderComponent } from './layout/header/header.component';
 import { FooterComponent } from './layout/footer/footer.component';
 import { MobileNavComponent } from './layout/mobile-nav/mobile-nav.component';
@@ -39,7 +39,9 @@ const NAV_ITEMS: SidePanelItem[] = [
 export class App {
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
-  private readonly authService = inject(AuthService);
+  // Injetado aqui para a carga da FV.APP.DESKUSER começar já no login, não só quando o
+  // cabeçalho pedir; o "Sair" fica no avatar (UserAvatarComponent).
+  private readonly usuarioService = inject(UsuarioService);
   readonly breakpoint = inject(BreakpointService);
 
   readonly navItems = NAV_ITEMS;
@@ -73,10 +75,6 @@ export class App {
 
   onItemClick(item: SidePanelItem): void {
     this.router.navigate([item.route]);
-  }
-
-  onSignOut(): void {
-    this.authService.logout();
   }
 
   private readBreadcrumb(): string {

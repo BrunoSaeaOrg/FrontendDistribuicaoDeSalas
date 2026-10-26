@@ -50,13 +50,6 @@ export interface SidePanelItem {
           </button>
         }
       </nav>
-
-      <button type="button" class="saea-side-signout" (click)="signOut.emit()">
-        <span class="saea-side-signout-icon"><mat-icon>logout</mat-icon></span>
-        @if (!collapsed()) {
-          <span class="saea-side-item-label">{{ signOutLabel() }}</span>
-        }
-      </button>
     </aside>
   `,
   styleUrl: './side-panel.component.css',
@@ -66,9 +59,7 @@ export class SidePanelComponent {
   readonly items = input<SidePanelItem[]>([]);
   readonly collapsed = input(false);
   readonly activeRoute = input<string>('');
-  readonly signOutLabel = input('Sair');
 
   readonly toggle = output<void>();
-  readonly signOut = output<void>();
   readonly itemClick = output<SidePanelItem>();
 }

@@ -69,7 +69,7 @@
    * aproximam em vez de estourarem para fora do painel.
    */
   gap: clamp(var(--sp-2), 1.4vh, var(--sp-5));
-  /* Absorve a folga vertical para o botao "Sair" ficar ancorado embaixo. */
+  /* Absorve a folga vertical do painel (o "Sair" fica no avatar do cabecalho). */
   flex: 1 1 auto;
   min-height: 0;
   /* Sem scroll: os itens de navegacao cabem inteiros, sem barra interna. */
@@ -136,35 +136,4 @@
   color: var(--saea-ink-soft);
   margin-top: 2px;
   white-space: normal;
-}
-
-.saea-side-signout {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  cursor: pointer;
-  border: none;
-  background: none;
-  padding: 0;
-  margin-top: clamp(var(--sp-3), 1.4vh, var(--sp-5));
-  flex-shrink: 0;
-  font-family: inherit;
-  text-align: left;
-}
-
-.saea-side-signout-icon {
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
-  background: var(--saea-bg);
-  color: var(--saea-ink-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.saea-side-signout-icon mat-icon {
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
 }

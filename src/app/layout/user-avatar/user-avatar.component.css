@@ -1,0 +1,81 @@
+/* O host é a âncora do menu (o .saea-header-usuario do padrão SAEA). */
+:host {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.saea-header-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: box-shadow var(--dur-short) var(--ease-out);
+}
+.saea-header-avatar:hover,
+.saea-header-avatar[aria-expanded='true'] {
+  box-shadow: 0 0 0 3px #fff;
+}
+.saea-header-avatar:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+.saea-header-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.saea-header-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 160px;
+  padding: var(--sp-1) 0;
+  background: var(--saea-surface);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elev-3);
+  overflow: hidden;
+}
+
+.saea-header-menu button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.6rem 0.9rem;
+  border: none;
+  background: none;
+  color: var(--saea-ink);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  text-align: left;
+}
+.saea-header-menu button:hover,
+.saea-header-menu button:focus-visible {
+  background: var(--saea-bg);
+}
+
+.saea-header-menu mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--saea-ink-soft);
+}

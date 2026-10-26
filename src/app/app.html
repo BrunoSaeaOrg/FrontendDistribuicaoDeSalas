@@ -8,7 +8,6 @@
       [activeRoute]="activeRoute()"
       [currentLabel]="currentBreadcrumbLabel()"
       (itemClick)="onItemClick($event)"
-      (signOut)="onSignOut()"
     />
 
     <main class="saea-main saea-main--mobile">
@@ -27,7 +26,6 @@
           [activeRoute]="activeRoute()"
           (toggle)="navCollapsed.set(!navCollapsed())"
           (itemClick)="onItemClick($event)"
-          (signOut)="onSignOut()"
         />
       </div>
 
