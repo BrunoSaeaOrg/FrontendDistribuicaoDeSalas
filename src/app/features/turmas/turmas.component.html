@@ -34,43 +34,131 @@
                 </span>
               </td>
               <td>{{ row.carteiras }}</td>
-              @for (cell of row.cells; track cell.turno + '|' + versaoSelecao()) {
+              @for (cell of row.cells; track cell.turno) {
                 <td class="turmas-cell-turno">
-                  @if (cell.hasTurma) {
-                    <div class="turmas-turma">
-                      <div class="turmas-readonly">
-                        {{ cell.nomeProprio }} <span class="turmas-readonly-soft">· {{ cell.alunos }} al.</span>
-                      </div>
-                      @if (cell.excede) {
-                        <app-badge tone="danger">Excede carteiras</app-badge>
-                      }
-                      @if (uiMode.editorMode()) {
-                        @if (cell.gravando) {
-                          <saea-spinner class="turmas-gravando" [size]="18" label="Gravando no RM" />
-                        } @else {
-                          <app-button variant="secondary" size="sm" [disabled]="salvando()" (clicked)="liberar(row, cell)">Liberar</app-button>
+                  <div class="turmas-turno">
+                    @if (cell.turmas.length > 0) {
+                      <!-- Turmas vinculadas em chips na horizontal: até 3, e o resto num "+N" que abre todas. -->
+                      <div class="turmas-chips" [class.turmas-chips--aberto]="cell.vinculadas.aberta">
+                        @for (chip of cell.vinculadas.visiveis; track chip.turma.codTurma + '|' + chip.turma.idPerlet) {
+                          <span class="turmas-chip">
+                            <saea-truncate class="turmas-chip-nome" maxWidth="100%" [label]="chip.titulo">{{ chip.nome }}</saea-truncate>
+                            <span class="turmas-chip-alunos" [saeaTooltip]="qtdAlunos(chip.turma.alunos)">{{ chip.turma.alunos }}</span>
+                            @if (uiMode.editorMode()) {
+                              @if (cell.liberando === chip.turma.codTurma) {
+                                <saea-spinner class="turmas-gravando" [size]="14" label="Gravando no RM" />
+                              } @else {
+                                <button
+                                  type="button"
+                                  class="turmas-chip-acao"
+                                  saeaTooltip="Liberar da sala"
+                                  [attr.aria-label]="'Liberar ' + chip.turma.nomeProprio"
+                                  [disabled]="salvando()"
+                                  (click)="liberar(row, cell, chip.turma)"
+                                >
+                                  <span class="material-icons" aria-hidden="true">close</span>
+                                </button>
+                              }
+                            }
+                          </span>
                         }
-                      }
-                    </div>
-                  }
-                  @if (cell.noTurma) {
+                        @if (cell.vinculadas.ocultas.length > 0) {
+                          <button
+                            type="button"
+                            class="turmas-chip turmas-chip--mais"
+                            [saeaTooltip]="cell.vinculadas.resumoOcultas"
+                            [attr.aria-label]="'Mostrar mais ' + cell.vinculadas.ocultas.length + ' turmas'"
+                            (click)="alternarLista(cell.chave + '|vinculadas')"
+                          >
+                            +{{ cell.vinculadas.ocultas.length }}
+                          </button>
+                        } @else if (cell.vinculadas.aberta) {
+                          <button
+                            type="button"
+                            class="turmas-chip turmas-chip--mais"
+                            saeaTooltip="Mostrar menos"
+                            aria-label="Mostrar menos turmas"
+                            (click)="alternarLista(cell.chave + '|vinculadas')"
+                          >
+                            <span class="material-icons" aria-hidden="true">expand_less</span>
+                          </button>
+                        }
+                      </div>
+                    }
+                    @if (cell.turmas.length > 1 || cell.excede) {
+                      <div class="turmas-meta">
+                        @if (cell.turmas.length > 1) {
+                          <span class="turmas-total">{{ qtdAlunos(cell.alunos) }} no turno</span>
+                        }
+                        @if (cell.excede) {
+                          <app-badge tone="danger">Excede carteiras</app-badge>
+                        }
+                      </div>
+                    }
+
                     @if (uiMode.editorMode()) {
-                      @if (cell.gravando) {
-                        <saea-spinner class="turmas-gravando" [size]="18" label="Gravando no RM" />
-                      } @else if (cell.podeVincular) {
-                        <app-select
-                          [options]="turmaLivreOptions(cell)"
+                      @if (cell.vinculando; as gravacao) {
+                        <span class="turmas-gravando-lote">
+                          <saea-spinner class="turmas-gravando" [size]="18" label="Gravando no RM" />
+                          @if (gravacao.total > 1) {
+                            Gravando {{ gravacao.atual }} de {{ gravacao.total }}...
+                          }
+                        </span>
+                      } @else if (cell.opcoes.length > 0) {
+                        <app-multi-select
+                          class="turmas-seletor"
+                          [options]="cell.opcoesSeletor"
+                          [placeholder]="cell.turmas.length > 0 ? 'Adicionar turma...' : 'Vincular turmas...'"
                           [disabled]="salvando()"
-                          [ngModel]="''"
-                          (ngModelChange)="vincular(row, cell, $event)"
+                          [selected]="cell.valoresSelecionados"
+                          (selectedChange)="selecionar(cell, $event)"
                         />
-                      } @else {
+                        @if (cell.selecionadas.length > 0) {
+                          <div class="turmas-chips" [class.turmas-chips--aberto]="cell.marcadas.aberta">
+                            @for (opcao of cell.marcadas.visiveis; track opcao.valor) {
+                              <saea-tag class="turmas-tag" removable [removeLabel]="'Desmarcar ' + opcao.nome" (removed)="desmarcar(cell, opcao.valor)">
+                                <saea-truncate maxWidth="100%" [label]="opcao.nome + (opcao.salaAtual ? ' · hoje em ' + opcao.salaAtual : '')">
+                                  {{ opcao.nomeCurto }}@if (opcao.salaAtual) {<span class="turmas-tag-origem"> · de {{ opcao.salaAtual }}</span>}
+                                </saea-truncate>
+                              </saea-tag>
+                            }
+                            @if (cell.marcadas.ocultas.length > 0) {
+                              <button
+                                type="button"
+                                class="turmas-chip turmas-chip--mais"
+                                [saeaTooltip]="cell.marcadas.resumoOcultas"
+                                [attr.aria-label]="'Mostrar mais ' + cell.marcadas.ocultas.length + ' marcadas'"
+                                (click)="alternarLista(cell.chave + '|marcadas')"
+                              >
+                                +{{ cell.marcadas.ocultas.length }}
+                              </button>
+                            } @else if (cell.marcadas.aberta) {
+                              <button
+                                type="button"
+                                class="turmas-chip turmas-chip--mais"
+                                saeaTooltip="Mostrar menos"
+                                aria-label="Mostrar menos marcadas"
+                                (click)="alternarLista(cell.chave + '|marcadas')"
+                              >
+                                <span class="material-icons" aria-hidden="true">expand_less</span>
+                              </button>
+                            }
+                          </div>
+                          <span class="turmas-previa" [class.turmas-previa--excede]="cell.excedeComSelecionadas">
+                            Com elas: {{ qtdAlunos(cell.alunosComSelecionadas) }} para {{ row.carteiras }} carteiras
+                          </span>
+                          <div class="turmas-acoes">
+                            <app-button size="sm" [disabled]="salvando()" (clicked)="confirmar(row, cell)">Confirmar</app-button>
+                            <app-button variant="ghost" size="sm" [disabled]="salvando()" (clicked)="limpar(cell)">Cancelar</app-button>
+                          </div>
+                        }
+                      } @else if (cell.turmas.length === 0) {
                         <span class="turmas-livre">— Nenhuma turma disponível —</span>
                       }
-                    } @else {
+                    } @else if (cell.turmas.length === 0) {
                       <span class="turmas-livre">— Livre —</span>
                     }
-                  }
+                  </div>
                 </td>
               }
             </tr>

@@ -100,19 +100,29 @@ export class OcupacaoComponent {
     this.salasService.salas().forEach((s) => {
       const u = this.salasService.unidade(s.unidadeId)!;
       TURNOS.forEach((turno) => {
-        const t = s.turnos[turno];
-        if (!t) return;
-        list.push({
-          unidadeId: s.unidadeId,
-          unidadeNome: u.nome,
-          unidadeCor: u.cor,
-          turno,
-          segmento: t.segmento,
-          serie: this.salasService.serieFromNome(t.nome),
-          turma: t.nomeProprio || t.nome,
-          alunos: t.alunos,
-          capacidade: this.salasService.capacidade(s),
-        });
+        const turmas = this.salasService.turmasNoTurno(s, turno);
+        const capacidade = this.salasService.capacidade(s);
+        const alunosNaSala = this.salasService.alunosNoTurno(s, turno);
+        turmas.forEach((t) =>
+          list.push({
+            unidadeId: s.unidadeId,
+            unidadeNome: u.nome,
+            unidadeCor: u.cor,
+            turno,
+            segmento: t.segmento,
+            serie: this.salasService.serieFromNome(t.nome),
+            turma: t.nomeProprio || t.nome,
+            alunos: t.alunos,
+            // Turmas que dividem a sala dividem a capacidade dela, na proporção dos alunos: somadas
+            // por unidade ou turno, a sala conta uma vez só.
+            capacidade:
+              turmas.length === 1
+                ? capacidade
+                : alunosNaSala > 0
+                  ? (capacidade * t.alunos) / alunosNaSala
+                  : capacidade / turmas.length,
+          }),
+        );
       });
     });
     return list;
@@ -167,6 +177,8 @@ export class OcupacaoComponent {
         const excede = g.alunos > g.capacidade;
         return {
           ...g,
+          // A parte de uma sala dividida pode ser fracionária; a soma é arredondada só aqui.
+          capacidade: Math.round(g.capacidade),
           color: g.color || PALETTE[i % PALETTE.length],
           pct,
           excede,

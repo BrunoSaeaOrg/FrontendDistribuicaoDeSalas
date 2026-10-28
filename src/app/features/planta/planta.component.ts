@@ -75,14 +75,14 @@ export class PlantaComponent {
   private matchesFiltro = (salaId: string): boolean => {
     const sala = this.salasService.sala(salaId);
     if (!sala) return false;
-    return TURNOS.some((t) => {
-      const turma = sala.turnos[t];
-      if (!turma) return false;
-      if (this.segmento() !== 'todas' && turma.segmento !== this.segmento()) return false;
-      if (this.serie() !== 'todas' && this.salasService.serieFromNome(turma.nome) !== this.serie())
-        return false;
-      return true;
-    });
+    return TURNOS.some((t) =>
+      this.salasService.turmasNoTurno(sala, t).some((turma) => {
+        if (this.segmento() !== 'todas' && turma.segmento !== this.segmento()) return false;
+        if (this.serie() !== 'todas' && this.salasService.serieFromNome(turma.nome) !== this.serie())
+          return false;
+        return true;
+      }),
+    );
   };
 
   readonly salasDaUnidade = computed(() => {
@@ -147,17 +147,27 @@ export class PlantaComponent {
     { turno: 'tarde', label: 'Tarde' },
   ];
 
-  readonly turmaAtual = computed(() => {
+  /** Alunos da sala no turno (soma das turmas, quando há mais de uma). */
+  readonly alunosAtuais = computed(() => {
     const sala = this.sala();
-    return sala ? sala.turnos[this.turno()] : null;
+    return sala ? this.salasService.alunosNoTurno(sala, this.turno()) : 0;
+  });
+
+  /** Turmas do turno numa linha: "1º ano A · 28 alunos; 1º ano B · 25 alunos". */
+  readonly turmasLabel = computed(() => {
+    const sala = this.sala();
+    if (!sala) return '';
+    return this.salasService
+      .turmasNoTurno(sala, this.turno())
+      .map((t) => `${t.nomeProprio} · ${t.alunos} alunos`)
+      .join('; ');
   });
 
   readonly plantaPct = computed(() => {
     const sala = this.sala();
     const cap = this.capacidade();
     if (!sala || cap === 0) return 0;
-    const turma = this.turmaAtual();
-    return Math.min(100, Math.round(((turma?.alunos ?? 0) / cap) * 100));
+    return Math.min(100, Math.round((this.alunosAtuais() / cap) * 100));
   });
 
   readonly deskSlots = computed<DeskSlot[]>(() => {
@@ -165,8 +175,7 @@ export class PlantaComponent {
     if (!sala) return [];
     const cap = this.capacidade();
     const capNorm = Math.max(cap, this.capacidadeNormativa());
-    const turma = this.turmaAtual();
-    const alunos = turma?.alunos ?? 0;
+    const alunos = this.alunosAtuais();
     const totalSlots = Math.max(cap, capNorm, alunos);
     const slots: DeskSlot[] = [];
     for (let i = 0; i < totalSlots; i++) {

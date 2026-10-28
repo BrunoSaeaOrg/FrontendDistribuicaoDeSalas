@@ -9,7 +9,11 @@ export interface TurmaVinculada {
   segmento: string;
 }
 
-export type Turnos = Partial<Record<Turno, TurmaVinculada | null>>;
+/**
+ * Turmas de cada turno. Uma sala pode ter mais de uma turma no mesmo turno: o vínculo é da turma
+ * (OC_SAL_TURMASXSALAS), então nada no RM impede duas turmas na mesma sala. Sem turma = livre.
+ */
+export type Turnos = Partial<Record<Turno, TurmaVinculada[]>>;
 
 export interface Sala {
   id: string;

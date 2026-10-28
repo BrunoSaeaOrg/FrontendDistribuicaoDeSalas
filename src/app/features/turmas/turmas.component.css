@@ -93,6 +93,17 @@
   vertical-align: top;
 }
 
+/* Sala, Unidade e Carteiras só do tamanho do conteúdo: a sobra vai para Manhã e Tarde, onde os
+   chips das turmas precisam de espaço para o nome não cortar cedo. */
+.turmas-table th:nth-child(-n + 3),
+.turmas-table td:nth-child(-n + 3) {
+  width: 1%;
+  white-space: nowrap;
+}
+.turmas-table th:nth-child(-n + 3) {
+  padding-right: var(--sp-5);
+}
+
 .turmas-cell-strong {
   font-weight: 600;
   color: var(--saea-ink);
@@ -113,20 +124,183 @@
   display: inline-block;
 }
 
+/* Cabe a linha de chips (com o corte dos nomes) e o seletor. */
 .turmas-cell-turno {
-  min-width: 150px;
+  min-width: 260px;
 }
 
-.turmas-turma {
+/* Célula do turno: turmas vinculadas, depois o seletor, as tags das marcadas e o Confirmar. */
+.turmas-turno {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--sp-2);
 }
 
+/* Chips numa linha só, cortando o nome. contain: inline-size faz a linha ocupar a largura da
+   célula sem empurrar a coluna (os nomes inteiros alargariam a tabela). Aberta pelo "+N", quebra. */
+.turmas-chips {
+  align-self: stretch;
+  contain: inline-size;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.turmas-chips--aberto {
+  flex-wrap: wrap;
+}
+
+/* Espaço dividido por igual entre os chips (base 0), cada um no máximo do tamanho do conteúdo:
+   o curto aparece inteiro e a sobra vai para os compridos. Encolher na proporção do tamanho
+   cortava quase todo o nome do chip curto. Aberta, cada chip volta ao próprio tamanho e quebra. */
+.turmas-chip,
+.turmas-tag {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: max-content;
+}
+.turmas-chips--aberto .turmas-chip,
+.turmas-chips--aberto .turmas-tag {
+  flex: 0 1 auto;
+}
+
+.turmas-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  padding: 3px var(--sp-1) 3px 10px;
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-pill);
+  background: var(--saea-surface);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--saea-ink);
+}
+/* Sem o × de liberar: o respiro da direita fica igual ao da esquerda. */
+.turmas-chip:not(.turmas-chip--mais):not(:has(.turmas-chip-acao, saea-spinner)) {
+  padding-right: var(--sp-1);
+}
+.turmas-chip-nome {
+  min-width: 0;
+}
+/* Contagem de alunos numa bolinha (o "alunos" fica no tooltip). */
+.turmas-chip-alunos {
+  flex-shrink: 0;
+  min-width: 18px;
+  box-sizing: border-box;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--saea-surface-sunken);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  color: var(--saea-ink-soft);
+}
+
+.turmas-chip-acao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--saea-ink-faint);
+  cursor: pointer;
+  transition:
+    background var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out);
+}
+.turmas-chip-acao .material-icons {
+  font-size: 14px;
+}
+.turmas-chip-acao:hover:not(:disabled) {
+  background: var(--saea-surface-sunken);
+  color: var(--saea-danger);
+}
+.turmas-chip-acao:focus-visible {
+  outline: 2px solid var(--saea-primary);
+  outline-offset: 1px;
+}
+.turmas-chip-acao:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* "+N" e o recolher: chip que é botão, sem encolher. */
+.turmas-chips .turmas-chip--mais {
+  flex: none;
+  padding: 3px var(--sp-2);
+  background: var(--saea-surface-sunken);
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--saea-ink-soft);
+  cursor: pointer;
+}
+.turmas-chip--mais:hover {
+  color: var(--saea-ink);
+  border-color: var(--saea-ink-faint);
+}
+.turmas-chip--mais:focus-visible {
+  outline: 2px solid var(--saea-primary);
+  outline-offset: 1px;
+}
+.turmas-chip--mais .material-icons {
+  font-size: 16px;
+}
+
+.turmas-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.turmas-total {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--saea-ink-soft);
+}
+
 /* Spinner do design system no lugar da ação da célula enquanto o RM grava */
 .turmas-gravando {
   color: var(--saea-primary-strong);
+}
+.turmas-gravando-lote {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+
+.turmas-seletor {
+  width: 100%;
+  max-width: 260px;
+}
+
+.turmas-tag-origem {
+  color: var(--saea-ink-soft);
+}
+
+.turmas-previa {
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+.turmas-previa--excede {
+  color: var(--saea-danger);
+  font-weight: 600;
+}
+
+.turmas-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
 }
 
 .turmas-readonly {

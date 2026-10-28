@@ -14,14 +14,15 @@ export const LAYOUTS: { valor: LayoutApp; nome: string }[] = [
   { valor: 'lateral', nome: 'Barra lateral' },
 ];
 
-const CHAVE = 'saea.layout';
-/** Chave do tempo do protótipo: quem já tinha escolhido a barra lateral continua nela. */
-const CHAVE_PROTOTIPO = 'saea.layoutPrototipo';
+/**
+ * Uma chave por app: os apps SAEA dividem o mesmo endereço (localhost:4200, o mesmo servidor),
+ * e a escolha feita num não pode mudar o layout dos outros. Sem nada salvo, abre no Clássico.
+ */
+const CHAVE = 'saea.layout.distribuicao-salas';
 
 function lerPreferencia(): LayoutApp {
   try {
-    const salvo = localStorage.getItem(CHAVE) ?? localStorage.getItem(CHAVE_PROTOTIPO);
-    return salvo === 'lateral' ? 'lateral' : 'padrao';
+    return localStorage.getItem(CHAVE) === 'lateral' ? 'lateral' : 'padrao';
   } catch {
     return 'padrao';
   }
@@ -36,7 +37,6 @@ export class LayoutService {
     this._layout.set(layout);
     try {
       localStorage.setItem(CHAVE, layout);
-      localStorage.removeItem(CHAVE_PROTOTIPO);
     } catch {
       // Sem armazenamento (aba privada, bloqueio): vale só até recarregar.
     }

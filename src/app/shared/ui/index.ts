@@ -7,6 +7,7 @@ export * from './confirm-dialog/confirm-dialog.component';
 export * from './confirm-dialog/confirm-dialog.service';
 export * from './empty-state/empty-state.component';
 export * from './input/input.component';
+export * from './multi-select/multi-select.component';
 export * from './select/select.component';
 export * from './switch/switch.component';
 export * from './toast/toast-stack.component';

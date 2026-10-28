@@ -1,29 +1,73 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { SaeaSpinnerComponent } from '@sistemas-saea/saea-design-system';
+import {
+  SaeaSpinnerComponent,
+  SaeaTagComponent,
+  SaeaTooltipDirective,
+  SaeaTruncateComponent,
+} from '@sistemas-saea/saea-design-system';
 import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
-import { Turno, TurmaEmOutraSala, TurmaLivre } from '../../core/models';
+import { Turno, TurmaVinculada } from '../../core/models';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { ConfirmDialogService } from '../../shared/ui/confirm-dialog/confirm-dialog.service';
+import { MultiSelectComponent, MultiSelectOption } from '../../shared/ui/multi-select/multi-select.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
+
+/** Turma que dá para vincular numa célula: sem sala, ou em outra sala (vincular a move). */
+interface OpcaoTurma {
+  /** codTurma|idPerlet: valor no seletor e nas tags. */
+  valor: string;
+  codTurma: string;
+  idPerlet: number;
+  nome: string;
+  alunos: number;
+  /** Sala em que a turma está hoje; sem ela, a turma está sem sala. */
+  salaAtual?: string;
+  /** Nome na tag, sem o turno da coluna (ver nomeNoTurno). */
+  nomeCurto: string;
+}
+
+/** Turma vinculada como chip: nome sem o turno da coluna, e o completo para o tooltip do corte. */
+interface ChipTurma {
+  turma: TurmaVinculada;
+  nome: string;
+  titulo: string;
+}
+
+/** Lista em chips na horizontal: as primeiras ficam à vista, o resto vira "+N" até abrir. */
+interface ListaChips<T> {
+  visiveis: T[];
+  ocultas: T[];
+  /** Aberta pelo "+N": mostra todas, com a opção de recolher. */
+  aberta: boolean;
+  /** Dica do "+N": os nomes que estão escondidos. */
+  resumoOcultas: string;
+}
 
 interface TurmaCell {
   turno: Turno;
-  hasTurma: boolean;
-  noTurma: boolean;
-  nome: string;
-  nomeProprio: string;
+  /** salaId|turno: chave da seleção desta célula. */
+  chave: string;
+  turmas: TurmaVinculada[];
+  vinculadas: ListaChips<ChipTurma>;
+  marcadas: ListaChips<OpcaoTurma>;
   alunos: number;
   excede: boolean;
-  turmasLivres: TurmaLivre[];
-  turmasEmOutraSala: TurmaEmOutraSala[];
-  /** Há alguma turma para vincular neste turno (livre ou em outra sala). */
-  podeVincular: boolean;
-  /** O RM está gravando o vínculo desta célula: o spinner fica no lugar da ação. */
-  gravando: boolean;
+  opcoes: OpcaoTurma[];
+  opcoesSeletor: MultiSelectOption[];
+  /** Marcadas no seletor e ainda não gravadas, na ordem em que foram marcadas. */
+  selecionadas: OpcaoTurma[];
+  valoresSelecionados: string[];
+  /** Alunos do turno se as marcadas forem vinculadas. */
+  alunosComSelecionadas: number;
+  excedeComSelecionadas: boolean;
+  /** O RM está gravando o vínculo das marcadas: o spinner fica no lugar do seletor. */
+  vinculando: { atual: number; total: number } | null;
+  /** Turma que o RM está liberando: o spinner fica no lugar do "Liberar" dela. */
+  liberando: string | null;
 }
 
 interface TurmaRow {
@@ -46,10 +90,54 @@ type ColunaOrdem = 'sala' | 'carteiras';
 /** "Sala 2" antes de "Sala 10", sem diferenciar maiúsculas nem acentos. */
 const COMPARADOR_NOME = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
 
+const valorDaTurma = (t: { codTurma: string; idPerlet: number }) => `${t.codTurma}|${t.idPerlet}`;
+
+/** "1 aluno", "0 alunos", "23 alunos". */
+const qtdAlunos = (n: number) => `${n} ${n === 1 ? 'aluno' : 'alunos'}`;
+
+/** Chips à vista antes do "+N". */
+const CHIPS_VISIVEIS = 3;
+
+const SUFIXO_DO_TURNO: Record<Turno, RegExp> = {
+  manha: /\s*-\s*manh[ãa]\s*$/iu,
+  tarde: /\s*-\s*tarde\s*$/iu,
+};
+
+/**
+ * No chip, o turno já é o da coluna, e o corte com "…" comeria justamente o fim do nome, que é o
+ * que diferencia as turmas: "3º Ano C - Manhã" → "3º Ano C", "3º Ano C - Semi-Manhã" → "3º Ano C - Semi".
+ */
+function nomeNoTurno(nome: string, turno: Turno): string {
+  return nome.replace(SUFIXO_DO_TURNO[turno], '') || nome;
+}
+
+function emChips<T>(lista: T[], aberta: boolean, rotulo: (item: T) => string): ListaChips<T> {
+  if (lista.length <= CHIPS_VISIVEIS) return { visiveis: lista, ocultas: [], aberta: false, resumoOcultas: '' };
+  if (aberta) return { visiveis: lista, ocultas: [], aberta: true, resumoOcultas: '' };
+  const ocultas = lista.slice(CHIPS_VISIVEIS);
+  return {
+    visiveis: lista.slice(0, CHIPS_VISIVEIS),
+    ocultas,
+    aberta: false,
+    resumoOcultas: ocultas.map(rotulo).join(', '),
+  };
+}
+
 @Component({
   selector: 'app-turmas',
   standalone: true,
-  imports: [FormsModule, BadgeComponent, ButtonComponent, CardComponent, SelectComponent, SaeaSpinnerComponent],
+  imports: [
+    FormsModule,
+    BadgeComponent,
+    ButtonComponent,
+    CardComponent,
+    MultiSelectComponent,
+    SelectComponent,
+    SaeaSpinnerComponent,
+    SaeaTagComponent,
+    SaeaTooltipDirective,
+    SaeaTruncateComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './turmas.component.html',
   styleUrl: './turmas.component.css',
@@ -74,8 +162,13 @@ export class TurmasComponent {
   /** Gravação em andamento: trava vincular/liberar até o RM terminar (evita gravar duas vezes). */
   readonly salvando = this.salasService.salvando;
 
-  /** Muda quando uma escolha é cancelada, para recriar os selects e voltar a "Selecione...". */
-  readonly versaoSelecao = signal(0);
+  readonly qtdAlunos = qtdAlunos;
+
+  /** Turmas marcadas em cada célula (chave salaId|turno), antes do "Confirmar". */
+  private readonly selecao = signal<Record<string, string[]>>({});
+
+  /** Listas de chips abertas pelo "+N" (chave salaId|turno|vinculadas ou |marcadas). */
+  private readonly listasAbertas = signal<ReadonlySet<string>>(new Set());
 
   /** Ordenação pelo cabeçalho; null = a ordem em que as salas vêm do RM. */
   readonly ordem = signal<{ coluna: ColunaOrdem; direcao: 'asc' | 'desc' } | null>(null);
@@ -88,27 +181,66 @@ export class TurmasComponent {
   readonly rows = computed<TurmaRow[]>(() => {
     const unidade = this.unidade();
     const gravando = this.salasService.gravando();
+    const selecao = this.selecao();
+    const abertas = this.listasAbertas();
     let list = this.salasService.salas();
     if (unidade !== 'todas') list = list.filter((s) => s.unidadeId === unidade);
 
     const rows = list.map((s) => {
       const u = this.salasService.unidade(s.unidadeId)!;
       const cells: TurmaCell[] = TURNOS.map((turno) => {
-        const t = s.turnos[turno];
-        const turmasLivres = t ? [] : this.salasService.turmasLivresPara(s, turno);
-        const turmasEmOutraSala = t ? [] : this.salasService.turmasEmOutraSalaPara(s, turno);
+        const chave = `${s.id}|${turno}`;
+        const turmas = this.salasService.turmasNoTurno(s, turno);
+        const alunos = this.salasService.alunosNoTurno(s, turno);
+        // Primeiro as turmas sem sala; depois as que estão em outra sala.
+        const opcoes: OpcaoTurma[] = [
+          ...this.salasService.turmasLivresPara(s, turno),
+          ...this.salasService.turmasEmOutraSalaPara(s, turno),
+        ].map((t) => ({
+          valor: valorDaTurma(t),
+          codTurma: t.codTurma,
+          idPerlet: t.idPerlet,
+          nome: t.nome,
+          alunos: t.alunos,
+          salaAtual: 'salaAtual' in t ? t.salaAtual : undefined,
+          nomeCurto: nomeNoTurno(t.nome, turno),
+        }));
+        // Uma marcada que deixou de estar disponível (a carga mudou) sai da seleção.
+        const selecionadas = (selecao[chave] ?? [])
+          .map((valor) => opcoes.find((o) => o.valor === valor))
+          .filter((o): o is OpcaoTurma => !!o);
+        const alunosComSelecionadas = selecionadas.reduce((total, o) => total + o.alunos, alunos);
+        const daCelula = gravando?.salaId === s.id && gravando.turno === turno ? gravando : null;
         return {
           turno,
-          hasTurma: !!t,
-          noTurma: !t,
-          nome: t?.nome ?? '',
-          nomeProprio: t?.nomeProprio ?? '',
-          alunos: t?.alunos ?? 0,
-          excede: !!t && t.alunos > s.carteiras,
-          turmasLivres,
-          turmasEmOutraSala,
-          podeVincular: turmasLivres.length + turmasEmOutraSala.length > 0,
-          gravando: gravando?.salaId === s.id && gravando.turno === turno,
+          chave,
+          turmas,
+          vinculadas: emChips(
+            turmas.map((t) => ({
+              turma: t,
+              nome: nomeNoTurno(t.nomeProprio, turno),
+              titulo: `${t.nomeProprio} · ${qtdAlunos(t.alunos)}`,
+            })),
+            abertas.has(`${chave}|vinculadas`),
+            (c) => `${c.nome} · ${c.turma.alunos} al.`,
+          ),
+          marcadas: emChips(selecionadas, abertas.has(`${chave}|marcadas`), (o) => o.nomeCurto),
+          alunos,
+          excede: alunos > s.carteiras,
+          opcoes,
+          opcoesSeletor: opcoes.map((o) => ({
+            value: o.valor,
+            label: `${o.nome} · ${qtdAlunos(o.alunos)}`,
+            hint: o.salaAtual ? `hoje em ${o.salaAtual}` : undefined,
+            group: o.salaAtual ? 'Em outra sala' : 'Sem sala',
+          })),
+          selecionadas,
+          valoresSelecionados: selecionadas.map((o) => o.valor),
+          alunosComSelecionadas,
+          excedeComSelecionadas: alunosComSelecionadas > s.carteiras,
+          vinculando:
+            daCelula && !daCelula.codTurma ? { atual: daCelula.atual ?? 1, total: daCelula.total ?? 1 } : null,
+          liberando: daCelula?.codTurma ?? null,
         };
       });
       return { id: s.id, unidadeId: s.unidadeId, nome: s.nome, unidadeNome: u.nome, unidadeCor: u.cor, carteiras: s.carteiras, cells };
@@ -147,54 +279,76 @@ export class TurmasComponent {
     return ordem.direcao === 'asc' ? 'arrow_upward' : 'arrow_downward';
   }
 
-  /** Primeiro as turmas sem sala; depois as que estão em outra sala (escolher uma delas move a turma). */
-  turmaLivreOptions(cell: TurmaCell): SelectOption[] {
-    return [
-      { value: '', label: 'Vincular turma...' },
-      ...cell.turmasLivres.map((t) => ({ value: t.codTurma, label: `${t.nome} (${t.alunos} alunos)` })),
-      ...cell.turmasEmOutraSala.map((t) => ({
-        value: t.codTurma,
-        label: `${t.nome} (${t.alunos} alunos) · hoje em ${t.salaAtual}`,
-      })),
-    ];
+  selecionar(cell: TurmaCell, valores: string[]): void {
+    this.selecao.update((atual) => ({ ...atual, [cell.chave]: valores }));
   }
 
-  async liberar(row: TurmaRow, cell: TurmaCell): Promise<void> {
+  desmarcar(cell: TurmaCell, valor: string): void {
+    this.selecionar(
+      cell,
+      cell.valoresSelecionados.filter((v) => v !== valor),
+    );
+  }
+
+  limpar(cell: TurmaCell): void {
+    this.selecionar(cell, []);
+  }
+
+  /** "+N" abre a lista inteira; o botão de recolher volta às primeiras. */
+  alternarLista(chave: string): void {
+    this.listasAbertas.update((atual) => {
+      const proximas = new Set(atual);
+      if (!proximas.delete(chave)) proximas.add(chave);
+      return proximas;
+    });
+  }
+
+  async liberar(row: TurmaRow, cell: TurmaCell, turma: TurmaVinculada): Promise<void> {
     const sala = this.salasService.sala(row.id);
     if (!sala) return;
     const ok = await this.confirmDialog.confirm({
       title: 'Liberar turma da sala?',
-      description: `${cell.nomeProprio} deixará de ocupar ${row.nome} no turno da ${NOME_TURNO[cell.turno]}.`,
+      description: `${turma.nomeProprio} deixará de ocupar ${row.nome} no turno da ${NOME_TURNO[cell.turno]}.`,
       confirmLabel: 'Liberar',
       danger: true,
     });
-    if (ok) this.salasService.liberarTurno(sala, cell.turno);
+    if (ok) this.salasService.liberarTurma(sala, cell.turno, turma);
   }
 
-  async vincular(row: TurmaRow, cell: TurmaCell, codTurma: string): Promise<void> {
-    if (!codTurma) return;
+  /**
+   * Grava as turmas marcadas na sala. Turma livre vai direto; se alguma está em outra sala, pede
+   * confirmação antes, porque ela sai de lá. As que falharem continuam marcadas.
+   */
+  async confirmar(row: TurmaRow, cell: TurmaCell): Promise<void> {
     const sala = this.salasService.sala(row.id);
-    if (!sala) return;
+    const escolhidas = cell.selecionadas;
+    if (!sala || escolhidas.length === 0) return;
 
-    const livre = cell.turmasLivres.find((t) => t.codTurma === codTurma);
-    if (livre) {
-      this.salasService.vincularTurno(sala, cell.turno, livre);
-      return;
+    const movidas = escolhidas.filter((t) => t.salaAtual);
+    if (movidas.length > 0) {
+      const turno = NOME_TURNO[cell.turno];
+      const ok = await this.confirmDialog.confirm(
+        movidas.length === 1
+          ? {
+              title: 'Mover turma para esta sala?',
+              description: `${movidas[0].nome} sai de ${movidas[0].salaAtual} e passa a ocupar ${row.nome} no turno da ${turno}.`,
+              confirmLabel: 'Mover',
+            }
+          : {
+              title: 'Mover turmas para esta sala?',
+              description:
+                `${movidas.map((t) => `${t.nome} (hoje em ${t.salaAtual})`).join(', ')} saem das salas ` +
+                `em que estão e passam a ocupar ${row.nome} no turno da ${turno}.`,
+              confirmLabel: 'Mover',
+            },
+      );
+      if (!ok) return;
     }
 
-    const emOutraSala = cell.turmasEmOutraSala.find((t) => t.codTurma === codTurma);
-    if (!emOutraSala) return;
-    const ok = await this.confirmDialog.confirm({
-      title: 'Mover turma para esta sala?',
-      description:
-        `${emOutraSala.nome} sai de ${emOutraSala.salaAtual} e passa a ocupar ${row.nome} ` +
-        `no turno da ${NOME_TURNO[cell.turno]}. ${emOutraSala.salaAtual} fica livre nesse turno.`,
-      confirmLabel: 'Mover',
-    });
-    if (ok) {
-      this.salasService.vincularTurno(sala, cell.turno, emOutraSala, emOutraSala.salaAtual);
-    } else {
-      this.versaoSelecao.update((v) => v + 1);
-    }
+    const falhas = await this.salasService.vincularTurmas(sala, cell.turno, escolhidas);
+    this.selecionar(
+      cell,
+      falhas.map((t) => t.valor),
+    );
   }
 }

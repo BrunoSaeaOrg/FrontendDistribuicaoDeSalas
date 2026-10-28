@@ -95,12 +95,13 @@ export class PainelComponent {
       const cap = this.salasService.capacidade(s);
       const info = this.salasService.statusInfo(s);
       const turnoChips: TurnoChip[] = (['manha', 'tarde'] as const).map((t) => {
-        const turma = s.turnos[t];
+        // Mais de uma turma no turno: uma por linha na dica do chip.
+        const turmas = this.salasService.turmasNoTurno(s, t);
         return {
           turno: t,
           label: t === 'manha' ? 'M' : 'T',
-          turma: turma ? `${turma.nome} · ${turma.alunos} alunos` : 'Livre',
-          hasTurma: !!turma,
+          turma: turmas.length ? turmas.map((x) => `${x.nome} · ${x.alunos} alunos`).join('\n') : 'Livre',
+          hasTurma: turmas.length > 0,
         };
       });
       const alunosManha = this.salasService.alunosNoTurno(s, 'manha');

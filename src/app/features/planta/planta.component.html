@@ -59,8 +59,8 @@
         <div class="planta-status-row">
           <div class="planta-progress-wrap">
             <div class="planta-progress-labels">
-              <span>{{ turmaAtual()?.alunos ?? 0 }} alunos de {{ capacidade() }} carteiras</span>
-              <span>{{ capacidade() - (turmaAtual()?.alunos ?? 0) < 0 ? 0 : capacidade() - (turmaAtual()?.alunos ?? 0) }} vagas</span>
+              <span>{{ alunosAtuais() }} alunos de {{ capacidade() }} carteiras</span>
+              <span>{{ capacidade() - alunosAtuais() < 0 ? 0 : capacidade() - alunosAtuais() }} vagas</span>
             </div>
             <div class="planta-progress-track">
               <div
@@ -71,9 +71,9 @@
             </div>
           </div>
 
-          <div class="planta-turma-label">
-            @if (turmaAtual(); as t) {
-              {{ t.nomeProprio }} · {{ t.nome }} · {{ t.alunos }} alunos
+          <div class="planta-turma-label" [title]="turmasLabel()">
+            @if (turmasLabel()) {
+              {{ turmasLabel() }}
             } @else {
               Nenhuma turma vinculada neste turno
             }

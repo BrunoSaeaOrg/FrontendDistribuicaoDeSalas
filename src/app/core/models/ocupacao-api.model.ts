@@ -16,15 +16,21 @@ export interface ApiSalaDto {
   AREA: number;
 }
 
+/**
+ * Linha de OC_SAL_TURMASXSALAS: uma turma-mãe (CODTURMA, ex.: EF3A-M) numa sala, com as subturmas
+ * que estão nela em COMPOSICAO ("EF3A-M (18) + EF3A-SM (5)"). TURMA, TURNO e SEGMENTO só vêm quando a
+ * subturma principal está entre elas; uma linha só com "EF3A-SM (5)" vem sem os três.
+ */
 export interface ApiTurmaXSalaDto extends ApiSalaDto {
   UNIDADE: string;
   ANOLETIVO: string;
   IDPERLET: number;
-  SEGMENTO: string;
+  SEGMENTO?: string;
   CODTURMA: string;
-  TURMA: string;
-  TURNO: string;
+  TURMA?: string;
+  TURNO?: string;
   OCUPACAO: number;
+  COMPOSICAO?: string;
 }
 
 export interface ApiTurmaDto {
@@ -39,10 +45,9 @@ export interface ApiTurmaDto {
   OCUPACAO: number;
 }
 
-/** Ano letivo com turmas no RM para o usuário (OC_SAL_ANOS). */
+/** Ano letivo do usuário (OC_SAL_ANOS, que lê API.OC.SAL.ANO no RM). */
 export interface ApiAnoLetivoDto {
   ANO: string;
-  TURMAS: number;
 }
 
 export interface ApiRegraDto {

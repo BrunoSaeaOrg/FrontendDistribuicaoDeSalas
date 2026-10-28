@@ -1,8 +1,17 @@
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
-import { finalize, forkJoin } from 'rxjs';
+import { finalize, firstValueFrom, forkJoin } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { fundirSalasEApi } from '../mock/ocupacao-adapter';
-import { Sala, StatusInfo, StatusOcupacao, Turno, TurmaEmOutraSala, TurmaLivre, Unidade } from '../models';
+import {
+  Sala,
+  StatusInfo,
+  StatusOcupacao,
+  Turno,
+  TurmaEmOutraSala,
+  TurmaLivre,
+  TurmaVinculada,
+  Unidade,
+} from '../models';
 import { OcupacaoApiService } from './ocupacao-api.service';
 import { RegrasService } from './regras.service';
 import { ToastService } from './toast.service';
@@ -12,6 +21,29 @@ const anoCorrente = () => String(new Date().getFullYear());
 
 /** Se o RM passou do tempo de espera do backend, recarrega depois deste intervalo. */
 const RECARGA_APOS_GRAVACAO_PENDENTE_MS = 8000;
+
+/** Gravação em andamento numa célula (sala e turno) da tela Turmas. */
+export interface Gravacao {
+  salaId: string;
+  turno: Turno;
+  /** Liberação: a turma que está saindo da sala. Sem ela, é um vínculo de turmas novas. */
+  codTurma?: string;
+  /** Vínculo de várias turmas: qual gravação de quantas (o RM grava uma por vez). */
+  atual?: number;
+  total?: number;
+}
+
+/**
+ * Texto da falha de gravação: o backend devolve a causa (ex.: "O RM não gravou o vínculo: ...") em
+ * `message`; erro de validação do ASP.NET vem como ProblemDetails, com o texto em `title`.
+ */
+function motivoDaFalha(err: unknown): string {
+  const corpo = (err as { error?: { message?: string; title?: string } } | null)?.error;
+  return corpo?.message ?? corpo?.title ?? 'Não foi possível contatar o servidor.';
+}
+
+/** Turma a vincular; com `salaAtual`, ela está em outra sala e será movida. */
+export type TurmaParaVincular = Pick<TurmaLivre, 'codTurma' | 'idPerlet' | 'nome'> & { salaAtual?: string };
 
 @Injectable({ providedIn: 'root' })
 export class SalasService {
@@ -27,7 +59,7 @@ export class SalasService {
    * Célula (sala e turno) cujo vínculo turma x sala está sendo gravado (o RM leva alguns segundos):
    * a tela mostra o spinner nela. null quando nada está gravando.
    */
-  private readonly _gravando = signal<{ salaId: string; turno: Turno } | null>(null);
+  private readonly _gravando = signal<Gravacao | null>(null);
   private readonly _anosLetivos = signal<string[]>([anoCorrente()]);
   private readonly _anoLetivo = signal(anoCorrente());
   /** Usuario cuja carga ja foi disparada, evita refetch a cada reavaliacao do effect. */
@@ -44,7 +76,7 @@ export class SalasService {
   /** Alguma gravação em andamento: trava vincular/liberar nas outras células também. */
   readonly salvando = computed(() => this._gravando() !== null);
 
-  /** Anos letivos com turmas no RM para o usuário (OC_SAL_ANOS), do mais antigo ao mais novo. */
+  /** Anos letivos do usuário (OC_SAL_ANOS → API.OC.SAL.ANO no RM), do mais antigo ao mais novo. */
   readonly anosLetivos = this._anosLetivos.asReadonly();
   /** Ano letivo das turmas carregadas (parâmetro ANO de OC_SAL_TURMASXSALAS e OC_SAL_TURMAS). */
   readonly anoLetivo = this._anoLetivo.asReadonly();
@@ -53,10 +85,11 @@ export class SalasService {
   readonly segmentos = computed(() => {
     const set = new Set<string>();
     this._salas().forEach((s) =>
-      (['manha', 'tarde'] as Turno[]).forEach((t) => {
-        const turma = s.turnos[t];
-        if (turma?.segmento) set.add(turma.segmento);
-      }),
+      (['manha', 'tarde'] as Turno[]).forEach((t) =>
+        this.turmasNoTurno(s, t).forEach((turma) => {
+          if (turma.segmento) set.add(turma.segmento);
+        }),
+      ),
     );
     this._turmasLivres().forEach((t) => {
       if (t.segmento) set.add(t.segmento);
@@ -68,10 +101,9 @@ export class SalasService {
   readonly series = computed(() => {
     const set = new Set<string>();
     this._salas().forEach((s) =>
-      (['manha', 'tarde'] as Turno[]).forEach((t) => {
-        const turma = s.turnos[t];
-        if (turma) set.add(this.serieFromNome(turma.nome));
-      }),
+      (['manha', 'tarde'] as Turno[]).forEach((t) =>
+        this.turmasNoTurno(s, t).forEach((turma) => set.add(this.serieFromNome(turma.nome))),
+      ),
     );
     this._turmasLivres().forEach((t) => set.add(this.serieFromNome(t.nome)));
     return Array.from(set).sort();
@@ -173,8 +205,8 @@ export class SalasService {
   }
 
   /**
-   * Busca no RM os anos letivos com turmas. Se o ano em uso não está entre eles (o ano virou e
-   * o novo ainda não foi aberto), passa para o mais recente que não seja futuro.
+   * Busca no RM os anos letivos do usuário (API.OC.SAL.ANO). Se o ano em uso não está entre eles
+   * (o ano virou e o novo ainda não foi aberto), passa para o mais recente que não seja futuro.
    */
   private carregarAnos(codUsuario: string): void {
     this.ocupacaoApi.getAnosLetivos(codUsuario).subscribe({
@@ -225,11 +257,16 @@ export class SalasService {
    */
   turmasEmOutraSalaPara(sala: Sala, turno: Turno): TurmaEmOutraSala[] {
     return this._salas()
-      .filter((s) => s.id !== sala.id && s.codFilial === sala.codFilial && !!s.turnos[turno])
-      .map((s) => {
-        const t = s.turnos[turno]!;
-        return { codTurma: t.codTurma, idPerlet: t.idPerlet, nome: t.nome, alunos: t.alunos, salaAtual: s.nome };
-      })
+      .filter((s) => s.id !== sala.id && s.codFilial === sala.codFilial)
+      .flatMap((s) =>
+        this.turmasNoTurno(s, turno).map((t) => ({
+          codTurma: t.codTurma,
+          idPerlet: t.idPerlet,
+          nome: t.nome,
+          alunos: t.alunos,
+          salaAtual: s.nome,
+        })),
+      )
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   }
 
@@ -237,8 +274,14 @@ export class SalasService {
     return sala.capacidade;
   }
 
+  /** Turmas vinculadas à sala no turno (pode ser mais de uma); vazio = sala livre. */
+  turmasNoTurno(sala: Sala, turno: Turno): TurmaVinculada[] {
+    return sala.turnos[turno] ?? [];
+  }
+
+  /** Soma dos alunos das turmas da sala no turno. */
   alunosNoTurno(sala: Sala, turno: Turno): number {
-    return sala.turnos[turno]?.alunos ?? 0;
+    return this.turmasNoTurno(sala, turno).reduce((total, t) => total + t.alunos, 0);
   }
 
   /** Status a partir da ocupacao (maior turno) sobre uma capacidade de referencia. */
@@ -266,45 +309,80 @@ export class SalasService {
    * "1º ano A - Manhã" → "1º ano"; "Infantil 2 A - Tarde" → "Infantil 2".
    */
   serieFromNome(nome: string): string {
+    // Subturmas também: "3º Ano A - Semi-Manhã" e "3º Ano A - Integral" → "3º Ano".
     return nome
-      .replace(/\s*-\s*(manh[ãa]|tarde|noite)\s*$/i, '')
+      .replace(/\s*-\s*(semi-?\s*)?(manh[ãa]|tarde|noite|integral)\s*$/i, '')
       .replace(/\s+[A-Z]$/, '')
       .trim();
   }
 
   /**
-   * Vincula a turma à sala, persistindo via OC_SAL_TURMASXSALAS_SALVAR. Com `salaAnterior`, a
-   * turma estava em outra sala e está sendo movida (a mensagem de sucesso diz de onde saiu).
+   * Vincula as turmas à sala no turno via OC_SAL_TURMASXSALAS_SALVAR, uma de cada vez: cada
+   * gravação é um job da Fórmula Visual, e jobs em paralelo disputariam o RM. As que têm
+   * `salaAtual` saem da sala em que estão. Recarrega uma vez no fim e devolve as que falharam,
+   * para a tela mantê-las selecionadas.
    */
-  vincularTurno(
-    sala: Sala,
-    turno: Turno,
-    turma: Pick<TurmaLivre, 'codTurma' | 'idPerlet' | 'nome'>,
-    salaAnterior?: string,
-  ): void {
-    this.gravarVinculo(
-      { salaId: sala.id, turno },
-      {
-        codFilial: sala.codFilial,
-        codTurma: turma.codTurma,
-        idPerlet: turma.idPerlet,
-        codBloco: sala.codBloco,
-        codPredio: sala.codPredio,
-        codSala: sala.codSala,
-      },
-      salaAnterior
-        ? ['Turma movida', `${turma.nome} saiu de ${salaAnterior} e foi para ${sala.nome}.`]
-        : ['Turma vinculada', `${turma.nome} vinculada a ${sala.nome}.`],
-      'Falha ao vincular turma',
-    );
+  async vincularTurmas<T extends TurmaParaVincular>(sala: Sala, turno: Turno, turmas: T[]): Promise<T[]> {
+    const gravadas: T[] = [];
+    const falhas: { turma: T; motivo: string }[] = [];
+    let pendente = false;
+
+    for (const [i, turma] of turmas.entries()) {
+      this._gravando.set({ salaId: sala.id, turno, atual: i + 1, total: turmas.length });
+      try {
+        const res = await firstValueFrom(
+          this.ocupacaoApi.salvarTurmaXSala({
+            codFilial: sala.codFilial,
+            codTurma: turma.codTurma,
+            idPerlet: turma.idPerlet,
+            codBloco: sala.codBloco,
+            codPredio: sala.codPredio,
+            codSala: sala.codSala,
+          }),
+        );
+        if (res.sucesso !== 1) {
+          falhas.push({ turma, motivo: 'Tente novamente.' });
+          continue;
+        }
+        gravadas.push(turma);
+        if (res.concluido === false) pendente = true;
+      } catch (err) {
+        falhas.push({ turma, motivo: motivoDaFalha(err) });
+      }
+    }
+    this._gravando.set(null);
+
+    if (gravadas.length > 0) {
+      if (pendente) {
+        this.toast.info('O RM ainda está gravando', 'A tela atualiza sozinha em alguns segundos.');
+        setTimeout(() => this.carregar(), RECARGA_APOS_GRAVACAO_PENDENTE_MS);
+      } else {
+        const [unica] = gravadas;
+        if (gravadas.length > 1) {
+          this.toast.success('Turmas vinculadas', `${gravadas.length} turmas vinculadas a ${sala.nome}.`);
+        } else if (unica.salaAtual) {
+          this.toast.success('Turma movida', `${unica.nome} saiu de ${unica.salaAtual} e foi para ${sala.nome}.`);
+        } else {
+          this.toast.success('Turma vinculada', `${unica.nome} vinculada a ${sala.nome}.`);
+        }
+        this.carregar();
+      }
+    }
+    if (falhas.length === 1) {
+      this.toast.danger(`Falha ao vincular ${falhas[0].turma.nome}`, falhas[0].motivo);
+    } else if (falhas.length > 1) {
+      this.toast.danger(
+        'Falha ao vincular turmas',
+        `${falhas.map((f) => f.turma.nome).join(', ')} não foram vinculadas. ${falhas[0].motivo}`,
+      );
+    }
+    return falhas.map((f) => f.turma);
   }
 
-  /** Remove o vínculo turma-sala enviando OC_SAL_TURMASXSALAS_SALVAR com sala vazia. */
-  liberarTurno(sala: Sala, turno: Turno): void {
-    const turma = sala.turnos[turno];
-    if (!turma) return;
+  /** Tira uma turma da sala enviando OC_SAL_TURMASXSALAS_SALVAR com sala vazia. */
+  liberarTurma(sala: Sala, turno: Turno, turma: TurmaVinculada): void {
     this.gravarVinculo(
-      { salaId: sala.id, turno },
+      { salaId: sala.id, turno, codTurma: turma.codTurma },
       {
         codFilial: sala.codFilial,
         codTurma: turma.codTurma,
@@ -323,7 +401,7 @@ export class SalasService {
    * Antes, a tela recarregava antes da gravação e parecia que nada tinha sido salvo.
    */
   private gravarVinculo(
-    celula: { salaId: string; turno: Turno },
+    celula: Gravacao,
     request: Parameters<OcupacaoApiService['salvarTurmaXSala']>[0],
     [tituloSucesso, descricaoSucesso]: [string, string],
     tituloFalha: string,
@@ -346,14 +424,7 @@ export class SalasService {
           this.toast.success(tituloSucesso, descricaoSucesso);
           this.carregar();
         },
-        error: (err) => {
-          // O backend devolve a causa (ex.: "O RM não gravou o vínculo: ...") em `message`; erro de
-          // validação do ASP.NET vem como ProblemDetails, com o texto em `title`.
-          this.toast.danger(
-            tituloFalha,
-            err?.error?.message ?? err?.error?.title ?? 'Não foi possível contatar o servidor.',
-          );
-        },
+        error: (err) => this.toast.danger(tituloFalha, motivoDaFalha(err)),
       });
   }
 

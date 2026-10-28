@@ -38,12 +38,24 @@ function salaId(dto: ApiSalaDto): string {
   return `${dto.CODFILIAL}-${dto.CODBLOCO}-${dto.CODPREDIO}-${dto.CODSALA}`;
 }
 
-function mapTurno(turno: string): Turno | null {
+/** Manhã ou tarde; qualquer outro (ex.: Integral) ou vazio dá null. */
+function turnoDoDia(turno: string | undefined): Turno | null {
   const normalizado = semAcentos(turno).toLowerCase().trim();
-  if (normalizado === 'manha') return 'manha';
-  if (normalizado === 'tarde') return 'tarde';
-  console.warn(`[ocupacao-adapter] Turno desconhecido ignorado: "${turno}"`);
-  return null;
+  return normalizado === 'manha' || normalizado === 'tarde' ? normalizado : null;
+}
+
+/** "EF4F-I (3) + EF4F-SM (0)" → EF4F-I com 3 alunos e EF4F-SM com 0. */
+function lerComposicao(composicao: string | undefined): { codTurma: string; alunos: number }[] {
+  return (composicao ?? '')
+    .split('+')
+    .map((parte) => /^\s*(.+?)\s*\((\d+)\)\s*$/.exec(parte))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map((m) => ({ codTurma: m[1], alunos: Number(m[2]) }));
+}
+
+/** O mesmo código de turma se repete em outras filiais, cada uma com o seu IDPERLET. */
+function chaveSubturma(codTurma: string, idPerlet: number): string {
+  return `${codTurma}|${idPerlet}`;
 }
 
 function registrarUnidade(
@@ -86,7 +98,7 @@ function temSala(dto: ApiTurmaXSalaDto): boolean {
   return String(dto.CODSALA ?? '').trim() !== '';
 }
 
-function chaveTurma(dto: { CODTURMA: string; IDPERLET: number; TURNO: string }): string {
+function chaveTurma(dto: { CODTURMA: string; IDPERLET: number; TURNO?: string }): string {
   return `${dto.CODTURMA}|${dto.IDPERLET}|${dto.TURNO}`;
 }
 
@@ -107,46 +119,99 @@ export function fundirSalasEApi(
 
   const salasPorId = new Map(salasDto.map((dto) => [salaId(dto), criarSala(dto)]));
 
+  // OC_SAL_TURMAS traz cada subturma (ex.: EF3A-SM, "3º Ano A - Semi-Manhã") como uma turma, e é
+  // ela que se vincula. Já OC_SAL_TURMASXSALAS agrupa por turma-mãe e sala e põe as subturmas em
+  // COMPOSICAO; sem a subturma principal, a linha vem sem TURMA e TURNO. Por isso o vínculo é lido
+  // subturma a subturma, com o nome e o turno de cada uma vindos de OC_SAL_TURMAS.
+  const turmaPorCodigo = new Map(turmasDto.map((dto) => [chaveSubturma(dto.CODTURMA, dto.IDPERLET), dto]));
+  const subturmasComSala = new Set<string>();
+
+  /**
+   * A integral (TURNO "Integral") não tem turno de aula próprio: fica no da turma-mãe, achada pelo
+   * código (EF3B-I → EF3B-M de manhã, ou EF3B-T de tarde). Assim ela entra e sai da sala como
+   * qualquer turma.
+   */
+  const turnoDaMae = (codTurma: string, idPerlet: number): Turno | null => {
+    const prefixo = codTurma.replace(/-[^-]+$/, '');
+    for (const sufixo of ['M', 'T']) {
+      const turno = turnoDoDia(turmaPorCodigo.get(chaveSubturma(`${prefixo}-${sufixo}`, idPerlet))?.TURNO);
+      if (turno) return turno;
+    }
+    return null;
+  };
+
   vinculos.forEach((dto) => {
     let sala = salasPorId.get(salaId(dto));
     if (!sala) {
       sala = criarSala(dto);
       salasPorId.set(sala.id, sala);
     }
-    const turno = mapTurno(dto.TURNO);
-    if (!turno) return;
-    sala.turnos[turno] = {
-      nome: dto.TURMA,
-      nomeProprio: dto.TURMA,
-      alunos: dto.OCUPACAO,
-      codTurma: dto.CODTURMA,
-      idPerlet: dto.IDPERLET,
-      segmento: dto.SEGMENTO,
-    };
+    const mae = turmaPorCodigo.get(chaveSubturma(dto.CODTURMA, dto.IDPERLET));
+    const partes = lerComposicao(dto.COMPOSICAO);
+    // Sem COMPOSICAO, a linha é a própria turma.
+    (partes.length > 0 ? partes : [{ codTurma: dto.CODTURMA, alunos: dto.OCUPACAO }]).forEach((parte) => {
+      const chave = chaveSubturma(parte.codTurma, dto.IDPERLET);
+      subturmasComSala.add(chave);
+      const daLinha = parte.codTurma === dto.CODTURMA;
+      const info = turmaPorCodigo.get(chave);
+      // A integral fica no turno da turma-mãe da linha, como o RM já faz ao somar os alunos.
+      const turno =
+        turnoDoDia(info?.TURNO ?? (daLinha ? dto.TURNO : undefined)) ??
+        turnoDoDia(dto.TURNO ?? mae?.TURNO) ??
+        turnoDaMae(parte.codTurma, dto.IDPERLET);
+      if (!turno) {
+        console.warn(`[ocupacao-adapter] Subturma sem turno ignorada: ${parte.codTurma} (${dto.COMPOSICAO})`);
+        return;
+      }
+      const turmas = (sala.turnos[turno] ??= []);
+      // A mesma subturma repetida na resposta contaria os alunos duas vezes.
+      if (turmas.some((t) => t.codTurma === parte.codTurma && t.idPerlet === dto.IDPERLET)) return;
+      const nome = info?.TURMA ?? (daLinha ? dto.TURMA : undefined) ?? parte.codTurma;
+      turmas.push({
+        nome,
+        nomeProprio: nome,
+        alunos: parte.alunos,
+        codTurma: parte.codTurma,
+        idPerlet: dto.IDPERLET,
+        segmento: info?.SEGMENTO ?? dto.SEGMENTO ?? mae?.SEGMENTO ?? '',
+      });
+    });
   });
 
+  // Várias turmas no mesmo turno: em ordem de nome, para a tela não trocar a ordem a cada carga.
+  salasPorId.forEach((sala) =>
+    Object.values(sala.turnos).forEach((turmas) =>
+      turmas?.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true })),
+    ),
+  );
+
   // Livres: as turmas de OC_SAL_TURMAS sem vínculo, mais as que vieram sem sala em
-  // OC_SAL_TURMASXSALAS (ex.: recém-liberadas), sem repetir.
-  const codTurmasComSala = new Set(vinculos.map(chaveTurma));
-  const candidatas = new Map<string, ApiTurmaDto>();
+  // OC_SAL_TURMASXSALAS (ex.: recém-liberadas), sem repetir. Subturma que está em alguma sala
+  // (em qualquer parte de uma COMPOSICAO) não é livre.
+  const candidatas = new Map<string, ApiTurmaDto | ApiTurmaXSalaDto>();
   [...turmasDto, ...semSala].forEach((dto) => {
     const chave = chaveTurma(dto);
-    if (!codTurmasComSala.has(chave) && !candidatas.has(chave)) candidatas.set(chave, dto);
+    if (!subturmasComSala.has(chaveSubturma(dto.CODTURMA, dto.IDPERLET)) && !candidatas.has(chave)) {
+      candidatas.set(chave, dto);
+    }
   });
 
   const turmasLivres: TurmaLivre[] = Array.from(candidatas.values())
     .map((dto) => {
-      const turno = mapTurno(dto.TURNO);
+      // Só quem tem turno próprio (Integral) vai para o da turma-mãe. Linha sem TURNO de
+      // OC_SAL_TURMASXSALAS é um pedaço de COMPOSICAO, não uma turma: fica de fora.
+      const turno = turnoDoDia(dto.TURNO) ?? (dto.TURNO ? turnoDaMae(dto.CODTURMA, dto.IDPERLET) : null);
+      if (!turno) console.warn(`[ocupacao-adapter] Turma sem turno ignorada: ${dto.CODTURMA} ("${dto.TURNO ?? ''}")`);
       return turno
         ? {
             codTurma: dto.CODTURMA,
             idPerlet: dto.IDPERLET,
             codFilial: dto.CODFILIAL,
             unidadeId: slugify(nomeUnidade(dto)),
-            nome: dto.TURMA,
+            nome: dto.TURMA ?? dto.CODTURMA,
             turno,
             alunos: dto.OCUPACAO,
-            segmento: dto.SEGMENTO,
+            segmento: dto.SEGMENTO ?? '',
           }
         : null;
     })
