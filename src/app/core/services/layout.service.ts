@@ -10,7 +10,7 @@ import { Injectable, signal } from '@angular/core';
 export type LayoutApp = 'padrao' | 'lateral';
 
 export const LAYOUTS: { valor: LayoutApp; nome: string }[] = [
-  { valor: 'padrao', nome: 'Padrão' },
+  { valor: 'padrao', nome: 'Clássico' },
   { valor: 'lateral', nome: 'Barra lateral' },
 ];
 

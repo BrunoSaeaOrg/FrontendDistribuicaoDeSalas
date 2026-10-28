@@ -148,14 +148,15 @@
 }
 
 /*
- * Layout "Barra lateral" (LAYOUTS.md no handoff do design system): bloco na cor da moldura
- * (--saea-chrome) colado à esquerda e ao pé da tela, com o canto superior direito bem
- * arredondado. Itens só com ícone e nome; o ativo fica em branco cheio sobre uma pílula clara.
+ * Layout "Barra lateral" (LAYOUTS.md no handoff do design system): bloco cinza (--saea-bg)
+ * sobre a página branca, colado à esquerda e ao pé da tela, com o canto superior direito bem
+ * arredondado. Itens só com ícone e nome; o ativo fica numa pílula azul SAEA (--saea-primary,
+ * marinho no escuro) com ícone e texto brancos.
  */
 .saea-side--lateral {
   height: 100%;
   position: static;
-  background: var(--saea-chrome);
+  background: var(--saea-bg);
   box-shadow: none;
   border-radius: 0 44px 0 0;
   padding: var(--sp-6) var(--sp-4) var(--sp-4) var(--sp-5);
@@ -166,12 +167,9 @@
 .saea-side--lateral.saea-side--collapsed {
   padding-inline: var(--sp-3);
 }
-.saea-side--lateral .saea-side-title {
-  color: #fff;
-}
+/* O botão de recolher usa --saea-bg, a cor do próprio bloco; aqui ele precisa se destacar. */
 .saea-side--lateral .saea-side-toggle {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  background: var(--saea-surface);
 }
 .saea-side--lateral .saea-side-list {
   margin: 0;
@@ -186,7 +184,10 @@
   padding: var(--sp-1);
 }
 .saea-side--lateral .saea-side-item:not(.saea-side-item--active):hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--saea-primary) 10%, transparent);
+}
+:host-context([data-theme='dark']) .saea-side--lateral .saea-side-item:not(.saea-side-item--active):hover {
+  background: color-mix(in srgb, var(--saea-primary) 35%, transparent);
 }
 .saea-side--lateral .saea-side-item-description {
   display: none;
@@ -201,14 +202,13 @@
   font-size: 22px;
   width: 22px;
   height: 22px;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--saea-ink-soft);
 }
 .saea-side--lateral .saea-side-item-label {
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.82);
 }
 .saea-side--lateral .saea-side-item--active {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--saea-primary);
 }
 .saea-side--lateral .saea-side-item--active .saea-side-item-label {
   font-weight: 700;
