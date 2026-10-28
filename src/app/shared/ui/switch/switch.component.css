@@ -5,6 +5,12 @@
   cursor: pointer;
   font-family: var(--font-body);
 }
+/* O label inteiro liga e desliga: no layout mobile ele tem a altura mínima de toque. */
+@media (max-width: 880px) {
+  .saea-switch {
+    min-height: var(--touch-min);
+  }
+}
 .saea-switch--disabled {
   opacity: 0.5;
   cursor: not-allowed;

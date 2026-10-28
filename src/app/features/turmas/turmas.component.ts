@@ -61,9 +61,15 @@ export class TurmasComponent {
 
   readonly unidade = signal('todas');
 
-  /** Mesmo ano usado na carga das turmas: a tela mostra de qual ano letivo são os vínculos. */
+  /** Ano letivo dos vínculos: os anos vêm do RM, e trocar recarrega as turmas daquele ano. */
   readonly anoLetivo = this.salasService.anoLetivo;
-  readonly anoLetivoOptions: SelectOption[] = [{ value: this.anoLetivo, label: this.anoLetivo }];
+  readonly anoLetivoOptions = computed<SelectOption[]>(() =>
+    this.salasService.anosLetivos().map((ano) => ({ value: ano, label: ano })),
+  );
+
+  selecionarAno(ano: string): void {
+    this.salasService.selecionarAno(ano);
+  }
 
   /** Gravação em andamento: trava vincular/liberar até o RM terminar (evita gravar duas vezes). */
   readonly salvando = this.salasService.salvando;

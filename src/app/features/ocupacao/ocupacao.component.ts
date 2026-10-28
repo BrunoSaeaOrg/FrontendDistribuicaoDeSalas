@@ -46,7 +46,8 @@ const TURNOS: Turno[] = ['manha', 'tarde'];
 export class OcupacaoComponent {
   private readonly salasService = inject(SalasService);
 
-  readonly ano = signal('2026');
+  /** Ano letivo dos dados: os anos vêm do RM, e trocar recarrega as turmas daquele ano. */
+  readonly ano = this.salasService.anoLetivo;
   readonly unidade = signal('todas');
   readonly turno = signal('todas');
   readonly segmento = signal('todas');
@@ -54,11 +55,13 @@ export class OcupacaoComponent {
   readonly vis = signal<OcupVis>('tabela');
   readonly evolHoverIdx = signal<number | null>(null);
 
-  readonly anoOptions: SelectOption[] = [
-    { value: '2024', label: '2024' },
-    { value: '2025', label: '2025' },
-    { value: '2026', label: '2026' },
-  ];
+  readonly anoOptions = computed<SelectOption[]>(() =>
+    this.salasService.anosLetivos().map((ano) => ({ value: ano, label: ano })),
+  );
+
+  selecionarAno(ano: string): void {
+    this.salasService.selecionarAno(ano);
+  }
 
   readonly unidadeOptions = computed<SelectOption[]>(() => {
     const base = this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome }));

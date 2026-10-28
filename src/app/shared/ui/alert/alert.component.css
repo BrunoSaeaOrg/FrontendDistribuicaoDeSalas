@@ -40,5 +40,5 @@
 }
 .saea-alert--info .saea-alert-icon,
 .saea-alert--primary .saea-alert-icon {
-  background: var(--saea-primary-strong);
+  background: var(--saea-primary-fill);
 }

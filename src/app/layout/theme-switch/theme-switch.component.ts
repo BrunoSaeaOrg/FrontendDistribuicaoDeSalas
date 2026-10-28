@@ -44,6 +44,12 @@ import { ThemeService } from '../../core/services/theme.service';
       cursor: pointer;
       transition: background-color 0.22s var(--ease-in-out, ease-in-out);
     }
+    /* Área de toque de 44px de altura sem mudar o desenho de 24px. */
+    .switch-track::before {
+      content: '';
+      position: absolute;
+      inset: -10px 0;
+    }
     .switch-track:hover {
       background: rgba(255, 255, 255, 0.24);
     }
@@ -94,6 +100,15 @@ import { ThemeService } from '../../core/services/theme.service';
     }
     .switch-track.dark .switch-handle {
       transform: translateX(20px);
+    }
+    /* Layout "Barra lateral": sobre o cabeçalho na superfície da página, a trilha fica primária. */
+    :host-context(.saea-shell--lateral) .switch-track,
+    :host-context(.saea-shell--lateral) .switch-track:hover,
+    :host-context(.saea-shell--lateral) .switch-track.dark {
+      background: var(--saea-primary);
+    }
+    :host-context(.saea-shell--lateral) .switch-track:focus-visible {
+      outline-color: var(--saea-primary);
     }
   `,
 })

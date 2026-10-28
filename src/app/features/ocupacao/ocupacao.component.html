@@ -1,6 +1,6 @@
 <div class="ocup-page">
   <div class="ocup-filters">
-    <app-select label="Ano letivo" [ngModel]="ano()" (ngModelChange)="ano.set($event)" [options]="anoOptions" />
+    <app-select label="Ano letivo" [ngModel]="ano()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" />
     <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="unidade.set($event)" [options]="unidadeOptions()" />
 
     @if (showExtraFiltros()) {

@@ -13,7 +13,7 @@
   justify-content: center;
   min-height: 56px;
   padding: 4px 16px;
-  background: var(--saea-primary);
+  background: var(--saea-chrome);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   color: #fff;
   box-sizing: border-box;
@@ -33,8 +33,8 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: var(--touch-min);
+  height: var(--touch-min);
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 10px;

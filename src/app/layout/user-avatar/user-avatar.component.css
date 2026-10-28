@@ -6,10 +6,10 @@
   display: flex;
 }
 
-/* 40px até 767px e 44px daí pra cima, como na Reserva de Salas. */
+/* 44px (--touch-min) em qualquer largura: com 40px era alvo de toque pequeno no celular. */
 .saea-header-avatar {
-  width: 40px;
-  height: 40px;
+  width: var(--touch-min);
+  height: var(--touch-min);
   border-radius: 50%;
   padding: 0;
   border: none;
@@ -26,12 +26,6 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   transition: box-shadow var(--dur-short) var(--ease-out);
-}
-@media (min-width: 768px) {
-  .saea-header-avatar {
-    width: 44px;
-    height: 44px;
-  }
 }
 .saea-header-avatar:hover,
 .saea-header-avatar[aria-expanded='true'] {
@@ -85,4 +79,37 @@
   width: 18px;
   height: 18px;
   color: var(--saea-ink-soft);
+}
+
+/* Grupo "Layout" do menu (LayoutService). */
+.saea-header-menu-grupo {
+  padding: var(--sp-2) 0.9rem var(--sp-1);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--saea-ink-faint);
+  white-space: nowrap;
+}
+.saea-header-menu-divisor {
+  height: 1px;
+  margin: var(--sp-1) 0;
+  background: var(--saea-border);
+}
+.saea-header-menu button[aria-checked='true'] mat-icon {
+  color: var(--saea-primary);
+}
+
+/* Layout "Barra lateral": o cabeçalho fica na superfície da página, então o anel e o fundo do avatar são primários. */
+:host-context(.saea-shell--lateral) .saea-header-avatar {
+  background: var(--saea-primary);
+  box-shadow: 0 0 0 2px var(--saea-primary);
+}
+:host-context(.saea-shell--lateral) .saea-header-avatar:hover,
+:host-context(.saea-shell--lateral) .saea-header-avatar[aria-expanded='true'] {
+  box-shadow: 0 0 0 3px var(--saea-primary);
+}
+:host-context(.saea-shell--lateral) .saea-header-avatar:focus-visible {
+  outline-color: var(--saea-primary);
 }

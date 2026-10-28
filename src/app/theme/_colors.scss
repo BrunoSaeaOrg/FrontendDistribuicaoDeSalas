@@ -42,7 +42,11 @@ $unit-d-fernando: #a6aaff;
 $unit-m-leonia: #f2ceef;
 
 // Modo escuro
-$dark-primary: #2c7284;
+// No escuro, moldura (cabeçalho e menu lateral) e destaques (ícones, switches, botões) são o
+// mesmo azul-marinho. O "strong" segue ciano: é cor de texto, e marinho sobre o fundo escuro
+// não se lê.
+$dark-chrome: #1f325b;
+$dark-primary: #1f325b;
 $dark-primary-strong: #7fdcee;
 $dark-bg: #10151c;
 $dark-surface: #1a2129;
@@ -64,8 +68,12 @@ $dark-external: #c98cf0;
 @mixin custom-properties-light {
   --saea-primary: #{$primary};
   --saea-primary-strong: #{$primary-strong};
+  // Fundo de ícone em destaque (item ativo do menu, alerta, aviso). Separado do "strong",
+  // que no escuro é cor de texto.
+  --saea-primary-fill: #{$primary-strong};
   --saea-primary-gradient: #{$primary-gradient};
   --saea-primary-gradient-deep: #{$primary-gradient-deep};
+  --saea-chrome: #{$primary};
   --saea-bg: #{$bg};
   --saea-surface: #{$surface};
   --saea-surface-sunken: #{$surface-sunken};
@@ -104,8 +112,10 @@ $dark-external: #c98cf0;
   color-scheme: dark;
   --saea-primary: #{$dark-primary};
   --saea-primary-strong: #{$dark-primary-strong};
-  --saea-primary-gradient: linear-gradient(135deg, #35859a 0%, #{$dark-primary} 100%);
+  --saea-primary-fill: #{$dark-primary};
+  --saea-primary-gradient: linear-gradient(135deg, #2d4a85 0%, #{$dark-primary} 100%);
   --saea-primary-gradient-deep: var(--saea-primary-gradient);
+  --saea-chrome: #{$dark-chrome};
   --saea-bg: #{$dark-bg};
   --saea-surface: #{$dark-surface};
   --saea-surface-sunken: #{$dark-surface-sunken};

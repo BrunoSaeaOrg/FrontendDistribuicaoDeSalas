@@ -209,6 +209,13 @@
   text-decoration: underline;
 }
 
+@media (max-width: 880px) {
+  .saea-login-forgot {
+    min-height: var(--touch-min);
+    padding: 0 var(--sp-2);
+  }
+}
+
 /* Recuperação: o formulário é mais alto que o do login. Fica no centro quando cabe
    (margin auto) e, quando não cabe, cresce para baixo com o rodapé no fluxo, em vez de
    passar por baixo do logo e do rodapé. */
@@ -236,7 +243,8 @@
   justify-content: center;
   gap: 6px;
   text-align: center;
-  font-size: 10px;
+  /* 10px no desktop; o token sobe para 12px no layout mobile. */
+  font-size: var(--fs-2xs);
   letter-spacing: 0.02em;
   color: var(--saea-ink-soft);
 }
@@ -256,7 +264,6 @@
 @media (max-width: 600px) {
   .saea-login-copyright {
     bottom: 16px;
-    font-size: 9px;
   }
 
   .saea-login-page {

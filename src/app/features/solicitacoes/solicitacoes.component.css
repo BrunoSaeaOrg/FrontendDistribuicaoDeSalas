@@ -50,6 +50,12 @@
   flex-direction: column;
   gap: 6px;
 }
+/* Layout "Barra lateral": os pedidos viram linhas de lista, com divisória embaixo. */
+:host-context(.saea-shell--lateral) .sol-item {
+  border-color: transparent transparent var(--saea-border);
+  border-radius: 0;
+  padding: var(--sp-3) 0;
+}
 
 .sol-item-top {
   display: flex;

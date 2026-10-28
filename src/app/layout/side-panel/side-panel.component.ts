@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
+import { LayoutApp } from '../../core/services/layout.service';
 
 export interface SidePanelItem {
   icon: string;
@@ -14,7 +15,7 @@ export interface SidePanelItem {
   imports: [MatIconModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <aside class="saea-side" [class.saea-side--collapsed]="collapsed()">
+    <aside class="saea-side" [class.saea-side--collapsed]="collapsed()" [class.saea-side--lateral]="variante() === 'lateral'">
       <div class="saea-side-header" [class.saea-side-header--collapsed]="collapsed()">
         @if (!collapsed()) {
           <div class="saea-side-title">{{ title() }}</div>
@@ -59,6 +60,8 @@ export class SidePanelComponent {
   readonly items = input<SidePanelItem[]>([]);
   readonly collapsed = input(false);
   readonly activeRoute = input<string>('');
+  /** Layout do app (LayoutService): "lateral" vira o bloco colado à esquerda, sem cartão. */
+  readonly variante = input<LayoutApp>('padrao');
 
   readonly toggle = output<void>();
   readonly itemClick = output<SidePanelItem>();

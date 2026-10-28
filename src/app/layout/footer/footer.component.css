@@ -8,6 +8,10 @@
   padding: var(--sp-2) var(--sp-4);
   font-family: var(--font-body);
 }
+/* Layout "Barra lateral": o rodapé fica dentro da coluna do conteúdo, na mesma superfície. */
+:host-context(.saea-shell--lateral) .saea-footer {
+  background: transparent;
+}
 
 .saea-footer-logo {
   width: 16px;

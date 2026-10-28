@@ -71,6 +71,34 @@
   }
 }
 
+/*
+ * Layout "Barra lateral" (LayoutService; LAYOUTS.md no handoff do design system): cabeçalho e
+ * conteúdo numa superfície só, sem cartões; o menu é um bloco na cor da moldura colado à
+ * esquerda e ao pé da tela, com o canto superior direito bem arredondado (.saea-side--lateral
+ * no side-panel). O rodapé fica dentro da coluna do conteúdo (.saea-conteudo).
+ */
+.saea-shell--lateral {
+  background: var(--saea-surface);
+}
+
+.saea-shell--lateral .saea-body {
+  gap: var(--sp-6);
+  padding: 0 var(--sp-6) 0 0;
+}
+
+.saea-conteudo {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.saea-conteudo .saea-main {
+  padding: var(--sp-4) 0;
+  box-sizing: border-box;
+}
+
 /* Shell mobile: sem sidebar, header compacto (app-mobile-nav) ocupa o topo. */
 .saea-shell--mobile {
   height: 100dvh;

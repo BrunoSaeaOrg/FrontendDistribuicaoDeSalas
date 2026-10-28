@@ -66,3 +66,11 @@
   color: var(--saea-ink);
   line-height: 1.5;
 }
+/* Layout "Barra lateral": sem caixa; uma linha à esquerda separa a nota do formulário. */
+:host-context(.saea-shell--lateral) .regras-info-popover {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--saea-border);
+  border-radius: 0;
+  box-shadow: none;
+}

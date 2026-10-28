@@ -42,6 +42,11 @@
   background: var(--saea-primary);
   color: #fff;
 }
+@media (max-width: 880px) {
+  .ocup-tab {
+    min-height: var(--touch-min);
+  }
+}
 
 .ocup-table-wrap {
   overflow-x: auto;

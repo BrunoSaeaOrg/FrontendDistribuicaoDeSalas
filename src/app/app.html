@@ -14,6 +14,33 @@
       <router-outlet />
     </main>
   </div>
+} @else if (layout.layout() === 'lateral') {
+  <!-- Layout "Barra lateral" (LayoutService; escolha no menu do avatar). Ver LAYOUTS.md no handoff. -->
+  <div class="saea-shell saea-shell--lateral">
+    <app-header />
+
+    <div class="saea-body">
+      <div class="saea-side-wrap">
+        <app-side-panel
+          [items]="navItems"
+          [collapsed]="navCollapsed()"
+          [activeRoute]="activeRoute()"
+          variante="lateral"
+          (toggle)="navCollapsed.set(!navCollapsed())"
+          (itemClick)="onItemClick($event)"
+        />
+      </div>
+
+      <div class="saea-conteudo">
+        <main class="saea-main">
+          <router-outlet />
+        </main>
+        <app-footer />
+      </div>
+    </div>
+
+    <app-toast-stack />
+  </div>
 } @else {
   <div class="saea-shell">
     <app-header />

@@ -54,6 +54,13 @@
   --mobile-header-h: 56px;
   --mobile-tabbar-h: 64px;
   --fab-size: 56px;
+
+  // No layout mobile (o mesmo corte do BreakpointService) nenhum texto fica abaixo
+  // de 12px: os dois menores degraus sobem e o desktop continua igual.
+  @media (max-width: 880px) {
+    --fs-2xs: 12px;
+    --fs-xs: 12px;
+  }
 }
 
 @keyframes saea-spin {

@@ -60,6 +60,11 @@
   background: var(--saea-primary);
   color: #fff;
 }
+@media (max-width: 880px) {
+  .planta-tab {
+    min-height: var(--touch-min);
+  }
+}
 
 .planta-grid {
   display: grid;
@@ -388,6 +393,24 @@
   background: var(--saea-chip-bg);
   border-style: solid;
   border-color: var(--saea-primary-strong);
+}
+/*
+ * Layout "Barra lateral": as outras salas viram linhas de lista, com divisória embaixo.
+ * A moldura volta só como zona de drop, enquanto uma carteira é arrastada.
+ */
+:host-context(.saea-shell--lateral) .planta-outra-row {
+  background: transparent;
+  border-color: transparent transparent var(--saea-border);
+  border-radius: 0;
+}
+:host-context(.saea-shell--lateral) .planta-outra-row--dropzone {
+  border-color: var(--saea-primary);
+  border-radius: var(--radius-md);
+}
+:host-context(.saea-shell--lateral) .planta-outra-row--droptarget {
+  background: var(--saea-chip-bg);
+  border-color: var(--saea-primary-strong);
+  border-radius: var(--radius-md);
 }
 .planta-outra-nome {
   font-weight: 600;

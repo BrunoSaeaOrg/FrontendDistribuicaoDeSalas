@@ -74,6 +74,12 @@
   min-height: 0;
   /* Sem scroll: os itens de navegacao cabem inteiros, sem barra interna. */
   overflow: hidden;
+  /*
+   * O fundo do item ativo avanca sobre o respiro do painel. A margem negativa fica
+   * na lista, nao nos itens: com ela nos itens, o overflow acima cortava 8px de cada
+   * lado do destaque (e os cantos arredondados dele).
+   */
+  margin: 0 calc(var(--sp-2) * -1);
 }
 
 .saea-side-item {
@@ -84,7 +90,6 @@
   border: none;
   background: none;
   padding: var(--sp-2);
-  margin: 0 calc(var(--sp-2) * -1);
   border-radius: var(--radius-md);
   text-align: left;
   font-family: inherit;
@@ -115,7 +120,11 @@
   height: 18px;
 }
 .saea-side-item--active .saea-side-item-icon {
-  background: var(--saea-primary-strong);
+  background: var(--saea-primary-fill);
+}
+/* No escuro o ícone ativo e os outros são do mesmo marinho: o destaque vem da linha. */
+:host-context([data-theme='dark']) .saea-side-item--active {
+  background: color-mix(in srgb, var(--saea-primary) 60%, transparent);
 }
 
 .saea-side-item-text {
@@ -136,4 +145,75 @@
   color: var(--saea-ink-soft);
   margin-top: 2px;
   white-space: normal;
+}
+
+/*
+ * Layout "Barra lateral" (LAYOUTS.md no handoff do design system): bloco na cor da moldura
+ * (--saea-chrome) colado à esquerda e ao pé da tela, com o canto superior direito bem
+ * arredondado. Itens só com ícone e nome; o ativo fica em branco cheio sobre uma pílula clara.
+ */
+.saea-side--lateral {
+  height: 100%;
+  position: static;
+  background: var(--saea-chrome);
+  box-shadow: none;
+  border-radius: 0 44px 0 0;
+  padding: var(--sp-6) var(--sp-4) var(--sp-4) var(--sp-5);
+}
+.saea-side--lateral:not(.saea-side--collapsed) {
+  width: 248px;
+}
+.saea-side--lateral.saea-side--collapsed {
+  padding-inline: var(--sp-3);
+}
+.saea-side--lateral .saea-side-title {
+  color: #fff;
+}
+.saea-side--lateral .saea-side-toggle {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+.saea-side--lateral .saea-side-list {
+  margin: 0;
+  gap: var(--sp-1);
+}
+.saea-side--lateral .saea-side-item {
+  align-items: center;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-pill);
+}
+.saea-side--lateral.saea-side--collapsed .saea-side-item {
+  padding: var(--sp-1);
+}
+.saea-side--lateral .saea-side-item:not(.saea-side-item--active):hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.saea-side--lateral .saea-side-item-description {
+  display: none;
+}
+.saea-side--lateral .saea-side-item-icon,
+.saea-side--lateral .saea-side-item--active .saea-side-item-icon {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+}
+.saea-side--lateral .saea-side-item-icon mat-icon {
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.saea-side--lateral .saea-side-item-label {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+}
+.saea-side--lateral .saea-side-item--active {
+  background: rgba(255, 255, 255, 0.18);
+}
+.saea-side--lateral .saea-side-item--active .saea-side-item-label {
+  font-weight: 700;
+  color: #fff;
+}
+.saea-side--lateral .saea-side-item--active .saea-side-item-icon mat-icon {
+  color: #fff;
 }

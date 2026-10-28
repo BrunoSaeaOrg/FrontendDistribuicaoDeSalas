@@ -39,6 +39,12 @@ export interface ApiTurmaDto {
   OCUPACAO: number;
 }
 
+/** Ano letivo com turmas no RM para o usuário (OC_SAL_ANOS). */
+export interface ApiAnoLetivoDto {
+  ANO: string;
+  TURMAS: number;
+}
+
 export interface ApiRegraDto {
   CODFILIAL: number;
   FILIAL: string;

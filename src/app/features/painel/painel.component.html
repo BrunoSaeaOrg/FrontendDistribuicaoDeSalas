@@ -1,6 +1,6 @@
 <div class="painel-page">
   <div class="painel-filters">
-    <app-select label="Ano letivo" [ngModel]="anoLetivo" [options]="anoLetivoOptions" />
+    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" />
     <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="unidade.set($event)" [options]="unidadeOptions()" />
     <app-select label="Turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)" [options]="turnoOptions" />
     <app-select label="Status" [ngModel]="status()" (ngModelChange)="status.set($event)" [options]="statusOptions" />

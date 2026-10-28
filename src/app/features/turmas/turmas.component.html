@@ -1,6 +1,6 @@
 <div class="turmas-page">
   <div class="turmas-filter">
-    <app-select label="Ano letivo" [ngModel]="anoLetivo" [options]="anoLetivoOptions" />
+    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" />
     <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="unidade.set($event)" [options]="unidadeOptions()" />
   </div>
 

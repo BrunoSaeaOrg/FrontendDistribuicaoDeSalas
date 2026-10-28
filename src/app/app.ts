@@ -3,6 +3,7 @@ import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/ro
 import { filter, map, startWith } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { BreakpointService } from './core/services/breakpoint.service';
+import { LayoutService } from './core/services/layout.service';
 import { UsuarioService } from './core/services/usuario.service';
 import { HeaderComponent } from './layout/header/header.component';
 import { FooterComponent } from './layout/footer/footer.component';
@@ -43,6 +44,7 @@ export class App {
   // cabeçalho pedir; o "Sair" fica no avatar (UserAvatarComponent).
   private readonly usuarioService = inject(UsuarioService);
   readonly breakpoint = inject(BreakpointService);
+  readonly layout = inject(LayoutService);
 
   readonly navItems = NAV_ITEMS;
   readonly navCollapsed = signal(false);

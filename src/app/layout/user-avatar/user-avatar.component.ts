@@ -9,6 +9,8 @@ import {
 } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/auth/auth.service';
+import { BreakpointService } from '../../core/services/breakpoint.service';
+import { LAYOUTS, LayoutApp, LayoutService } from '../../core/services/layout.service';
 import { UsuarioService } from '../../core/services/usuario.service';
 
 /**
@@ -39,6 +41,22 @@ import { UsuarioService } from '../../core/services/usuario.service';
     </button>
     @if (menuAberto()) {
       <div class="saea-header-menu" role="menu">
+        <!-- Os layouts só mudam o desktop (o mobile não tem menu lateral). -->
+        @if (!breakpoint.isMobile()) {
+          <div class="saea-header-menu-grupo">Layout</div>
+          @for (opcao of layouts; track opcao.valor) {
+            <button
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="layout.layout() === opcao.valor"
+              (click)="escolherLayout(opcao.valor)"
+            >
+              <mat-icon>{{ layout.layout() === opcao.valor ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>
+              {{ opcao.nome }}
+            </button>
+          }
+          <div class="saea-header-menu-divisor" role="separator"></div>
+        }
         <button type="button" role="menuitem" (click)="sair()">
           <mat-icon>logout</mat-icon> Sair
         </button>
@@ -51,6 +69,9 @@ export class UserAvatarComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly authService = inject(AuthService);
   private readonly usuario = inject(UsuarioService);
+  readonly breakpoint = inject(BreakpointService);
+  readonly layout = inject(LayoutService);
+  readonly layouts = LAYOUTS;
 
   readonly menuAberto = signal(false);
 
@@ -102,6 +123,11 @@ export class UserAvatarComponent {
   @HostListener('document:keydown.escape')
   fecharMenuComEsc(): void {
     this.menuAberto.set(false);
+  }
+
+  escolherLayout(layout: LayoutApp): void {
+    this.menuAberto.set(false);
+    this.layout.escolher(layout);
   }
 
   /** O logout do AuthService já leva para /login. */

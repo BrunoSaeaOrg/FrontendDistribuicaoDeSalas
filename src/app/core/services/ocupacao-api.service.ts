@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  ApiAnoLetivoDto,
   ApiRegraDto,
   ApiSalaDto,
   ApiSolicitacaoDto,
@@ -26,6 +27,12 @@ export class OcupacaoApiService {
     return this.http.post<ApiTurmaXSalaDto[]>(`${this.baseUrl}/OC_SAL_TURMASXSALAS`, {
       CODUSUARIO: codUsuario,
       ANO: ano,
+    });
+  }
+
+  getAnosLetivos(codUsuario: string): Observable<ApiAnoLetivoDto[]> {
+    return this.http.post<ApiAnoLetivoDto[]>(`${this.baseUrl}/OC_SAL_ANOS`, {
+      CODUSUARIO: codUsuario,
     });
   }
 

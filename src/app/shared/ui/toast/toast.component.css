@@ -34,7 +34,7 @@
   background: var(--saea-danger);
 }
 .saea-toast-icon--info {
-  background: var(--saea-primary-strong);
+  background: var(--saea-primary-fill);
 }
 
 .saea-toast-title {

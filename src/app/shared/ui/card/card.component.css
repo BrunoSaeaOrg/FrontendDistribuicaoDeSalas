@@ -95,3 +95,15 @@
     border-top: 1px solid var(--saea-border);
   }
 }
+
+/*
+ * Layout "Barra lateral" (LayoutService): sem cartões, como no mobile. O conteúdo
+ * fica direto na superfície da página, para tudo parecer uma peça só.
+ */
+:host-context(.saea-shell--lateral) {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: var(--sp-2) 0;
+  background: transparent;
+}

@@ -19,6 +19,6 @@ import { ThemeService } from '../../core/services/theme.service';
 })
 export class FooterComponent {
   readonly theme = inject(ThemeService);
-  readonly year = input(2026);
+  readonly year = input(new Date().getFullYear());
   readonly org = input('SISTEMAS SAEA');
 }

@@ -74,6 +74,11 @@
   outline: 2px solid var(--saea-primary);
   outline-offset: 1px;
 }
+@media (max-width: 880px) {
+  .turmas-ordem {
+    min-height: var(--touch-min);
+  }
+}
 .turmas-ordem--ativa {
   color: var(--saea-ink);
 }

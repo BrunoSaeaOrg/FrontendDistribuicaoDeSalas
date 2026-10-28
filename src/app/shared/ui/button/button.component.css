@@ -44,6 +44,12 @@
   padding: var(--sp-3) var(--sp-6);
   font-size: var(--fs-md);
 }
+/* No layout mobile todo botão tem a altura mínima de toque (sm tem 34px, md 41px). */
+@media (max-width: 880px) {
+  .saea-btn {
+    min-height: var(--touch-min);
+  }
+}
 
 .saea-btn--primary {
   background: var(--saea-primary);

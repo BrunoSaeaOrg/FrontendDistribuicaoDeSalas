@@ -40,6 +40,13 @@
   border: 1px solid var(--saea-border);
   border-radius: var(--radius-lg);
 }
+/* Layout "Barra lateral": sem caixa, a barra de unidades é só uma linha da página. */
+:host-context(.saea-shell--lateral) .painel-units-bar {
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
 
 .painel-unit-chip {
   display: flex;
@@ -158,5 +165,18 @@
   font-size: var(--fs-sm);
   cursor: pointer;
   white-space: nowrap;
+}
+
+/* No layout mobile, chips de unidade e "Ver planta" com a altura mínima de toque. */
+@media (max-width: 880px) {
+  .painel-units-bar {
+    row-gap: 0;
+  }
+  .painel-unit-chip,
+  .painel-link {
+    min-height: var(--touch-min);
+    min-width: var(--touch-min);
+    justify-content: center;
+  }
 }
 

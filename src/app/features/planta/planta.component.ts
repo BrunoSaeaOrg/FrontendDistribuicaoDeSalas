@@ -52,7 +52,15 @@ export class PlantaComponent {
   readonly unidadeOptions = computed<SelectOption[]>(() =>
     this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
   );
-  readonly anoOptions: SelectOption[] = [{ value: '2026', label: '2026' }];
+  /** Ano letivo das turmas: os anos vêm do RM, e trocar recarrega as turmas daquele ano. */
+  readonly anoLetivo = this.salasService.anoLetivo;
+  readonly anoLetivoOptions = computed<SelectOption[]>(() =>
+    this.salasService.anosLetivos().map((ano) => ({ value: ano, label: ano })),
+  );
+
+  selecionarAno(ano: string): void {
+    this.salasService.selecionarAno(ano);
+  }
 
   readonly segmentoOptions = computed<SelectOption[]>(() => [
     { value: 'todas', label: 'Todos os segmentos' },

@@ -7,7 +7,8 @@ import { OcupacaoApiService } from './ocupacao-api.service';
 import { RegrasService } from './regras.service';
 import { ToastService } from './toast.service';
 
-const ANO_LETIVO = '2026';
+/** Ano letivo de partida: o do calendário, até o RM dizer quais anos têm turmas. */
+const anoCorrente = () => String(new Date().getFullYear());
 
 /** Se o RM passou do tempo de espera do backend, recarrega depois deste intervalo. */
 const RECARGA_APOS_GRAVACAO_PENDENTE_MS = 8000;
@@ -27,8 +28,12 @@ export class SalasService {
    * a tela mostra o spinner nela. null quando nada está gravando.
    */
   private readonly _gravando = signal<{ salaId: string; turno: Turno } | null>(null);
+  private readonly _anosLetivos = signal<string[]>([anoCorrente()]);
+  private readonly _anoLetivo = signal(anoCorrente());
   /** Usuario cuja carga ja foi disparada, evita refetch a cada reavaliacao do effect. */
   private usuarioCarregado: string | null = null;
+  /** Numera as cargas: a resposta de um ano trocado no meio do caminho é descartada. */
+  private carga = 0;
 
   readonly unidades = this._unidades.asReadonly();
   readonly salas = this._salas.asReadonly();
@@ -39,8 +44,10 @@ export class SalasService {
   /** Alguma gravação em andamento: trava vincular/liberar nas outras células também. */
   readonly salvando = computed(() => this._gravando() !== null);
 
+  /** Anos letivos com turmas no RM para o usuário (OC_SAL_ANOS), do mais antigo ao mais novo. */
+  readonly anosLetivos = this._anosLetivos.asReadonly();
   /** Ano letivo das turmas carregadas (parâmetro ANO de OC_SAL_TURMASXSALAS e OC_SAL_TURMAS). */
-  readonly anoLetivo = ANO_LETIVO;
+  readonly anoLetivo = this._anoLetivo.asReadonly();
 
   /** Segmentos existentes nos dados (campo SEGMENTO da API), ordenados. */
   readonly segmentos = computed(() => {
@@ -114,27 +121,35 @@ export class SalasService {
         this._unidades.set([]);
         this._salas.set([]);
         this._turmasLivres.set([]);
+        this._anosLetivos.set([anoCorrente()]);
+        this._anoLetivo.set(anoCorrente());
         return;
       }
       if (usuario === this.usuarioCarregado) return;
       this.usuarioCarregado = usuario;
+      // Carrega o ano do calendário sem esperar a lista de anos; se ele não existir no RM,
+      // carregarAnos troca para outro.
       this.carregar();
+      this.carregarAnos(usuario);
     });
   }
 
-  /** Recarrega salas, vinculos e turmas livres do usuario autenticado. */
+  /** Recarrega salas, vinculos e turmas livres do usuario autenticado, no ano letivo em uso. */
   carregar(): void {
     const codUsuario = this.authService.currentUser()?.username ?? '';
     if (!codUsuario) return;
+    const ano = this._anoLetivo();
+    const carga = ++this.carga;
     this._loading.set(true);
     this._error.set(null);
 
     forkJoin([
       this.ocupacaoApi.getSalas(codUsuario),
-      this.ocupacaoApi.getTurmasXSalas(codUsuario, ANO_LETIVO),
-      this.ocupacaoApi.getTurmas(codUsuario, ANO_LETIVO),
+      this.ocupacaoApi.getTurmasXSalas(codUsuario, ano),
+      this.ocupacaoApi.getTurmas(codUsuario, ano),
     ]).subscribe({
       next: ([salasDto, turmasXSalasDto, turmasDto]) => {
+        if (carga !== this.carga) return;
         const { unidades, salas, turmasLivres } = fundirSalasEApi(salasDto, turmasXSalasDto, turmasDto);
         this._unidades.set(unidades);
         this._salas.set(salas);
@@ -142,10 +157,38 @@ export class SalasService {
         this._loading.set(false);
       },
       error: (err) => {
+        if (carga !== this.carga) return;
         this._error.set('Não foi possível carregar as salas.');
         this._loading.set(false);
         this.toast.danger('Falha ao carregar salas','Não foi possível contatar o servidor.');
       },
+    });
+  }
+
+  /** Troca o ano letivo e recarrega os vínculos e as turmas daquele ano. */
+  selecionarAno(ano: string): void {
+    if (!ano || ano === this._anoLetivo()) return;
+    this._anoLetivo.set(ano);
+    this.carregar();
+  }
+
+  /**
+   * Busca no RM os anos letivos com turmas. Se o ano em uso não está entre eles (o ano virou e
+   * o novo ainda não foi aberto), passa para o mais recente que não seja futuro.
+   */
+  private carregarAnos(codUsuario: string): void {
+    this.ocupacaoApi.getAnosLetivos(codUsuario).subscribe({
+      next: (anos) => {
+        const lista = anos.map((a) => a.ANO);
+        if (lista.length === 0) return;
+        this._anosLetivos.set(lista);
+        if (!lista.includes(this._anoLetivo())) {
+          const corrente = Number(anoCorrente());
+          this.selecionarAno(lista.filter((a) => Number(a) <= corrente).at(-1) ?? lista[0]);
+        }
+      },
+      // Sem a lista, o seletor fica só com o ano em uso.
+      error: () => {},
     });
   }
 

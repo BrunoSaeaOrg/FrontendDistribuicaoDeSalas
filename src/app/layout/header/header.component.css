@@ -12,11 +12,24 @@
   justify-content: center;
   min-height: 56px;
   padding: 4px 16px;
-  background: var(--saea-primary);
+  background: var(--saea-chrome);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   color: #fff;
   flex-shrink: 0;
   box-sizing: border-box;
+}
+/* Layout "Barra lateral": cabeçalho na mesma superfície do conteúdo, texto escuro. */
+:host-context(.saea-shell--lateral) .saea-header {
+  background: transparent;
+  box-shadow: none;
+  color: var(--saea-ink);
+}
+:host-context(.saea-shell--lateral) .saea-header-titles,
+:host-context(.saea-shell--lateral) .saea-header-title {
+  color: var(--saea-ink);
+}
+:host-context(.saea-shell--lateral) .saea-header-subtitle {
+  color: var(--saea-ink-soft);
 }
 
 .saea-header-left {
