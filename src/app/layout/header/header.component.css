@@ -1,97 +1,100 @@
-/* Sem overflow: hidden e com z-index: o menu do avatar sai do header e passa por cima do conteúdo. */
+/*
+ * Mesmo cabeçalho da Reserva de Salas (front-reserva-sala, pages/home/dashboard.css):
+ * 56px até 767px e 60px daí pra cima. Logo e ações são absolutos nas pontas, para a
+ * saudação ficar no centro exato da barra.
+ * Sem overflow: hidden e com z-index: o menu do avatar sai do header e passa por cima do conteúdo.
+ */
 .saea-header {
   position: relative;
   z-index: 30;
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
-  padding: var(--sp-3) var(--sp-5);
+  justify-content: center;
   min-height: 56px;
-  font-family: var(--font-body);
+  padding: 4px 16px;
   background: var(--saea-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: #fff;
+  flex-shrink: 0;
   box-sizing: border-box;
+}
+
+.saea-header-left {
+  position: absolute;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .saea-header-logo {
-  position: relative;
-  z-index: 1;
-  flex-shrink: 0;
-  width: 56px;
-  height: 56px;
-  object-fit: contain;
+  display: block;
+  height: 48px;
+  width: auto;
 }
 
+/* Sem limite de largura, um nome fora do comum passaria por baixo do logo e das ações. */
 .saea-header-titles {
-  position: relative;
-  z-index: 1;
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
   min-width: 0;
-  text-align: center;
+  max-width: calc(100% - 256px);
+  line-height: 1.2;
+  color: #fff;
 }
 
+/* Leva o primeiro nome do usuário (nome completo no title). */
 .saea-header-title {
-  color: #fff;
+  max-width: 100%;
+  font-family: var(--font-body);
+  font-size: 13px;
   font-weight: 700;
-  font-size: var(--fs-lg);
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
 }
 
 .saea-header-subtitle {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 400;
   color: rgba(255, 255, 255, 0.9);
-  font-size: var(--fs-sm);
-  margin-top: 2px;
 }
 
-.saea-theme-toggle {
-  position: relative;
-  z-index: 1;
-  flex-shrink: 0;
-  width: 52px;
-  height: 28px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.15);
+.saea-header-actions {
+  position: absolute;
+  right: 16px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 6px;
-  cursor: pointer;
-  box-sizing: border-box;
+  gap: 8px;
 }
 
-.saea-theme-icon {
-  font-family: 'Material Icons Outlined';
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.85);
-  line-height: 1;
-}
-
-.saea-theme-knob {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: var(--elev-1);
-  transition: left var(--dur-short) var(--ease-out);
-}
-.saea-theme-knob--dark {
-  left: 27px;
-}
-
-@media (max-height: 800px) {
+@media (min-width: 768px) {
   .saea-header {
-    padding: var(--sp-2) var(--sp-5);
-    min-height: 44px;
+    min-height: 60px;
+    padding: 4px 24px;
+  }
+
+  .saea-header-left {
+    left: 24px;
   }
 
   .saea-header-logo {
-    width: 40px;
-    height: 40px;
+    height: 46px;
+  }
+
+  .saea-header-actions {
+    right: 24px;
+  }
+
+  .saea-header-title {
+    font-size: 14px;
+  }
+
+  .saea-header-subtitle {
+    font-size: 13px;
   }
 }

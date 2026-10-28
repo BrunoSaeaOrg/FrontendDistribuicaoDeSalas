@@ -2,53 +2,126 @@
   display: contents;
 }
 
+/* Mesmo cabeçalho da Reserva de Salas abaixo de 960px: botão da gaveta + logo à esquerda,
+   saudação no centro exato, switch de tema e avatar à direita. 56px até 767px, 60px daí pra cima. */
 .mnav-header {
   position: sticky;
   top: env(safe-area-inset-top, 0px);
   z-index: 40;
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
+  justify-content: center;
   min-height: 56px;
+  padding: 4px 16px;
   background: var(--saea-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: #fff;
   box-sizing: border-box;
   flex-shrink: 0;
 }
 
-.mnav-icon-btn {
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+.mnav-left {
+  position: absolute;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mnav-hamburger {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
   cursor: pointer;
 }
+.mnav-hamburger:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.mnav-hamburger mat-icon {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+}
 
+.mnav-logo {
+  display: block;
+  height: 48px;
+  width: auto;
+}
+
+/* O centro desvia do bloco da esquerda e das ações, que são absolutos. */
 .mnav-mid {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
   min-width: 0;
+  max-width: calc(100% - 256px);
+  line-height: 1.2;
 }
-.mnav-crumb {
-  font-size: var(--fs-2xs);
-  color: rgba(255, 255, 255, 0.85);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.mnav-title {
-  font-family: var(--font-display);
-  font-size: var(--fs-md);
-  font-weight: 600;
+.mnav-greeting {
+  max-width: 100%;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
   color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.mnav-project {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.mnav-actions {
+  position: absolute;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .mnav-header {
+    min-height: 60px;
+    padding: 4px 24px;
+  }
+  .mnav-left {
+    left: 24px;
+  }
+  .mnav-logo {
+    height: 46px;
+  }
+  .mnav-actions {
+    right: 24px;
+  }
+  .mnav-greeting {
+    font-size: 14px;
+  }
+  .mnav-project {
+    font-size: 13px;
+  }
+}
+
+/* Celular: sem o logo, sobra espaço para a saudação. */
+@media (max-width: 767px) {
+  .mnav-logo {
+    display: none;
+  }
+  .mnav-mid {
+    max-width: calc(100% - 232px);
+  }
 }
 
 .mnav-scrim {

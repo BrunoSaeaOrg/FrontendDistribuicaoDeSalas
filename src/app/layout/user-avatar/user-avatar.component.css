@@ -6,9 +6,10 @@
   display: flex;
 }
 
+/* 40px até 767px e 44px daí pra cima, como na Reserva de Salas. */
 .saea-header-avatar {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   padding: 0;
   border: none;
@@ -25,6 +26,12 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   transition: box-shadow var(--dur-short) var(--ease-out);
+}
+@media (min-width: 768px) {
+  .saea-header-avatar {
+    width: 44px;
+    height: 44px;
+  }
 }
 .saea-header-avatar:hover,
 .saea-header-avatar[aria-expanded='true'] {

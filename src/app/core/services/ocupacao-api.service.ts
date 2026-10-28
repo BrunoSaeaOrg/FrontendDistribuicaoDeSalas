@@ -67,8 +67,10 @@ export class OcupacaoApiService {
     codBloco: string;
     codPredio: string;
     codSala: string;
-  }): Observable<{ sucesso: number }> {
-    return this.http.post<{ sucesso: number }>(`${this.baseUrl}/OC_SAL_TURMASXSALAS_SALVAR`, {
+  }): Observable<{ sucesso: number; concluido?: boolean }> {
+    // O backend só responde depois que a Fórmula Visual terminou (até ~40 s). `concluido: false`
+    // = o RM ainda estava gravando quando o tempo de espera acabou.
+    return this.http.post<{ sucesso: number; concluido?: boolean }>(`${this.baseUrl}/OC_SAL_TURMASXSALAS_SALVAR`, {
       CODFILIAL: String(request.codFilial),
       CODTURMA: request.codTurma,
       IDPERLET: String(request.idPerlet),

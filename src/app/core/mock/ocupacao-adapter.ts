@@ -77,19 +77,37 @@ function criarSala(dto: ApiSalaDto): Sala {
   };
 }
 
+/**
+ * OC_SAL_TURMASXSALAS devolve também as turmas SEM sala (CODSALA vazio): a turma recém-liberada
+ * volta assim, e as de outras filiais também. Elas não são vínculo — tratá-las como vínculo
+ * criava "salas" sem nome na tela (só com "Liberar") e escondia a turma da lista para vincular.
+ */
+function temSala(dto: ApiTurmaXSalaDto): boolean {
+  return String(dto.CODSALA ?? '').trim() !== '';
+}
+
+function chaveTurma(dto: { CODTURMA: string; IDPERLET: number; TURNO: string }): string {
+  return `${dto.CODTURMA}|${dto.IDPERLET}|${dto.TURNO}`;
+}
+
 export function fundirSalasEApi(
   salasDto: ApiSalaDto[],
   turmasXSalasDto: ApiTurmaXSalaDto[],
   turmasDto: ApiTurmaDto[] = [],
 ): { unidades: Unidade[]; salas: Sala[]; turmasLivres: TurmaLivre[] } {
+  const vinculos = turmasXSalasDto.filter(temSala);
+  // Turma sem sala só interessa nas filiais em que o usuário tem salas (onde ele pode vinculá-la).
+  const filiaisDoUsuario = new Set(salasDto.map((dto) => dto.CODFILIAL));
+  const semSala = turmasXSalasDto.filter((dto) => !temSala(dto) && filiaisDoUsuario.has(dto.CODFILIAL));
+
   const unidadesMap = new Map<string, Unidade>();
   salasDto.forEach((dto) => registrarUnidade(unidadesMap, dto));
-  turmasXSalasDto.forEach((dto) => registrarUnidade(unidadesMap, dto));
+  vinculos.forEach((dto) => registrarUnidade(unidadesMap, dto));
   turmasDto.forEach((dto) => registrarUnidade(unidadesMap, dto));
 
   const salasPorId = new Map(salasDto.map((dto) => [salaId(dto), criarSala(dto)]));
 
-  turmasXSalasDto.forEach((dto) => {
+  vinculos.forEach((dto) => {
     let sala = salasPorId.get(salaId(dto));
     if (!sala) {
       sala = criarSala(dto);
@@ -107,9 +125,16 @@ export function fundirSalasEApi(
     };
   });
 
-  const codTurmasComSala = new Set(turmasXSalasDto.map((dto) => `${dto.CODTURMA}|${dto.IDPERLET}|${dto.TURNO}`));
-  const turmasLivres: TurmaLivre[] = turmasDto
-    .filter((dto) => !codTurmasComSala.has(`${dto.CODTURMA}|${dto.IDPERLET}|${dto.TURNO}`))
+  // Livres: as turmas de OC_SAL_TURMAS sem vínculo, mais as que vieram sem sala em
+  // OC_SAL_TURMASXSALAS (ex.: recém-liberadas), sem repetir.
+  const codTurmasComSala = new Set(vinculos.map(chaveTurma));
+  const candidatas = new Map<string, ApiTurmaDto>();
+  [...turmasDto, ...semSala].forEach((dto) => {
+    const chave = chaveTurma(dto);
+    if (!codTurmasComSala.has(chave) && !candidatas.has(chave)) candidatas.set(chave, dto);
+  });
+
+  const turmasLivres: TurmaLivre[] = Array.from(candidatas.values())
     .map((dto) => {
       const turno = mapTurno(dto.TURNO);
       return turno

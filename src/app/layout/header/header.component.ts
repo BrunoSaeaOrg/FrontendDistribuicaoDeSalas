@@ -1,44 +1,36 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import { ThemeService } from '../../core/services/theme.service';
 import { UsuarioService } from '../../core/services/usuario.service';
+import { saudacao } from '../saudacao';
+import { ThemeSwitchComponent } from '../theme-switch/theme-switch.component';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
-function saudacao(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Bom dia';
-  if (hour < 18) return 'Boa tarde';
-  return 'Boa noite';
-}
-
+/**
+ * Cabeçalho do desktop, igual ao da Reserva de Salas: teal sólido, logo e ações presas nas
+ * pontas, saudação + nome do sistema no centro exato da barra.
+ */
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [UserAvatarComponent],
+  imports: [ThemeSwitchComponent, UserAvatarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="saea-header">
-      <img class="saea-header-logo" src="assets/logo-header-white.png" alt="SAEA" />
-      <div class="saea-header-titles">
-        <div class="saea-header-title" [attr.title]="usuario.nome()">{{ greeting() }}</div>
-        <div class="saea-header-subtitle">{{ subtitle() }}</div>
+      <div class="saea-header-left">
+        <img class="saea-header-logo" src="assets/logo-header-white.png" alt="SAEA" />
       </div>
-      <button
-        type="button"
-        class="saea-theme-toggle"
-        [attr.aria-label]="theme.isDark() ? 'Ativar tema claro' : 'Ativar tema escuro'"
-        (click)="theme.toggle()"
-      >
-        <span class="saea-theme-icon">light_mode</span>
-        <span class="saea-theme-icon">dark_mode</span>
-        <span class="saea-theme-knob" [class.saea-theme-knob--dark]="theme.isDark()"></span>
-      </button>
-      <app-user-avatar />
+      <div class="saea-header-titles">
+        <span class="saea-header-title" [attr.title]="usuario.nome()">{{ greeting() }}</span>
+        <span class="saea-header-subtitle">{{ subtitle() }}</span>
+      </div>
+      <div class="saea-header-actions">
+        <app-theme-switch />
+        <app-user-avatar />
+      </div>
     </header>
   `,
   styleUrl: './header.component.css',
 })
 export class HeaderComponent {
-  readonly theme = inject(ThemeService);
   readonly usuario = inject(UsuarioService);
   readonly subtitle = input<string>('Ocupação de Salas');
   readonly saudacao = saudacao();

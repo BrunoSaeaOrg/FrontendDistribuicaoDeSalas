@@ -1,20 +1,25 @@
+<!-- Mesmo cabeçalho do desktop e da Reserva de Salas, com o botão da gaveta antes do logo. -->
 <header class="mnav-header">
-  <button type="button" class="mnav-icon-btn" aria-label="Abrir menu" (click)="open.set(true)">
-    <mat-icon>menu</mat-icon>
-  </button>
-  <div class="mnav-mid">
-    <div class="mnav-crumb">{{ title() }}</div>
-    <div class="mnav-title">{{ currentLabel() }}</div>
+  <div class="mnav-left">
+    <button
+      type="button"
+      class="mnav-hamburger"
+      [attr.aria-label]="open() ? 'Fechar menu' : 'Abrir menu'"
+      [attr.aria-expanded]="open()"
+      (click)="open.set(!open())"
+    >
+      <mat-icon>{{ open() ? 'close' : 'menu' }}</mat-icon>
+    </button>
+    <img class="mnav-logo" src="assets/logo-header-white.png" alt="SAEA" />
   </div>
-  <button
-    type="button"
-    class="mnav-icon-btn"
-    [attr.aria-label]="theme.isDark() ? 'Ativar tema claro' : 'Ativar tema escuro'"
-    (click)="theme.toggle()"
-  >
-    <mat-icon>{{ theme.isDark() ? 'dark_mode' : 'light_mode' }}</mat-icon>
-  </button>
-  <app-user-avatar />
+  <div class="mnav-mid">
+    <span class="mnav-greeting" [attr.title]="usuario.nome()">{{ greeting() }}</span>
+    <span class="mnav-project">{{ title() }}</span>
+  </div>
+  <div class="mnav-actions">
+    <app-theme-switch />
+    <app-user-avatar />
+  </div>
 </header>
 
 <div class="mnav-scrim" [class.mnav-scrim--open]="open()" (click)="open.set(false)"></div>

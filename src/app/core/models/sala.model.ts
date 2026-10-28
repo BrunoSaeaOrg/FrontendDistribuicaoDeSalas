@@ -40,6 +40,16 @@ export interface TurmaLivre {
   segmento: string;
 }
 
+/** Turma já vinculada a outra sala da mesma filial e turno: vinculá-la em outra sala a move. */
+export interface TurmaEmOutraSala {
+  codTurma: string;
+  idPerlet: number;
+  nome: string;
+  alunos: number;
+  /** Nome da sala em que a turma está hoje. */
+  salaAtual: string;
+}
+
 export type StatusOcupacao = 'disponivel' | 'quase' | 'excedida';
 
 export interface StatusInfo {

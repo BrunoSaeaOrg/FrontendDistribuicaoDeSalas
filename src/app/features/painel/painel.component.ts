@@ -47,6 +47,10 @@ export class PainelComponent {
   readonly status = signal('todas');
   readonly busca = signal('');
 
+  /** Mesmo ano usado na carga das salas e turmas: a tela mostra de qual ano letivo é a ocupação. */
+  readonly anoLetivo = this.salasService.anoLetivo;
+  readonly anoLetivoOptions: SelectOption[] = [{ value: this.anoLetivo, label: this.anoLetivo }];
+
   readonly unidadeOptions = computed<SelectOption[]>(() => [
     { value: 'todas', label: 'Todas as unidades' },
     ...this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),

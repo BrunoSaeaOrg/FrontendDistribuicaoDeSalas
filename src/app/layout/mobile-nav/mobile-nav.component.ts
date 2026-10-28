@@ -1,19 +1,21 @@
-import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
-import { ThemeService } from '../../core/services/theme.service';
+import { UsuarioService } from '../../core/services/usuario.service';
+import { saudacao } from '../saudacao';
 import { SidePanelItem } from '../side-panel/side-panel.component';
+import { ThemeSwitchComponent } from '../theme-switch/theme-switch.component';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
 @Component({
   selector: 'app-mobile-nav',
   standalone: true,
-  imports: [MatIconModule, UserAvatarComponent],
+  imports: [MatIconModule, ThemeSwitchComponent, UserAvatarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './mobile-nav.component.html',
   styleUrl: './mobile-nav.component.css',
 })
 export class MobileNavComponent {
-  readonly theme = inject(ThemeService);
+  readonly usuario = inject(UsuarioService);
 
   readonly title = input('Ocupação de Salas');
   readonly currentLabel = input('Painel');
@@ -23,6 +25,13 @@ export class MobileNavComponent {
   readonly itemClick = output<SidePanelItem>();
 
   readonly open = signal(false);
+
+  private readonly saudacao = saudacao();
+
+  readonly greeting = computed(() => {
+    const nome = this.usuario.primeiroNome();
+    return nome ? `${this.saudacao}, ${nome}` : this.saudacao;
+  });
 
   onItemClick(item: SidePanelItem): void {
     this.open.set(false);

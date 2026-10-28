@@ -1,5 +1,6 @@
 <div class="turmas-page">
   <div class="turmas-filter">
+    <app-select label="Ano letivo" [ngModel]="anoLetivo" [options]="anoLetivoOptions" />
     <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="unidade.set($event)" [options]="unidadeOptions()" />
   </div>
 
@@ -8,9 +9,17 @@
       <table class="turmas-table">
         <thead>
           <tr>
-            <th>Sala</th>
+            <th [attr.aria-sort]="ariaOrdem('sala')">
+              <button type="button" class="turmas-ordem" [class.turmas-ordem--ativa]="ariaOrdem('sala')" (click)="ordenarPor('sala')">
+                Sala <span class="material-icons" aria-hidden="true">{{ iconeOrdem('sala') }}</span>
+              </button>
+            </th>
             <th>Unidade</th>
-            <th>Carteiras</th>
+            <th [attr.aria-sort]="ariaOrdem('carteiras')">
+              <button type="button" class="turmas-ordem" [class.turmas-ordem--ativa]="ariaOrdem('carteiras')" (click)="ordenarPor('carteiras')">
+                Carteiras <span class="material-icons" aria-hidden="true">{{ iconeOrdem('carteiras') }}</span>
+              </button>
+            </th>
             <th>Manhã</th>
             <th>Tarde</th>
           </tr>
@@ -25,7 +34,7 @@
                 </span>
               </td>
               <td>{{ row.carteiras }}</td>
-              @for (cell of row.cells; track cell.turno) {
+              @for (cell of row.cells; track cell.turno + '|' + versaoSelecao()) {
                 <td class="turmas-cell-turno">
                   @if (cell.hasTurma) {
                     <div class="turmas-turma">
@@ -33,18 +42,25 @@
                         {{ cell.nomeProprio }} <span class="turmas-readonly-soft">· {{ cell.alunos }} al.</span>
                       </div>
                       @if (cell.excede) {
-                        <span class="turmas-excede">▲ excede carteiras</span>
+                        <app-badge tone="danger">Excede carteiras</app-badge>
                       }
                       @if (uiMode.editorMode()) {
-                        <button type="button" class="turmas-remove-btn" (click)="liberar(row, cell)">Liberar</button>
+                        @if (cell.gravando) {
+                          <saea-spinner class="turmas-gravando" [size]="18" label="Gravando no RM" />
+                        } @else {
+                          <app-button variant="secondary" size="sm" [disabled]="salvando()" (clicked)="liberar(row, cell)">Liberar</app-button>
+                        }
                       }
                     </div>
                   }
                   @if (cell.noTurma) {
                     @if (uiMode.editorMode()) {
-                      @if (cell.turmasLivres.length > 0) {
+                      @if (cell.gravando) {
+                        <saea-spinner class="turmas-gravando" [size]="18" label="Gravando no RM" />
+                      } @else if (cell.podeVincular) {
                         <app-select
                           [options]="turmaLivreOptions(cell)"
+                          [disabled]="salvando()"
                           [ngModel]="''"
                           (ngModelChange)="vincular(row, cell, $event)"
                         />

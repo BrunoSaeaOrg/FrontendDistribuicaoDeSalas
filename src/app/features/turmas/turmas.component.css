@@ -5,9 +5,14 @@
 }
 
 .turmas-filter {
-  max-width: 260px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
 }
-
+.turmas-filter app-select {
+  flex: 0 1 260px;
+  min-width: 160px;
+}
 .turmas-table-wrap {
   overflow-x: auto;
   overflow-y: auto;
@@ -37,6 +42,46 @@
   text-transform: uppercase;
   border-bottom: 1px solid var(--saea-border);
 }
+
+/* Cabeçalho que ordena: o botão herda a fonte do th; a seta só fica forte na coluna
+   ordenada. A margem negativa mantém o texto alinhado com as células. */
+.turmas-ordem {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 calc(-1 * var(--sp-1));
+  padding: 2px var(--sp-1);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background var(--dur-short) var(--ease-out),
+    color var(--dur-short) var(--ease-out);
+}
+.turmas-ordem .material-icons {
+  font-size: 14px;
+  opacity: 0.45;
+}
+.turmas-ordem:hover {
+  background: var(--saea-surface-sunken);
+  color: var(--saea-ink);
+}
+.turmas-ordem:focus-visible {
+  outline: 2px solid var(--saea-primary);
+  outline-offset: 1px;
+}
+.turmas-ordem--ativa {
+  color: var(--saea-ink);
+}
+.turmas-ordem--ativa .material-icons {
+  opacity: 1;
+  color: var(--saea-primary-strong);
+}
+
 .turmas-table td {
   padding: var(--sp-3) var(--sp-2);
   border-bottom: 1px solid var(--saea-border);
@@ -70,18 +115,13 @@
 .turmas-turma {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: flex-start;
+  gap: var(--sp-2);
 }
 
-.turmas-remove-btn {
-  align-self: flex-start;
-  border: none;
-  background: none;
-  color: var(--saea-danger);
-  cursor: pointer;
-  font-size: var(--fs-2xs);
-  font-weight: 600;
-  padding: 0;
+/* Spinner do design system no lugar da ação da célula enquanto o RM grava */
+.turmas-gravando {
+  color: var(--saea-primary-strong);
 }
 
 .turmas-readonly {
@@ -90,12 +130,6 @@
 }
 .turmas-readonly-soft {
   color: var(--saea-ink-soft);
-}
-
-.turmas-excede {
-  font-size: var(--fs-2xs);
-  color: var(--saea-danger);
-  font-weight: 600;
 }
 
 .turmas-livre {

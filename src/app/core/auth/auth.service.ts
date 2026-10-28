@@ -1,8 +1,9 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, from, Observable, of, switchMap, tap, throwError } from 'rxjs';
+import { catchError, finalize, from, map, Observable, of, shareReplay, switchMap, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { ToastService } from '../services/toast.service';
 import { encryptLoginPayload, importRsaPublicKeyFromSpki, isLoginEncryptionSupported } from './login-encryption.util';
 import {
   AuthUser,
@@ -20,7 +21,11 @@ const USER_KEY = 'saea.user';
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
   private readonly baseUrl = `${environment.apiUrl}/auth`;
+
+  /** Renovação em andamento: várias chamadas com 401 ao mesmo tempo esperam a mesma. */
+  private renovacao$: Observable<string> | null = null;
 
   private readonly _currentUser = signal<AuthUser | null>(this.readStoredUser());
   readonly currentUser = this._currentUser.asReadonly();
@@ -102,6 +107,35 @@ export class AuthService {
     this.router.navigate(['/login']);
   }
 
+  /**
+   * Troca o refresh token por um access token novo (POST /auth/refresh) e devolve o token.
+   * O access token vale 60 minutos em produção: sem isto, depois desse tempo qualquer F5 ou
+   * ação na tela falhava com 401, e a pessoa continuava "logada" sem conseguir carregar nada.
+   */
+  renovarSessao(): Observable<string> {
+    const refreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!refreshToken) return throwError(() => new Error('Sessão sem refresh token.'));
+
+    this.renovacao$ ??= this.http.post<LoginApiResponse>(`${this.baseUrl}/refresh`, { refreshToken }).pipe(
+      map((response) => {
+        if (!response.success || !response.token) throw new Error(response.message || 'Sessão expirada.');
+        this.persistTokens(response);
+        return response.token;
+      }),
+      finalize(() => (this.renovacao$ = null)),
+      shareReplay(1),
+    );
+    return this.renovacao$;
+  }
+
+  /** O refresh token também venceu (7 dias) ou foi revogado: volta para o login avisando o motivo. */
+  encerrarSessaoExpirada(): void {
+    if (!this._currentUser()) return;
+    this.clearSession();
+    this.toast.warning('Sua sessão expirou', 'Entre de novo para continuar.');
+    this.router.navigate(['/login']);
+  }
+
   private performEncryptedLogin(usuario: string, senha: string): Observable<LoginApiResponse> {
     return this.http.get<EncryptionKeyResponse>(`${this.baseUrl}/encryption-key`).pipe(
       switchMap(({ keyId, publicKey }) =>
@@ -118,6 +152,19 @@ export class AuthService {
     sessionStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
     sessionStorage.setItem(USER_KEY, JSON.stringify(response.user));
     this._currentUser.set(response.user);
+  }
+
+  /**
+   * Grava os tokens renovados. O usuário só é trocado se mudou: o mesmo usuário num objeto novo
+   * dispararia de novo os effects que carregam salas e dados do usuário.
+   */
+  private persistTokens(response: LoginApiResponse): void {
+    sessionStorage.setItem(ACCESS_TOKEN_KEY, response.token);
+    sessionStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
+    if (response.user && response.user.id !== this._currentUser()?.id) {
+      sessionStorage.setItem(USER_KEY, JSON.stringify(response.user));
+      this._currentUser.set(response.user);
+    }
   }
 
   private clearSession(): void {

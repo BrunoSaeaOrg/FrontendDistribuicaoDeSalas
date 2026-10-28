@@ -45,7 +45,8 @@ describe('HeaderComponent', () => {
   });
 
   it('o avatar vem logo depois do switch de tema', () => {
-    const toggle = render().querySelector('.saea-theme-toggle')!;
+    const toggle = render().querySelector('app-theme-switch')!;
+    expect(toggle.querySelector('[role="switch"]')).toBeTruthy();
     expect(toggle.nextElementSibling?.tagName).toBe('APP-USER-AVATAR');
   });
 });
