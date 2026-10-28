@@ -24,6 +24,9 @@ interface PainelRow {
   tipo: string;
   carteiras: number;
   capacidade: number;
+  /** Alunos do turno mais cheio: é o número que o status compara com a capacidade. */
+  alunos: number;
+  alunosTitle: string;
   statusLabel: string;
   statusTone: 'success' | 'warning' | 'danger';
   statusKey: string;
@@ -90,10 +93,12 @@ export class PainelComponent {
         return {
           turno: t,
           label: t === 'manha' ? 'M' : 'T',
-          turma: turma ? `${turma.nomeProprio} · ${turma.nome}` : 'Livre',
+          turma: turma ? `${turma.nome} · ${turma.alunos} alunos` : 'Livre',
           hasTurma: !!turma,
         };
       });
+      const alunosManha = this.salasService.alunosNoTurno(s, 'manha');
+      const alunosTarde = this.salasService.alunosNoTurno(s, 'tarde');
       return {
         id: s.id,
         unidadeId: s.unidadeId,
@@ -103,6 +108,8 @@ export class PainelComponent {
         tipo: s.tipo,
         carteiras: s.carteiras,
         capacidade: cap,
+        alunos: Math.max(alunosManha, alunosTarde),
+        alunosTitle: `Manhã: ${alunosManha} · Tarde: ${alunosTarde}`,
         statusLabel: info.label,
         statusTone: info.tone,
         statusKey: info.key,

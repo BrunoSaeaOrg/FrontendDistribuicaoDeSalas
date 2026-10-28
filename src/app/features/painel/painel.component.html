@@ -34,6 +34,7 @@
               <th>Tipo</th>
               <th>Carteiras</th>
               <th>Capacidade</th>
+              <th>Alunos</th>
               <th>Status</th>
               <th>Turmas</th>
               <th></th>
@@ -51,6 +52,7 @@
                 <td class="painel-cell-soft">{{ row.tipo }}</td>
                 <td>{{ row.carteiras }}</td>
                 <td>{{ row.capacidade }}</td>
+                <td [title]="row.alunosTitle">{{ row.alunos }}</td>
                 <td><app-badge [tone]="row.statusTone">{{ row.statusLabel }}</app-badge></td>
                 <td>
                   <div class="painel-chips">
