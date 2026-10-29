@@ -19,6 +19,25 @@ import { ToastService } from './toast.service';
 /** Ano letivo de partida: o do calendário, até o RM dizer quais anos têm turmas. */
 const anoCorrente = () => String(new Date().getFullYear());
 
+/**
+ * Série da turma pelo nome — a API não expõe esse campo. No RM o mesmo ano vem como "6º ANO A",
+ * "6º Ano B" e "6º ano C - Manhã", e o Infantil como "INFANTIL 2", "Infantil 2A" e
+ * "Infantil 2 - Semi Manhã A": tudo vira uma série só, "6º Ano", "1ª Série" ou "Infantil 2". Nome
+ * fora desses padrões perde só o turno e a letra da turma no fim.
+ */
+export function serieDaTurma(nome: string): string {
+  const ano = /^\s*(\d+)\s*[º°o]\s*ano\b/iu.exec(nome);
+  if (ano) return `${ano[1]}º Ano`;
+  const serie = /^\s*(\d+)\s*[ªa]\s*s[ée]rie\b/iu.exec(nome);
+  if (serie) return `${serie[1]}ª Série`;
+  const infantil = /^\s*infantil\s*(\d+)/iu.exec(nome);
+  if (infantil) return `Infantil ${infantil[1]}`;
+  return nome
+    .replace(/\s*-\s*(semi-?\s*)?(manh[ãa]|tarde|noite|integral)\s*$/i, '')
+    .replace(/\s+[A-Z]$/, '')
+    .trim();
+}
+
 /** Se o RM passou do tempo de espera do backend, recarrega depois deste intervalo. */
 const RECARGA_APOS_GRAVACAO_PENDENTE_MS = 8000;
 
@@ -78,7 +97,7 @@ export class SalasService {
 
   /** Anos letivos do usuário (OC_SAL_ANOS → API.OC.SAL.ANO no RM), do mais antigo ao mais novo. */
   readonly anosLetivos = this._anosLetivos.asReadonly();
-  /** Ano letivo das turmas carregadas (parâmetro ANO de OC_SAL_TURMASXSALAS e OC_SAL_TURMAS). */
+  /** Ano letivo carregado (parâmetro ANO de OC_SAL_SALAS_ANO, OC_SAL_TURMASXSALAS e OC_SAL_TURMAS). */
   readonly anoLetivo = this._anoLetivo.asReadonly();
 
   /** Segmentos existentes nos dados (campo SEGMENTO da API), ordenados. */
@@ -176,7 +195,8 @@ export class SalasService {
     this._error.set(null);
 
     forkJoin([
-      this.ocupacaoApi.getSalas(codUsuario),
+      // As salas também são do ano: um ano sem período aberto no RM não tem sala nenhuma.
+      this.ocupacaoApi.getSalasDoAno(codUsuario, ano),
       this.ocupacaoApi.getTurmasXSalas(codUsuario, ano),
       this.ocupacaoApi.getTurmas(codUsuario, ano),
     ]).subscribe({
@@ -197,7 +217,7 @@ export class SalasService {
     });
   }
 
-  /** Troca o ano letivo e recarrega os vínculos e as turmas daquele ano. */
+  /** Troca o ano letivo e recarrega as salas, os vínculos e as turmas daquele ano. */
   selecionarAno(ano: string): void {
     if (!ano || ano === this._anoLetivo()) return;
     this._anoLetivo.set(ano);
@@ -304,16 +324,9 @@ export class SalasService {
     return this.statusPorCapacidade(sala, sala.carteiras);
   }
 
-  /**
-   * Deriva a série do nome da turma — a API não expõe esse campo separadamente.
-   * "1º ano A - Manhã" → "1º ano"; "Infantil 2 A - Tarde" → "Infantil 2".
-   */
+  /** Série da turma pelo nome (ver serieDaTurma): "1º ano A - Manhã" → "1º Ano". */
   serieFromNome(nome: string): string {
-    // Subturmas também: "3º Ano A - Semi-Manhã" e "3º Ano A - Integral" → "3º Ano".
-    return nome
-      .replace(/\s*-\s*(semi-?\s*)?(manh[ãa]|tarde|noite|integral)\s*$/i, '')
-      .replace(/\s+[A-Z]$/, '')
-      .trim();
+    return serieDaTurma(nome);
   }
 
   /**
@@ -434,7 +447,10 @@ export class SalasService {
     );
   }
 
-  /** Move `quantidade` carteira(s) vaga(s) de uma sala para outra (drag-and-drop da tela Planta). */
+  /**
+   * Move `quantidade` carteira(s) vaga(s) de uma sala para outra (drag-and-drop da tela Planta), no
+   * período letivo do ano em uso.
+   */
   transferirCarteira(origem: Sala, destino: Sala, quantidade = 1): void {
     const codUsuario = this.authService.currentUser()?.username ?? '';
     if (!codUsuario) return;
@@ -454,6 +470,7 @@ export class SalasService {
           codSala: destino.codSala,
         },
         quantidade,
+        ano: this._anoLetivo(),
       })
       .subscribe({
         next: (res) => {
@@ -467,6 +484,8 @@ export class SalasService {
         error: (err) => {
           const mensagem = err?.error?.message ?? 'Não foi possível contatar o servidor.';
           this.toast.danger('Falha ao transferir carteira', mensagem);
+          // A falha pode vir depois de as carteiras já terem mudado (no histórico): a tela relê o RM.
+          this.carregar();
         },
       });
   }

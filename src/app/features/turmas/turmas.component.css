@@ -4,14 +4,11 @@
   gap: var(--sp-5);
 }
 
+/* Como no Painel: os cinco filtros dividem a linha e só quebram quando não cabem. */
 .turmas-filter {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--sp-4);
-}
-.turmas-filter app-select {
-  flex: 0 1 260px;
-  min-width: 160px;
 }
 .turmas-table-wrap {
   overflow-x: auto;
@@ -107,6 +104,10 @@
 .turmas-cell-strong {
   font-weight: 600;
   color: var(--saea-ink);
+  white-space: nowrap;
+}
+.turmas-cell-soft {
+  color: var(--saea-ink-soft);
   white-space: nowrap;
 }
 

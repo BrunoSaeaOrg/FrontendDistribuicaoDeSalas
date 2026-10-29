@@ -78,6 +78,7 @@ function criarSala(dto: ApiSalaDto): Sala {
     unidadeId: slugify(nomeUnidade(dto)),
     nome: dto.SALA,
     tipo: dto.TIPOSALA,
+    andar: (dto.ANDAR ?? '').trim(),
     area: dto.AREA,
     carteiras: dto.CARTEIRAS,
     capacidade: dto.CAPACIDADE,

@@ -1,6 +1,6 @@
 export interface ApiSalaDto {
   CODFILIAL: number;
-  /** OC_SAL_SALAS devolve o nome da unidade em FILIAL; OC_SAL_TURMASXSALAS usa UNIDADE. */
+  /** OC_SAL_SALAS_ANO devolve o nome da unidade em FILIAL; OC_SAL_TURMASXSALAS usa UNIDADE. */
   FILIAL?: string;
   UNIDADE?: string;
   CODBLOCO: string;
@@ -9,11 +9,21 @@ export interface ApiSalaDto {
   TIPOSALA: string;
   CODSALA: string;
   SALA: string;
+  /** "T" = térreo; os demais andares vêm só com o número ("1", "2"...). */
   ANDAR: string;
   CARTEIRAS: number;
   CAPACIDADE: number;
   CAPACIDADEMAXIMA: number;
   AREA: number;
+}
+
+/**
+ * Sala do período letivo de um ano (OC_SAL_SALAS_ANO, que lê API.OC.SAL.PERIO no RM): as colunas
+ * de uma sala mais o período e o ano. Só vêm as filiais com período aberto naquele ano.
+ */
+export interface ApiSalaDoAnoDto extends ApiSalaDto {
+  IDPERLET: number;
+  ANO: string;
 }
 
 /**

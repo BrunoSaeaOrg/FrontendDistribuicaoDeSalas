@@ -50,11 +50,16 @@ export class PainelComponent {
   readonly status = signal('todas');
   readonly busca = signal('');
 
-  /** Ano letivo da ocupação: os anos vêm do RM, e trocar recarrega as turmas daquele ano. */
+  /**
+   * Ano letivo da ocupação: os anos vêm do RM (API.OC.SAL.ANO), e trocar recarrega as salas do
+   * período letivo daquele ano (API.OC.SAL.PERIO) e as turmas dele.
+   */
   readonly anoLetivo = this.salasService.anoLetivo;
   readonly anoLetivoOptions = computed<SelectOption[]>(() =>
     this.salasService.anosLetivos().map((ano) => ({ value: ano, label: ano })),
   );
+  /** O ano carregou sem sala nenhuma: não há período letivo aberto nele (não é filtro). */
+  readonly semSalasNoAno = computed(() => !this.salasService.loading() && this.salasService.salas().length === 0);
 
   selecionarAno(ano: string): void {
     this.salasService.selecionarAno(ano);

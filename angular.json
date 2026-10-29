@@ -42,6 +42,7 @@
                 }
               ],
               "outputHashing": "all",
+              "baseHref": "/ocupacao_salas/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",

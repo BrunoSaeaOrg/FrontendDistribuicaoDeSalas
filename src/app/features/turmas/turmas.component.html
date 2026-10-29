@@ -2,6 +2,9 @@
   <div class="turmas-filter">
     <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" />
     <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="unidade.set($event)" [options]="unidadeOptions()" />
+    <app-input label="Sala" placeholder="Nome da sala..." [ngModel]="buscaSala()" (ngModelChange)="buscaSala.set($event)" />
+    <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="selecionarSegmento($event)" [options]="segmentoOptions()" />
+    <app-select label="Série" [ngModel]="serie()" (ngModelChange)="serie.set($event)" [options]="serieOptions()" />
   </div>
 
   <app-card>
@@ -15,6 +18,7 @@
               </button>
             </th>
             <th>Unidade</th>
+            <th>Andar</th>
             <th [attr.aria-sort]="ariaOrdem('carteiras')">
               <button type="button" class="turmas-ordem" [class.turmas-ordem--ativa]="ariaOrdem('carteiras')" (click)="ordenarPor('carteiras')">
                 Carteiras <span class="material-icons" aria-hidden="true">{{ iconeOrdem('carteiras') }}</span>
@@ -33,6 +37,7 @@
                   <span class="turmas-dot" [style.background]="row.unidadeCor"></span>{{ row.unidadeNome }}
                 </span>
               </td>
+              <td class="turmas-cell-soft">{{ row.andar }}</td>
               <td>{{ row.carteiras }}</td>
               @for (cell of row.cells; track cell.turno) {
                 <td class="turmas-cell-turno">
@@ -161,6 +166,12 @@
                   </div>
                 </td>
               }
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6">
+                <app-empty-state icon="meeting_room" title="Nenhuma sala encontrada" description="Ajuste os filtros para ver outras salas." />
+              </td>
             </tr>
           }
         </tbody>

@@ -7,22 +7,30 @@
     <app-input label="Buscar sala" placeholder="Nome da sala..." [ngModel]="busca()" (ngModelChange)="busca.set($event)" />
   </div>
 
-  <div class="painel-units-bar">
-    @for (u of unidadesOverview(); track u.id) {
-      <button
-        type="button"
-        class="painel-unit-chip"
-        [class.painel-unit-chip--active]="unidade() === u.id"
-        (click)="toggleUnidade(u.id)"
-      >
-        <span class="painel-unit-dot" [style.background]="u.cor"></span>
-        <span>{{ u.nome }}</span>
-      </button>
-    }
-  </div>
+  @if (unidadesOverview().length > 0) {
+    <div class="painel-units-bar">
+      @for (u of unidadesOverview(); track u.id) {
+        <button
+          type="button"
+          class="painel-unit-chip"
+          [class.painel-unit-chip--active]="unidade() === u.id"
+          (click)="toggleUnidade(u.id)"
+        >
+          <span class="painel-unit-dot" [style.background]="u.cor"></span>
+          <span>{{ u.nome }}</span>
+        </button>
+      }
+    </div>
+  }
 
   <app-card class="saea-card-fill">
-    @if (rows().length === 0) {
+    @if (semSalasNoAno()) {
+      <app-empty-state
+        icon="event_busy"
+        [title]="'Nenhuma sala em ' + anoLetivo()"
+        description="O RM ainda não tem período letivo aberto nesse ano. Escolha outro ano letivo."
+      />
+    } @else if (rows().length === 0) {
       <app-empty-state icon="meeting_room" title="Nenhuma sala encontrada" description="Ajuste os filtros para ver outras salas." />
     } @else {
       <div class="painel-table-wrap saea-scroll">

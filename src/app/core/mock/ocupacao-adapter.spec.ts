@@ -55,6 +55,11 @@ describe('fundirSalasEApi', () => {
     expect(r.turmasLivres).toEqual([]);
   });
 
+  it('leva o andar da sala, sem espaços sobrando', () => {
+    const r = fundirSalasEApi([sala('12'), { ...sala('13'), ANDAR: 'T ' }], [], []);
+    expect(r.salas.map((s) => s.andar)).toEqual(['1', 'T']);
+  });
+
   it('duas turmas na mesma sala e turno ficam as duas, em ordem de nome e sem repetir', () => {
     const b = turma('EF3B-M');
     const a = turma('EF3A-M');

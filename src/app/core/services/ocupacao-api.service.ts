@@ -5,7 +5,7 @@ import { environment } from '../../../environments/environment';
 import {
   ApiAnoLetivoDto,
   ApiRegraDto,
-  ApiSalaDto,
+  ApiSalaDoAnoDto,
   ApiSolicitacaoDto,
   ApiStatusSolicitacao,
   ApiTurmaDto,
@@ -17,9 +17,11 @@ export class OcupacaoApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiUrl}/OcupacaoDeSalas`;
 
-  getSalas(codUsuario: string): Observable<ApiSalaDto[]> {
-    return this.http.post<ApiSalaDto[]>(`${this.baseUrl}/OC_SAL_SALAS`, {
+  /** Salas do período letivo do ano (um dos anos de getAnosLetivos), com as carteiras já transferidas. */
+  getSalasDoAno(codUsuario: string, ano: string): Observable<ApiSalaDoAnoDto[]> {
+    return this.http.post<ApiSalaDoAnoDto[]>(`${this.baseUrl}/OC_SAL_SALAS_ANO`, {
       CODUSUARIO: codUsuario,
+      ANO: ano,
     });
   }
 
@@ -126,11 +128,13 @@ export class OcupacaoApiService {
     });
   }
 
+  /** As carteiras mudam no período letivo de `ano` (PRJ4087040), e a transferência vai para o histórico. */
   transferirCarteira(request: {
     codUsuario: string;
     origem: { codFilial: number; codBloco: string; codPredio: string; codSala: string };
     destino: { codFilial: number; codBloco: string; codPredio: string; codSala: string };
     quantidade: number;
+    ano: string;
   }): Observable<{ sucesso: number }> {
     return this.http.post<{ sucesso: number }>(`${this.baseUrl}/OC_SAL_CARTEIRA_TRANSFERIR`, {
       CODUSUARIO: request.codUsuario,
@@ -143,6 +147,7 @@ export class OcupacaoApiService {
       CODPREDIODESTINO: request.destino.codPredio,
       CODSALADESTINO: request.destino.codSala,
       QUANTIDADE: request.quantidade,
+      ANO: request.ano,
     });
   }
 }

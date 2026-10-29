@@ -20,6 +20,8 @@ export interface Sala {
   unidadeId: string;
   nome: string;
   tipo: string;
+  /** Andar como vem do RM (API: ANDAR): "T" = térreo, os demais só o número. */
+  andar: string;
   area: number;
   /** Quantidade fisica de carteiras na sala (API: CARTEIRAS). Usado no drag-and-drop de carteiras. */
   carteiras: number;

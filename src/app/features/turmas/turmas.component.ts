@@ -13,6 +13,8 @@ import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { ConfirmDialogService } from '../../shared/ui/confirm-dialog/confirm-dialog.service';
+import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
+import { InputComponent } from '../../shared/ui/input/input.component';
 import { MultiSelectComponent, MultiSelectOption } from '../../shared/ui/multi-select/multi-select.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
@@ -76,11 +78,20 @@ interface TurmaRow {
   nome: string;
   unidadeNome: string;
   unidadeCor: string;
+  /** Andar por extenso ("Térreo", "1º andar"). */
+  andar: string;
   carteiras: number;
   cells: TurmaCell[];
 }
 
 const TURNOS: Turno[] = ['manha', 'tarde'];
+
+/** ANDAR do RM por extenso: "T" é o térreo e os outros vêm só com o número ("1" → "1º andar"). */
+function nomeDoAndar(andar: string): string {
+  if (!andar) return '—';
+  if (/^t$/i.test(andar)) return 'Térreo';
+  return /^\d+$/.test(andar) ? `${andar}º andar` : andar;
+}
 
 const NOME_TURNO: Record<Turno, string> = { manha: 'manhã', tarde: 'tarde' };
 
@@ -131,6 +142,8 @@ function emChips<T>(lista: T[], aberta: boolean, rotulo: (item: T) => string): L
     BadgeComponent,
     ButtonComponent,
     CardComponent,
+    EmptyStateComponent,
+    InputComponent,
     MultiSelectComponent,
     SelectComponent,
     SaeaSpinnerComponent,
@@ -148,6 +161,10 @@ export class TurmasComponent {
   readonly uiMode = inject(UiModeService);
 
   readonly unidade = signal('todas');
+  /** Parte do nome da sala. */
+  readonly buscaSala = signal('');
+  readonly segmento = signal('todas');
+  readonly serie = signal('todas');
 
   /** Ano letivo dos vínculos: os anos vêm do RM, e trocar recarrega as turmas daquele ano. */
   readonly anoLetivo = this.salasService.anoLetivo;
@@ -178,13 +195,57 @@ export class TurmasComponent {
     ...this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
   ]);
 
+  readonly segmentoOptions = computed<SelectOption[]>(() => [
+    { value: 'todas', label: 'Todos os segmentos' },
+    ...this.salasService.segmentos().map((s) => ({ value: s, label: s })),
+  ]);
+
+  /** Séries das turmas (vinculadas e sem sala); com um segmento escolhido, só as dele. */
+  readonly serieOptions = computed<SelectOption[]>(() => {
+    const segmento = this.segmento();
+    const series = new Set<string>();
+    const considerar = (t: { nome: string; segmento: string }) => {
+      if (segmento === 'todas' || t.segmento === segmento) series.add(this.salasService.serieFromNome(t.nome));
+    };
+    this.salasService.salas().forEach((s) => TURNOS.forEach((turno) => this.salasService.turmasNoTurno(s, turno).forEach(considerar)));
+    this.salasService.turmasLivres().forEach(considerar);
+    return [
+      { value: 'todas', label: 'Todas as séries' },
+      ...[...series].sort(COMPARADOR_NOME.compare).map((s) => ({ value: s, label: s })),
+    ];
+  });
+
+  /** Outro segmento tem outras séries: a escolhida volta para "Todas". */
+  selecionarSegmento(segmento: string): void {
+    this.segmento.set(segmento);
+    this.serie.set('todas');
+  }
+
   readonly rows = computed<TurmaRow[]>(() => {
     const unidade = this.unidade();
+    const busca = this.buscaSala().trim().toLowerCase();
+    const segmento = this.segmento();
+    const serie = this.serie();
     const gravando = this.salasService.gravando();
     const selecao = this.selecao();
     const abertas = this.listasAbertas();
     let list = this.salasService.salas();
     if (unidade !== 'todas') list = list.filter((s) => s.unidadeId === unidade);
+    if (busca) list = list.filter((s) => s.nome.toLowerCase().includes(busca));
+    // Segmento e série são das turmas: fica a sala que tem, em algum turno, uma turma que atende os dois.
+    if (segmento !== 'todas' || serie !== 'todas') {
+      list = list.filter((s) =>
+        TURNOS.some((turno) =>
+          this.salasService
+            .turmasNoTurno(s, turno)
+            .some(
+              (t) =>
+                (segmento === 'todas' || t.segmento === segmento) &&
+                (serie === 'todas' || this.salasService.serieFromNome(t.nome) === serie),
+            ),
+        ),
+      );
+    }
 
     const rows = list.map((s) => {
       const u = this.salasService.unidade(s.unidadeId)!;
@@ -243,7 +304,16 @@ export class TurmasComponent {
           liberando: daCelula?.codTurma ?? null,
         };
       });
-      return { id: s.id, unidadeId: s.unidadeId, nome: s.nome, unidadeNome: u.nome, unidadeCor: u.cor, carteiras: s.carteiras, cells };
+      return {
+        id: s.id,
+        unidadeId: s.unidadeId,
+        nome: s.nome,
+        unidadeNome: u.nome,
+        unidadeCor: u.cor,
+        andar: nomeDoAndar(s.andar),
+        carteiras: s.carteiras,
+        cells,
+      };
     });
 
     const ordem = this.ordem();
