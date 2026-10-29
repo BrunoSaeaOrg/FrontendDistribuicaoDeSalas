@@ -46,6 +46,7 @@ let nextId = 0;
       type="button"
       class="ms-gatilho"
       [class.ms-gatilho--marcado]="selected().length > 0"
+      [class.ms-gatilho--sm]="size() === 'sm'"
       [disabled]="disabled()"
       [attr.popovertarget]="listaId"
     >
@@ -96,6 +97,8 @@ export class MultiSelectComponent {
   readonly options = input<MultiSelectOption[]>([]);
   readonly placeholder = input('Selecione...');
   readonly disabled = input(false);
+  /** `sm`: mais baixo, para linha de tabela (mesmo critério do `size` do app-button). */
+  readonly size = input<'sm' | 'md'>('md');
   /** Valores marcados, na ordem em que foram marcados. */
   readonly selected = model<string[]>([]);
 

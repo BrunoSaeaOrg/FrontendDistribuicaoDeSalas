@@ -24,6 +24,11 @@
 .ms-gatilho--marcado {
   color: var(--saea-ink);
 }
+/* Mesmo respiro vertical e fonte do app-button sm. */
+.ms-gatilho--sm {
+  padding-block: var(--sp-2);
+  font-size: var(--fs-sm);
+}
 .ms-gatilho:focus-visible {
   outline: none;
   border-color: var(--saea-primary);

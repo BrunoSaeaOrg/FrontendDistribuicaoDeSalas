@@ -1,6 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
-@import url('https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined');
-
 * {
   box-sizing: border-box;
 }
@@ -54,11 +51,11 @@ button {
 /*
  * Em telas baixas o header encolhe (56px -> 44px) e os respiros do shell
  * diminuem, entao o desconto de altura do menu lateral acompanha.
- * Precisa ficar aqui (global, no mesmo seletor `html` de _tokens.scss):
+ * Precisa ficar aqui (global, no mesmo seletor `:root` de _tokens.scss):
  * o CSS de componente e encapsulado e nao alcancaria a variavel.
  */
 @media (max-height: 800px) {
-  html {
+  :root {
     --saea-side-gutter: 104px;
   }
 }

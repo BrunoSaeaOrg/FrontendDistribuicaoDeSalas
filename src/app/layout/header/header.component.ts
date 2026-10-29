@@ -1,9 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { SaeaThemeService, SaeaThemeToggleComponent } from '@sistemas-saea/saea-design-system';
 import { LayoutService } from '../../core/services/layout.service';
-import { ThemeService } from '../../core/services/theme.service';
 import { UsuarioService } from '../../core/services/usuario.service';
 import { saudacao } from '../saudacao';
-import { ThemeSwitchComponent } from '../theme-switch/theme-switch.component';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
 /**
@@ -15,7 +14,7 @@ import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [ThemeSwitchComponent, UserAvatarComponent],
+  imports: [SaeaThemeToggleComponent, UserAvatarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="saea-header">
@@ -32,7 +31,8 @@ import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
         </div>
       }
       <div class="saea-header-actions">
-        <app-theme-switch />
+        <!-- Mesmo critério do saea-auth-header da lib: anel de foco branco sobre o teal. -->
+        <saea-theme-toggle [appearance]="lateral() ? 'ghost' : 'on-primary'" />
         @if (lateral() && usuario.primeiroNome(); as nome) {
           <span class="saea-header-title" [attr.title]="usuario.nome()">{{ nome }}</span>
         }
@@ -48,7 +48,7 @@ export class HeaderComponent {
   readonly saudacao = saudacao();
 
   private readonly layout = inject(LayoutService);
-  private readonly theme = inject(ThemeService);
+  private readonly theme = inject(SaeaThemeService);
 
   readonly lateral = computed(() => this.layout.layout() === 'lateral');
 

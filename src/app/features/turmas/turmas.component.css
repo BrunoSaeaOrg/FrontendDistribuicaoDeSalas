@@ -1,25 +1,36 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * Regra de altura do projeto (styles.css), como no Painel: a página preenche .saea-main, os
+ * filtros não esticam e o card (.saea-card-fill) absorve o resto. Assim a tabela desce até o pé
+ * do card, junto do rodapé, em vez de parar numa altura fixa no meio da tela.
+ */
 .turmas-page {
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
+  flex: 1;
+  min-height: 0;
 }
 
 /* Como no Painel: os cinco filtros dividem a linha e só quebram quando não cabem. */
 .turmas-filter {
+  flex-shrink: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--sp-4);
 }
+/* Os dois eixos junto com o flex: um overflow-x isolado anularia o overflow-y de .saea-scroll. */
 .turmas-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-x: auto;
   overflow-y: auto;
-  max-height: 600px;
-}
-
-@media (max-height: 800px) {
-  .turmas-table-wrap {
-    max-height: 420px;
-  }
 }
 
 .turmas-table {
@@ -85,7 +96,7 @@
 }
 
 .turmas-table td {
-  padding: var(--sp-3) var(--sp-2);
+  padding: var(--sp-2);
   border-bottom: 1px solid var(--saea-border);
   vertical-align: top;
 }

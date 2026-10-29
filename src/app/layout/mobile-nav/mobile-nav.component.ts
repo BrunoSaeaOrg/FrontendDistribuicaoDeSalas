@@ -1,15 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
+import { SaeaThemeToggleComponent } from '@sistemas-saea/saea-design-system';
 import { UsuarioService } from '../../core/services/usuario.service';
 import { saudacao } from '../saudacao';
 import { SidePanelItem } from '../side-panel/side-panel.component';
-import { ThemeSwitchComponent } from '../theme-switch/theme-switch.component';
 import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 
 @Component({
   selector: 'app-mobile-nav',
   standalone: true,
-  imports: [MatIconModule, ThemeSwitchComponent, UserAvatarComponent],
+  imports: [MatIconModule, SaeaThemeToggleComponent, UserAvatarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './mobile-nav.component.html',
   styleUrl: './mobile-nav.component.css',

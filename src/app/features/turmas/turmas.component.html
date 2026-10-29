@@ -7,8 +7,8 @@
     <app-select label="Série" [ngModel]="serie()" (ngModelChange)="serie.set($event)" [options]="serieOptions()" />
   </div>
 
-  <app-card>
-    <div class="turmas-table-wrap">
+  <app-card class="saea-card-fill">
+    <div class="turmas-table-wrap saea-scroll">
       <table class="turmas-table">
         <thead>
           <tr>
@@ -112,6 +112,7 @@
                       } @else if (cell.opcoes.length > 0) {
                         <app-multi-select
                           class="turmas-seletor"
+                          size="sm"
                           [options]="cell.opcoesSeletor"
                           [placeholder]="cell.turmas.length > 0 ? 'Adicionar turma...' : 'Vincular turmas...'"
                           [disabled]="salvando()"

@@ -23,10 +23,12 @@ export interface SidePanelItem {
         <button
           type="button"
           class="saea-side-toggle"
+          [attr.aria-expanded]="!collapsed()"
           [attr.aria-label]="collapsed() ? 'Expandir' : 'Recolher'"
+          [attr.title]="collapsed() ? 'Expandir' : 'Recolher'"
           (click)="toggle.emit()"
         >
-          {{ collapsed() ? '›' : '‹' }}
+          <mat-icon aria-hidden="true">{{ collapsed() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
         </button>
       </div>
 

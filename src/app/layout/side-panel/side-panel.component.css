@@ -46,19 +46,44 @@
   white-space: nowrap;
 }
 
+/*
+ * Igual ao botão de recolher do saea-side-panel da lib: em relevo como o botão do
+ * saea-theme-toggle (--saea-knob-*) e, pressionado, afunda como a trilha dele (--saea-well-*).
+ */
 .saea-side-toggle {
   width: 32px;
   height: 32px;
   flex-shrink: 0;
+  padding: 0;
   border-radius: var(--radius-sm);
   border: none;
-  background: var(--saea-bg);
+  background: var(--saea-knob-bg);
+  box-shadow: var(--saea-knob-shadow);
   color: var(--saea-ink-soft);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  transition:
+    box-shadow var(--dur-short) var(--ease-out),
+    color var(--dur-short) var(--ease-out);
+}
+.saea-side-toggle:hover {
+  color: var(--saea-ink);
+}
+.saea-side-toggle:active {
+  background: var(--saea-well-bg);
+  box-shadow: var(--saea-well-shadow);
+}
+/* A lib usa --saea-primary; aqui o primário do escuro é marinho e o anel sumiria no painel. */
+.saea-side-toggle:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 2px;
+}
+.saea-side-toggle mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
 }
 
 .saea-side-list {
@@ -185,10 +210,6 @@
 }
 .saea-side--lateral.saea-side--collapsed {
   padding-inline: var(--sp-3);
-}
-/* O botão de recolher usa --saea-bg, a cor do próprio bloco; aqui ele precisa se destacar. */
-.saea-side--lateral .saea-side-toggle {
-  background: var(--saea-surface);
 }
 .saea-side--lateral .saea-side-list {
   margin: 0;

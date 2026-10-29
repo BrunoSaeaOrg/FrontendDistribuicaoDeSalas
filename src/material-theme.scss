@@ -6,7 +6,11 @@
 @use 'app/theme/colors' as saea;
 @use 'app/theme/tokens' as saea-tokens;
 
-html {
+// `:root`, não `html`: os tokens da lib (@sistemas-saea/saea-design-system/styles/tokens.css,
+// primeiro item de `styles` no angular.json) também ficam no :root. Com a mesma especificidade,
+// os deste arquivo vencem por virem depois — com `html` os neutros mais baixos daqui perdiam
+// para os da lib e o tema claro voltava ao branco puro.
+:root {
   height: 100%;
   @include mat.theme(
     (

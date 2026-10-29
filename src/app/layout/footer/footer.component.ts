@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
-import { ThemeService } from '../../core/services/theme.service';
+import { SaeaThemeService } from '@sistemas-saea/saea-design-system';
 
 @Component({
   selector: 'app-footer',
@@ -18,7 +18,7 @@ import { ThemeService } from '../../core/services/theme.service';
   styleUrl: './footer.component.css',
 })
 export class FooterComponent {
-  readonly theme = inject(ThemeService);
+  readonly theme = inject(SaeaThemeService);
   readonly year = input(new Date().getFullYear());
   readonly org = input('SISTEMAS SAEA');
 }

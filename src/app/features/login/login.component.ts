@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { Router } from '@angular/router';
+import { SaeaThemeService } from '@sistemas-saea/saea-design-system';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/services/toast.service';
-import { ThemeService } from '../../core/services/theme.service';
 import { PasswordRecoveryComponent } from './password-recovery/password-recovery.component';
 
 /**
@@ -24,7 +24,7 @@ export class LoginComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
-  readonly theme = inject(ThemeService);
+  readonly theme = inject(SaeaThemeService);
 
   readonly obscurePassword = signal(true);
   readonly isLoading = signal(false);

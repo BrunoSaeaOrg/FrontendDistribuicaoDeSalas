@@ -56,14 +56,18 @@ describe('HeaderComponent', () => {
     expect(nomeAoLado.textContent?.trim()).toBe('Bruno');
     expect(nomeAoLado.title).toBe('BRUNO HENRIQUE SANTOS');
     // Switch, nome e foto, nessa ordem.
-    expect(nomeAoLado.previousElementSibling?.tagName).toBe('APP-THEME-SWITCH');
+    expect(nomeAoLado.previousElementSibling?.tagName).toBe('SAEA-THEME-TOGGLE');
     expect(nomeAoLado.nextElementSibling?.tagName).toBe('APP-USER-AVATAR');
     expect(header.querySelector('.saea-header-app')?.textContent?.trim()).toBe('Ocupação de Salas');
+    // Sobre a superfície da página o anel de foco do switch volta a ser o primário.
+    expect(header.querySelector('saea-theme-toggle')!.classList).toContain('saea-theme-toggle--ghost');
   });
 
   it('o avatar vem logo depois do switch de tema', () => {
-    const toggle = render().querySelector('app-theme-switch')!;
+    const toggle = render().querySelector('saea-theme-toggle')!;
     expect(toggle.querySelector('[role="switch"]')).toBeTruthy();
     expect(toggle.nextElementSibling?.tagName).toBe('APP-USER-AVATAR');
+    // Clássico: cabeçalho teal, anel de foco branco.
+    expect(toggle.classList).toContain('saea-theme-toggle--on-primary');
   });
 });
