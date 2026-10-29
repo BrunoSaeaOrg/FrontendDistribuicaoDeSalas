@@ -6,14 +6,17 @@ $primary-strong: #268298;
 $primary-gradient: linear-gradient(135deg, #3ac2e0 0%, #2e9cb5 100%);
 $primary-gradient-deep: linear-gradient(135deg, #2e9cb5 0%, #268298 100%);
 
-$bg: #f4f7f9;
-$surface: #ffffff;
-$surface-sunken: #fbfcfd;
-$chip-bg: #f1f5f9;
-$border: #e2e8f0;
+// Neutros claros mais baixos que os do handoff (#f4f7f9, #ffffff, #fbfcfd, #f1f5f9, #e2e8f0,
+// #64748b): o branco puro ofuscava. Fundo, borda e chip guardam o mesmo contraste com a
+// superfície que tinham com o branco, e o texto secundário escureceu para seguir em 4.5:1.
+$bg: #e9edf1;
+$surface: #f5f7f8;
+$surface-sunken: #eff2f5;
+$chip-bg: #e8edf2;
+$border: #d9e0e8;
 
 $ink: #1e293b;
-$ink-soft: #64748b;
+$ink-soft: #5b6b80;
 $ink-faint: #94a3b8;
 $inverse-surface: #1e293b;
 

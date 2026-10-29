@@ -5,7 +5,8 @@ import { Injectable, signal } from '@angular/core';
  * - padrao: cabeçalho na cor da moldura, menu num cartão ao lado do conteúdo, telas em cartões;
  * - lateral: cabeçalho e conteúdo numa superfície só, sem cartões, e o menu é um bloco na cor
  *   da moldura colado à esquerda, com o canto superior direito bem arredondado.
- * A escolha fica no menu do avatar e no navegador (localStorage). O mobile é o mesmo nos dois.
+ * A escolha fica no menu do avatar e no navegador (localStorage), e todo login volta ao Clássico
+ * (AuthService.login). O mobile é o mesmo nos dois.
  */
 export type LayoutApp = 'padrao' | 'lateral';
 

@@ -73,9 +73,9 @@
 
 /*
  * Layout "Barra lateral" (LayoutService; LAYOUTS.md no handoff do design system): cabeçalho e
- * conteúdo numa superfície branca só, sem cartões; o menu é um bloco cinza (--saea-bg) colado
- * à esquerda e ao pé da tela, com o canto superior direito bem arredondado e o item ativo numa
- * pílula --saea-primary (.saea-side--lateral no side-panel). O rodapé fica dentro da coluna do
+ * conteúdo numa superfície clara só (--saea-surface), sem cartões; o menu é um bloco cinza
+ * (--saea-bg) colado à esquerda e ao pé da tela, com o canto superior direito bem arredondado e o
+ * item ativo numa pílula azul clara (.saea-side--lateral no side-panel). O rodapé fica dentro da coluna do
  * conteúdo (.saea-conteudo).
  */
 .saea-shell--lateral {

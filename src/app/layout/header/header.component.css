@@ -18,17 +18,44 @@
   flex-shrink: 0;
   box-sizing: border-box;
 }
-/* Layout "Barra lateral": cabeçalho na mesma superfície do conteúdo, texto escuro. */
+/*
+ * Layout "Barra lateral": cabeçalho na mesma superfície do conteúdo, texto escuro. Como no Google
+ * Drive, o selo vem menor com o nome do sistema ao lado (alinhado com o menu), e o primeiro nome
+ * de quem está logado fica entre o switch de tema e o avatar, sem a saudação.
+ */
 :host-context(.saea-shell--lateral) .saea-header {
   background: transparent;
   box-shadow: none;
   color: var(--saea-ink);
 }
-:host-context(.saea-shell--lateral) .saea-header-titles,
-:host-context(.saea-shell--lateral) .saea-header-title {
-  color: var(--saea-ink);
+:host-context(.saea-shell--lateral) .saea-header-left {
+  left: var(--sp-5);
+  gap: var(--sp-3);
 }
-:host-context(.saea-shell--lateral) .saea-header-subtitle {
+/*
+ * Desce a linha toda (selo e nome do sistema; switch, nome e foto) para o meio do espaço entre
+ * o topo da tela e o menu, que começa 40px abaixo do cabeçalho. Só visual: a altura do
+ * cabeçalho não muda, então o menu e o conteúdo ficam onde estão.
+ */
+:host-context(.saea-shell--lateral) .saea-header-left,
+:host-context(.saea-shell--lateral) .saea-header-actions {
+  transform: translateY(var(--sp-5));
+}
+:host-context(.saea-shell--lateral) .saea-header-logo {
+  height: 36px;
+}
+.saea-header-app {
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  color: var(--saea-ink);
+  white-space: nowrap;
+}
+:host-context(.saea-shell--lateral) .saea-header-title {
+  max-width: 240px;
+  /* Mais perto do avatar do que do switch: o nome é de quem está na foto. */
+  margin-left: var(--sp-2);
+  font-weight: 500;
   color: var(--saea-ink-soft);
 }
 

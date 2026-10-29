@@ -25,6 +25,14 @@ html {
 
   @include saea.custom-properties-light;
   @include saea-tokens.custom-properties;
+
+  // O tema do Material só existe no claro: sem isto o diálogo ficava claro no modo escuro, com o
+  // título em --saea-ink (quase branco no escuro) sumindo sobre ele.
+  @include mat.dialog-overrides(
+    (
+      container-color: var(--saea-surface),
+    )
+  );
 }
 
 html[data-theme='dark'] {

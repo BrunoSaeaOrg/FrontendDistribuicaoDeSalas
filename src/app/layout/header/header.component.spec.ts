@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from '../../core/auth/auth.service';
+import { LayoutService } from '../../core/services/layout.service';
 import { StatusUsuario, UsuarioService } from '../../core/services/usuario.service';
 import { HeaderComponent } from './header.component';
 
@@ -42,6 +43,22 @@ describe('HeaderComponent', () => {
     const saudacao = render().querySelector<HTMLElement>('.saea-header-title')!;
     expect(saudacao.textContent?.trim()).toMatch(/^(Bom dia|Boa tarde|Boa noite)$/);
     expect(saudacao.hasAttribute('title')).toBe(false);
+  });
+
+  it('no layout "Barra lateral" fica só o primeiro nome, sem a saudação', () => {
+    TestBed.overrideProvider(LayoutService, { useValue: { layout: signal('lateral') } });
+    nome.set('BRUNO HENRIQUE SANTOS');
+    primeiroNome.set('Bruno');
+    status.set('ok');
+    const header = render();
+    const nomeAoLado = header.querySelector<HTMLElement>('.saea-header-actions .saea-header-title')!;
+
+    expect(nomeAoLado.textContent?.trim()).toBe('Bruno');
+    expect(nomeAoLado.title).toBe('BRUNO HENRIQUE SANTOS');
+    // Switch, nome e foto, nessa ordem.
+    expect(nomeAoLado.previousElementSibling?.tagName).toBe('APP-THEME-SWITCH');
+    expect(nomeAoLado.nextElementSibling?.tagName).toBe('APP-USER-AVATAR');
+    expect(header.querySelector('.saea-header-app')?.textContent?.trim()).toBe('Ocupação de Salas');
   });
 
   it('o avatar vem logo depois do switch de tema', () => {

@@ -107,8 +107,9 @@
   height: 40px;
   flex-shrink: 0;
   border-radius: var(--radius-sm);
-  background: var(--saea-primary);
-  color: #fff;
+  /* Só o item ativo tem o quadrado cheio; os outros ficam num tom claro, sem seis blocos fortes. */
+  background: color-mix(in srgb, var(--saea-primary) 14%, var(--saea-surface));
+  color: var(--saea-primary-strong);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -121,8 +122,13 @@
 }
 .saea-side-item--active .saea-side-item-icon {
   background: var(--saea-primary-fill);
+  color: #fff;
 }
 /* No escuro o ícone ativo e os outros são do mesmo marinho: o destaque vem da linha. */
+:host-context([data-theme='dark']) .saea-side-item-icon {
+  background: var(--saea-primary);
+  color: #fff;
+}
 :host-context([data-theme='dark']) .saea-side-item--active {
   background: color-mix(in srgb, var(--saea-primary) 60%, transparent);
 }
@@ -149,17 +155,30 @@
 
 /*
  * Layout "Barra lateral" (LAYOUTS.md no handoff do design system): bloco cinza (--saea-bg)
- * sobre a página branca, colado à esquerda e ao pé da tela, com o canto superior direito bem
- * arredondado. Itens só com ícone e nome; o ativo fica numa pílula azul SAEA (--saea-primary,
- * marinho no escuro) com ícone e texto brancos.
+ * sobre a página clara, colado à esquerda e ao pé da tela, com o canto superior direito bem
+ * arredondado. Itens só com ícone e nome; o ativo fica numa pílula em tom claro do azul SAEA,
+ * com ícone azul e texto escuro (no escuro, pílula marinho com ícone e texto brancos).
  */
 .saea-side--lateral {
-  height: 100%;
+  /* Começa mais abaixo do cabeçalho, na linha do topo do conteúdo, e desce até o pé da tela. */
+  margin-top: var(--sp-10);
+  height: calc(100% - var(--sp-10));
   position: static;
   background: var(--saea-bg);
-  box-shadow: none;
+  /*
+   * O cabeçalho e o conteúdo são uma folha só que contorna o menu (a curva é o canto interno
+   * dela). A sombra que essa folha projeta nas bordas de cima e da direita põe o menu atrás.
+   */
+  box-shadow:
+    inset 0 12px 16px -12px rgba(15, 23, 42, 0.14),
+    inset -12px 0 16px -12px rgba(15, 23, 42, 0.14);
   border-radius: 0 44px 0 0;
   padding: var(--sp-6) var(--sp-4) var(--sp-4) var(--sp-5);
+}
+:host-context([data-theme='dark']) .saea-side--lateral {
+  box-shadow:
+    inset 0 12px 16px -12px rgba(0, 0, 0, 0.4),
+    inset -12px 0 16px -12px rgba(0, 0, 0, 0.4);
 }
 .saea-side--lateral:not(.saea-side--collapsed) {
   width: 248px;
@@ -208,12 +227,18 @@
   font-weight: 500;
 }
 .saea-side--lateral .saea-side-item--active {
-  background: var(--saea-primary);
+  background: color-mix(in srgb, var(--saea-primary) 18%, transparent);
 }
 .saea-side--lateral .saea-side-item--active .saea-side-item-label {
   font-weight: 700;
-  color: #fff;
 }
 .saea-side--lateral .saea-side-item--active .saea-side-item-icon mat-icon {
+  color: var(--saea-primary-strong);
+}
+:host-context([data-theme='dark']) .saea-side--lateral .saea-side-item--active {
+  background: var(--saea-primary);
+}
+:host-context([data-theme='dark']) .saea-side--lateral .saea-side-item--active .saea-side-item-label,
+:host-context([data-theme='dark']) .saea-side--lateral .saea-side-item--active .saea-side-item-icon mat-icon {
   color: #fff;
 }
