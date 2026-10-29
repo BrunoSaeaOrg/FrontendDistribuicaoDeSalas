@@ -47,15 +47,16 @@
 }
 
 /*
- * Igual ao botão de recolher do saea-side-panel da lib: em relevo como o botão do
+ * Como o botão de recolher do saea-side-panel da lib: em relevo como o botão do
  * saea-theme-toggle (--saea-knob-*) e, pressionado, afunda como a trilha dele (--saea-well-*).
+ * Aqui é redondo, como a bolinha do switch.
  */
 .saea-side-toggle {
   width: 32px;
   height: 32px;
   flex-shrink: 0;
   padding: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   border: none;
   background: var(--saea-knob-bg);
   box-shadow: var(--saea-knob-shadow);

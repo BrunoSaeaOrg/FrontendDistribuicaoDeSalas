@@ -24,8 +24,10 @@ export interface MultiSelectOption {
   group?: string;
 }
 
-/** Altura máxima da lista: abaixo disso de espaço livre sob o botão, ela abre para cima. */
+/** Altura máxima da lista: abaixo disso de espaço livre sob o campo, ela abre para cima. */
 const ALTURA_LISTA = 280;
+/** O max-width do .ms-lista: num campo largo, a lista não acompanha a largura dele além disso. */
+const LARGURA_MAXIMA_LISTA = 360;
 const FOLGA = 4;
 
 let nextId = 0;
@@ -34,6 +36,9 @@ let nextId = 0;
  * Seleção de várias opções com checkbox. A lista é um popover nativo: fica na camada de cima da
  * página (uma tabela com rolagem não a corta), fecha ao clicar fora ou com Esc e devolve o foco
  * ao botão. Fecha também se a página rolar, como o select nativo.
+ *
+ * O conteúdo projetado entra no campo, antes do botão, como destinatários num campo de e-mail
+ * (ex.: as turmas já vinculadas, em fichas). Clicar no vazio do campo também abre a lista.
  */
 @Component({
   selector: 'app-multi-select',
@@ -41,18 +46,27 @@ let nextId = 0;
   imports: [SaeaCheckboxComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <button
-      #gatilho
-      type="button"
-      class="ms-gatilho"
-      [class.ms-gatilho--marcado]="selected().length > 0"
-      [class.ms-gatilho--sm]="size() === 'sm'"
-      [disabled]="disabled()"
-      [attr.popovertarget]="listaId"
+    <div
+      #campo
+      class="ms-campo"
+      [class.ms-campo--sm]="size() === 'sm'"
+      [class.ms-campo--desabilitado]="disabled()"
+      (pointerdown)="estavaAberta = aberta()"
+      (click)="aoClicarNoCampo($event)"
     >
-      <span class="ms-gatilho-texto">{{ resumo() }}</span>
-      <span class="ms-seta" aria-hidden="true">▾</span>
-    </button>
+      <ng-content />
+      <button
+        #gatilho
+        type="button"
+        class="ms-gatilho"
+        [class.ms-gatilho--marcado]="contagem() && selected().length > 0"
+        [disabled]="disabled()"
+        [attr.popovertarget]="listaId"
+      >
+        <span class="ms-gatilho-texto">{{ resumo() }}</span>
+        <span class="ms-seta" aria-hidden="true">▾</span>
+      </button>
+    </div>
     <div
       #lista
       popover
@@ -99,9 +113,12 @@ export class MultiSelectComponent {
   readonly disabled = input(false);
   /** `sm`: mais baixo, para linha de tabela (mesmo critério do `size` do app-button). */
   readonly size = input<'sm' | 'md'>('md');
+  /** "N selecionadas" no botão. Desligue quando as marcadas já aparecem em fichas no campo. */
+  readonly contagem = input(true);
   /** Valores marcados, na ordem em que foram marcados. */
   readonly selected = model<string[]>([]);
 
+  private readonly campo = viewChild.required<ElementRef<HTMLElement>>('campo');
   private readonly gatilho = viewChild.required<ElementRef<HTMLButtonElement>>('gatilho');
   private readonly lista = viewChild.required<ElementRef<HTMLElement>>('lista');
   private readonly cdr = inject(ChangeDetectorRef);
@@ -113,7 +130,7 @@ export class MultiSelectComponent {
 
   readonly resumo = computed(() => {
     const n = this.selected().length;
-    if (n === 0) return this.placeholder();
+    if (n === 0 || !this.contagem()) return this.placeholder();
     return n === 1 ? '1 selecionada' : `${n} selecionadas`;
   });
 
@@ -140,8 +157,17 @@ export class MultiSelectComponent {
   };
   private readonly fechar = () => this.lista().nativeElement.hidePopover();
 
+  /** Se a lista estava aberta no pointerdown: o clique fora já a fecha, e não deve reabrir. */
+  estavaAberta = false;
+
   constructor() {
     inject(DestroyRef).onDestroy(() => this.pararDeObservar());
+  }
+
+  /** Clique no vazio do campo (fora das fichas e do botão) abre a lista, como num campo de e-mail. */
+  aoClicarNoCampo(evento: MouseEvent): void {
+    if (evento.target !== evento.currentTarget || this.disabled() || this.estavaAberta) return;
+    this.gatilho().nativeElement.click();
   }
 
   alternar(valor: string, marcado: boolean): void {
@@ -173,19 +199,20 @@ export class MultiSelectComponent {
     }
   }
 
-  /** Põe a lista junto do botão: abaixo dele, ou acima se faltar espaço. */
+  /** Põe a lista junto do campo: abaixo dele, ou acima se faltar espaço. */
   private posicionar(): void {
-    const caixa = this.gatilho().nativeElement.getBoundingClientRect();
+    const caixa = this.campo().nativeElement.getBoundingClientRect();
     const espacoAbaixo = window.innerHeight - caixa.bottom;
     const paraCima = espacoAbaixo < ALTURA_LISTA && caixa.top > espacoAbaixo;
-    // Botão na metade direita da tela: a lista cresce para a esquerda, sem sair da tela.
+    // Campo na metade direita da tela: a lista cresce para a esquerda, sem sair da tela.
     const alinharDireita = caixa.left > window.innerWidth / 2;
     this.posicao.set({
       top: paraCima ? null : caixa.bottom + FOLGA,
       bottom: paraCima ? window.innerHeight - caixa.top + FOLGA : null,
       left: alinharDireita ? null : caixa.left,
       right: alinharDireita ? window.innerWidth - caixa.right : null,
-      largura: caixa.width,
+      // Um min-width acima do max-width ganharia dele e esticaria a lista.
+      largura: Math.min(caixa.width, LARGURA_MAXIMA_LISTA),
     });
   }
 

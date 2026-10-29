@@ -202,7 +202,13 @@ export class SalasService {
     ]).subscribe({
       next: ([salasDto, turmasXSalasDto, turmasDto]) => {
         if (carga !== this.carga) return;
+        // O backend repassa a resposta de API.OC.SAL.PERIO sem mexer: é a consulta crua.
+        console.log(`[API.OC.SAL.PERIO] ano ${ano} (usuário ${codUsuario}): ${salasDto.length} salas`, salasDto);
         const { unidades, salas, turmasLivres } = fundirSalasEApi(salasDto, turmasXSalasDto, turmasDto);
+        console.log(`[SalasService] carga do ano ${ano} (usuário ${codUsuario})`, {
+          rm: { 'API.OC.SAL.PERIO': salasDto, 'API.OC.SAL.TURSA': turmasXSalasDto, 'API.OC.SAL.TURMA': turmasDto },
+          montado: { unidades, salas, turmasLivres },
+        });
         this._unidades.set(unidades);
         this._salas.set(salas);
         this._turmasLivres.set(turmasLivres);
@@ -231,6 +237,9 @@ export class SalasService {
   private carregarAnos(codUsuario: string): void {
     this.ocupacaoApi.getAnosLetivos(codUsuario).subscribe({
       next: (anos) => {
+        // Já tratada pelo backend (só ANO, sem repetição, em ordem). A resposta crua de
+        // API.OC.SAL.ANO sai no log do backend (OcupacaoSalasService.GetAnosLetivosAsync).
+        console.log(`[API.OC.SAL.ANO] usuário ${codUsuario}: ${anos.length} anos`, anos);
         const lista = anos.map((a) => a.ANO);
         if (lista.length === 0) return;
         this._anosLetivos.set(lista);

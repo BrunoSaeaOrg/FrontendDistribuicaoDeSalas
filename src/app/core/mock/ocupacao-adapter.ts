@@ -108,15 +108,17 @@ export function fundirSalasEApi(
   turmasXSalasDto: ApiTurmaXSalaDto[],
   turmasDto: ApiTurmaDto[] = [],
 ): { unidades: Unidade[]; salas: Sala[]; turmasLivres: TurmaLivre[] } {
+  // As salas do ano são as de API.OC.SAL.PERIO, só das filiais com período letivo aberto. Sala,
+  // unidade e turma livre de fora delas não aparecem: um ano ainda sem período (ex.: o próximo)
+  // fica sem sala nenhuma, mesmo que o RM já traga turmas e vínculos dele.
   const vinculos = turmasXSalasDto.filter(temSala);
   // Turma sem sala só interessa nas filiais em que o usuário tem salas (onde ele pode vinculá-la).
   const filiaisDoUsuario = new Set(salasDto.map((dto) => dto.CODFILIAL));
   const semSala = turmasXSalasDto.filter((dto) => !temSala(dto) && filiaisDoUsuario.has(dto.CODFILIAL));
+  const turmasDasFiliais = turmasDto.filter((dto) => filiaisDoUsuario.has(dto.CODFILIAL));
 
   const unidadesMap = new Map<string, Unidade>();
   salasDto.forEach((dto) => registrarUnidade(unidadesMap, dto));
-  vinculos.forEach((dto) => registrarUnidade(unidadesMap, dto));
-  turmasDto.forEach((dto) => registrarUnidade(unidadesMap, dto));
 
   const salasPorId = new Map(salasDto.map((dto) => [salaId(dto), criarSala(dto)]));
 
@@ -141,18 +143,19 @@ export function fundirSalasEApi(
     return null;
   };
 
+  let vinculosForaDoPeriodo = 0;
   vinculos.forEach((dto) => {
-    let sala = salasPorId.get(salaId(dto));
-    if (!sala) {
-      sala = criarSala(dto);
-      salasPorId.set(sala.id, sala);
-    }
+    // Sala que não está em API.OC.SAL.PERIO não vira sala na tela. As subturmas dela seguem
+    // marcadas como vinculadas, para não aparecerem como livres.
+    const sala = salasPorId.get(salaId(dto));
+    if (!sala) vinculosForaDoPeriodo++;
     const mae = turmaPorCodigo.get(chaveSubturma(dto.CODTURMA, dto.IDPERLET));
     const partes = lerComposicao(dto.COMPOSICAO);
     // Sem COMPOSICAO, a linha é a própria turma.
     (partes.length > 0 ? partes : [{ codTurma: dto.CODTURMA, alunos: dto.OCUPACAO }]).forEach((parte) => {
       const chave = chaveSubturma(parte.codTurma, dto.IDPERLET);
       subturmasComSala.add(chave);
+      if (!sala) return;
       const daLinha = parte.codTurma === dto.CODTURMA;
       const info = turmaPorCodigo.get(chave);
       // A integral fica no turno da turma-mãe da linha, como o RM já faz ao somar os alunos.
@@ -178,6 +181,11 @@ export function fundirSalasEApi(
       });
     });
   });
+  if (vinculosForaDoPeriodo > 0) {
+    console.warn(
+      `[ocupacao-adapter] ${vinculosForaDoPeriodo} vínculo(s) ignorado(s): a sala não está no período letivo do ano (API.OC.SAL.PERIO)`,
+    );
+  }
 
   // Várias turmas no mesmo turno: em ordem de nome, para a tela não trocar a ordem a cada carga.
   salasPorId.forEach((sala) =>
@@ -187,10 +195,10 @@ export function fundirSalasEApi(
   );
 
   // Livres: as turmas de OC_SAL_TURMAS sem vínculo, mais as que vieram sem sala em
-  // OC_SAL_TURMASXSALAS (ex.: recém-liberadas), sem repetir. Subturma que está em alguma sala
-  // (em qualquer parte de uma COMPOSICAO) não é livre.
+  // OC_SAL_TURMASXSALAS (ex.: recém-liberadas), sem repetir, só das filiais com sala no ano.
+  // Subturma que está em alguma sala (em qualquer parte de uma COMPOSICAO) não é livre.
   const candidatas = new Map<string, ApiTurmaDto | ApiTurmaXSalaDto>();
-  [...turmasDto, ...semSala].forEach((dto) => {
+  [...turmasDasFiliais, ...semSala].forEach((dto) => {
     const chave = chaveTurma(dto);
     if (!subturmasComSala.has(chaveSubturma(dto.CODTURMA, dto.IDPERLET)) && !candidatas.has(chave)) {
       candidatas.set(chave, dto);

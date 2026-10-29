@@ -174,4 +174,34 @@ describe('fundirSalasEApi', () => {
     expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ']);
     expect(r.salas).toHaveLength(1);
   });
+
+  it('ano sem período letivo (PERIO vazio) não tem sala, unidade nem turma, mesmo com vínculos no RM', () => {
+    // Ex.: 2027 ainda não aberto, mas o RM já traz turmas e vínculos dele.
+    const t = turma('EF3A-M');
+
+    const r = fundirSalasEApi([], [vinculo(t, '12')], [t]);
+
+    expect(r.salas).toEqual([]);
+    expect(r.unidades).toEqual([]);
+    expect(r.turmasLivres).toEqual([]);
+  });
+
+  it('vínculo com sala fora do período não cria sala, e a turma não volta como livre', () => {
+    const t = turma('EF3A-M');
+
+    const r = fundirSalasEApi([sala('12')], [vinculo(t, '99')], [t]);
+
+    expect(r.salas.map((s) => s.id)).toEqual(['2-1-1-12']);
+    expect(r.salas[0].turnos).toEqual({});
+    expect(r.turmasLivres).toEqual([]);
+  });
+
+  it('turma de OC_SAL_TURMAS de filial sem sala no ano fica de fora (nem livre, nem unidade)', () => {
+    const outraFilial = turma('EF1A-M', 'Manhã', 6, 'MENDEL');
+
+    const r = fundirSalasEApi([sala('12')], [], [outraFilial]);
+
+    expect(r.turmasLivres).toEqual([]);
+    expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ']);
+  });
 });

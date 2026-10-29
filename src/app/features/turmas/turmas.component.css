@@ -101,14 +101,14 @@
   vertical-align: top;
 }
 
-/* Sala, Unidade e Carteiras só do tamanho do conteúdo: a sobra vai para Manhã e Tarde, onde os
-   chips das turmas precisam de espaço para o nome não cortar cedo. */
-.turmas-table th:nth-child(-n + 3),
-.turmas-table td:nth-child(-n + 3) {
+/* Unidade, Andar, Sala e Carteiras só do tamanho do conteúdo: a sobra vai para Manhã e Tarde, onde
+   os chips das turmas precisam de espaço para o nome não cortar cedo. */
+.turmas-table th:nth-child(-n + 4),
+.turmas-table td:nth-child(-n + 4) {
   width: 1%;
   white-space: nowrap;
 }
-.turmas-table th:nth-child(-n + 3) {
+.turmas-table th:nth-child(-n + 4) {
   padding-right: var(--sp-5);
 }
 
@@ -150,16 +150,15 @@
 }
 
 /* Chips numa linha só, cortando o nome. contain: inline-size faz a linha ocupar a largura da
-   célula sem empurrar a coluna (os nomes inteiros alargariam a tabela). Aberta pelo "+N", quebra. */
+   célula sem empurrar a coluna (os nomes inteiros alargariam a tabela). Aberta pelo "+N", ou sem
+   espaço nem para o mínimo de cada chip, quebra. */
 .turmas-chips {
   align-self: stretch;
   contain: inline-size;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-1);
-}
-.turmas-chips--aberto {
-  flex-wrap: wrap;
 }
 
 /* Espaço dividido por igual entre os chips (base 0), cada um no máximo do tamanho do conteúdo:
@@ -170,6 +169,22 @@
   flex: 1 1 0;
   min-width: 0;
   max-width: max-content;
+}
+/*
+ * Mínimo de cada chip: o começo do nome mais o que não encolhe (bordas, respiros, a contagem de
+ * alunos e o ×, uns 66px). Sem ele, numa célula apertada o chip ficava menor que essas partes e o
+ * × saía para fora da borda. Em em, para acompanhar a fonte do chip.
+ */
+.turmas-chip:not(.turmas-chip--mais) {
+  min-width: 8em;
+}
+/* Sem o × (fora do editor): só a contagem, uns 44px. */
+.turmas-chip:not(.turmas-chip--mais):not(:has(.turmas-chip-acao, saea-spinner)) {
+  min-width: 6em;
+}
+/* Tag das marcadas: respiros e o × dela, uns 40px. */
+.turmas-tag {
+  min-width: 5em;
 }
 .turmas-chips--aberto .turmas-chip,
 .turmas-chips--aberto .turmas-tag {
@@ -266,11 +281,29 @@
   font-size: 16px;
 }
 
-.turmas-meta {
+/* Campo (ou fichas) e, logo depois na mesma linha, o total do turno e os avisos: a célula tem
+   espaço na horizontal, e embaixo eles só deixavam a linha da tabela mais alta. */
+.turmas-linha {
+  align-self: stretch;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2);
+}
+/* Base de 14em: numa célula estreita, os avisos descem para a linha de baixo em vez de espremer o
+   campo. */
+.turmas-linha > .turmas-seletor,
+.turmas-linha > .turmas-chips {
+  flex: 1 1 14em;
+  min-width: 0;
+}
+
+.turmas-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  white-space: nowrap;
 }
 
 .turmas-total {
@@ -291,9 +324,21 @@
   color: var(--saea-ink-soft);
 }
 
+/* Ocupa o que sobra da linha, como um campo de e-mail; contain: inline-size pelo mesmo motivo de
+   .turmas-chips (os nomes inteiros nas fichas alargariam a coluna). */
 .turmas-seletor {
-  width: 100%;
-  max-width: 260px;
+  contain: inline-size;
+}
+/* Dentro do seletor as fichas são itens do próprio campo, antes do "Adicionar turma...". Como num
+   campo de e-mail, ficam do tamanho do nome, e é o "Adicionar turma..." que desce de linha quando
+   falta espaço; dividindo a linha com ele, o nome delas virava "3º …". Só uma ficha mais larga que
+   o campo inteiro corta o nome. */
+.turmas-seletor .turmas-chips {
+  display: contents;
+}
+.turmas-seletor .turmas-chip,
+.turmas-seletor .turmas-tag {
+  flex: 0 1 auto;
 }
 
 .turmas-tag-origem {
