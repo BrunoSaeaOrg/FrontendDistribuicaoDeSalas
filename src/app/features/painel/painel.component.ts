@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { nomeDoAndar } from '../../core/models';
 import { SalasService } from '../../core/services/salas.service';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
@@ -21,6 +22,8 @@ interface PainelRow {
   nome: string;
   unidadeNome: string;
   unidadeCor: string;
+  /** Andar por extenso ("Térreo", "1º andar"). */
+  andar: string;
   tipo: string;
   carteiras: number;
   capacidade: number;
@@ -117,6 +120,7 @@ export class PainelComponent {
         nome: s.nome,
         unidadeNome: u.nome,
         unidadeCor: u.cor,
+        andar: nomeDoAndar(s.andar),
         tipo: s.tipo,
         carteiras: s.carteiras,
         capacidade: cap,

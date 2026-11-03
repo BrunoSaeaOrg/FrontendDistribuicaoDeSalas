@@ -93,3 +93,75 @@ export interface ApiSolicitacaoDto {
   codUsuarioDecisao: string | null;
   dataDecisao: string | null;
 }
+
+/**
+ * Situação de uma sala ou turma na cópia de ano letivo (OC_SAL_COPIAR_ANO_*; ver CopiaAnoSituacao
+ * no backend). Como ApiSolicitacaoDto, os DTOs da cópia são classes C#: vêm em camelCase.
+ */
+export type ApiSituacaoCopiaAno =
+  | 'copiar'
+  | 'atualizar'
+  | 'ja-existe'
+  | 'sem-periodo'
+  | 'periodo-ambiguo'
+  | 'vincular'
+  | 'mover'
+  | 'liberar'
+  | 'ja-vinculada'
+  | 'sem-turma'
+  | 'criada'
+  | 'atualizada'
+  | 'falhou';
+
+/** Uma sala do ano de origem no plano da cópia: `id` é o registro dela no PRJ4087040. */
+export interface ApiCopiaSalaDto {
+  id: string;
+  codFilial: number;
+  unidade: string;
+  andar: string;
+  sala: string;
+  tipoSala: string;
+  carteiras: number;
+  capacidade: number;
+  /** O que o registro do destino tem hoje; null quando o destino ainda não tem o registro. */
+  carteirasNoDestino: number | null;
+  capacidadeNoDestino: number | null;
+  idPerletOrigem: number;
+  idPerletDestino: number | null;
+  situacao: ApiSituacaoCopiaAno;
+}
+
+/**
+ * Uma subturma no plano: `sala` é a dela na origem (a que terá no destino) e `salaNoDestino`, a que
+ * tem hoje; vazio = sem sala. Com "vincular", "mover" e "liberar", é o request do salvar da turma do
+ * destino (no "liberar", a sala vai vazia).
+ */
+export interface ApiCopiaTurmaDto {
+  codFilial: number;
+  unidade: string;
+  codTurma: string;
+  turma: string;
+  sala: string;
+  codBloco: string;
+  codPredio: string;
+  codSala: string;
+  salaNoDestino: string;
+  idPerletDestino: number | null;
+  situacao: ApiSituacaoCopiaAno;
+}
+
+export interface ApiCopiaAnoPlanoDto {
+  salas: ApiCopiaSalaDto[];
+  turmas: ApiCopiaTurmaDto[];
+  /**
+   * true: o período do destino veio de API.OC.SAL.PLETIVO. false: essa consulta não existe no RM e
+   * o período saiu das turmas do ano, então filial sem turma no destino fica de fora.
+   */
+  periodosDoRm: boolean;
+}
+
+export interface ApiCopiaSalaResultadoDto {
+  id: string;
+  situacao: ApiSituacaoCopiaAno;
+  erro?: string | null;
+}

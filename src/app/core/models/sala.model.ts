@@ -34,6 +34,13 @@ export interface Sala {
   codSala: string;
 }
 
+/** ANDAR do RM por extenso: "T" é o térreo e os outros vêm só com o número ("1" → "1º andar"). */
+export function nomeDoAndar(andar: string): string {
+  if (!andar) return '—';
+  if (/^t$/i.test(andar)) return 'Térreo';
+  return /^\d+$/.test(andar) ? `${andar}º andar` : andar;
+}
+
 /** Turma cadastrada (OC_SAL_TURMAS) sem sala vinculada em OC_SAL_TURMASXSALAS. */
 export interface TurmaLivre {
   codTurma: string;

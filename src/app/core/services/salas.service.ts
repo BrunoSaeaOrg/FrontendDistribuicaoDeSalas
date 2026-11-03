@@ -56,7 +56,7 @@ export interface Gravacao {
  * Texto da falha de gravação: o backend devolve a causa (ex.: "O RM não gravou o vínculo: ...") em
  * `message`; erro de validação do ASP.NET vem como ProblemDetails, com o texto em `title`.
  */
-function motivoDaFalha(err: unknown): string {
+export function motivoDaFalha(err: unknown): string {
   const corpo = (err as { error?: { message?: string; title?: string } } | null)?.error;
   return corpo?.message ?? corpo?.title ?? 'Não foi possível contatar o servidor.';
 }

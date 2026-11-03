@@ -1,0 +1,132 @@
+<div class="va-page">
+  <app-alert tone="info">
+    <strong>Protótipo com dados fictícios.</strong> Serve para mostrar a ideia ao time: mover aqui não grava nada
+    no RM, e recarregar a página desfaz tudo.
+  </app-alert>
+
+  <div class="va-colunas">
+    <!-- Esquerda: os alunos da sala, por turma, e os do ano ainda sem turma. -->
+    <app-card class="saea-card-fill" title="Alunos" [subtitle]="sala() ? qtdAlunos(totalNaSala()) + ' nas turmas da sala' : ''">
+      <div class="va-filtros">
+        <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions" />
+        <app-select
+          label="Sala"
+          [ngModel]="salaId()"
+          (ngModelChange)="selecionarSala($event)"
+          [options]="salaOptions()"
+          [disabled]="!anoLetivo()"
+        />
+      </div>
+
+      @if (!sala()) {
+        <app-empty-state
+          icon="meeting_room"
+          title="Escolha o ano letivo e a sala"
+          description="Os alunos das turmas da sala aparecem aqui, por turma, junto dos que ainda estão sem turma."
+        />
+      } @else {
+        <div class="va-barra">
+          <span class="va-contagem">{{ qtdSelecionados() }} {{ qtdSelecionados() === 1 ? 'marcado' : 'marcados' }}</span>
+          @if (qtdSelecionados() > 0) {
+            <app-button variant="ghost" size="sm" (clicked)="desmarcarTodos()">Desmarcar todos</app-button>
+          }
+        </div>
+
+        <div class="va-lista saea-scroll">
+          @for (grupo of grupos(); track grupo.id) {
+            <section class="va-grupo" [attr.aria-label]="grupo.titulo">
+              <div class="va-grupo-cabecalho">
+                <saea-checkbox
+                  [checked]="todosDoGrupo(grupo)"
+                  [indeterminate]="algunsDoGrupo(grupo)"
+                  [disabled]="grupo.alunos.length === 0"
+                  (checkedChange)="alternarGrupo(grupo, $event)"
+                >
+                  {{ grupo.titulo }}
+                </saea-checkbox>
+                <span class="va-grupo-qtd">{{ qtdAlunos(grupo.alunos.length) }}</span>
+              </div>
+
+              @if (grupo.alunos.length === 0) {
+                <p class="va-grupo-vazio">Nenhum aluno.</p>
+              } @else {
+                <ul class="va-alunos" role="list">
+                  @for (aluno of grupo.alunos; track aluno.id) {
+                    <li
+                      class="va-aluno"
+                      [class.va-aluno--marcado]="selecionados().has(aluno.id)"
+                      draggable="true"
+                      (dragstart)="aoComecarArraste(aluno, $event)"
+                      (dragend)="aoTerminarArraste()"
+                    >
+                      <!-- A linha inteira é o rótulo do checkbox: clicar em qualquer ponto marca o aluno. -->
+                      <saea-checkbox class="va-aluno-check" [checked]="selecionados().has(aluno.id)" (checkedChange)="alternarAluno(aluno.id, $event)">
+                        <saea-avatar [name]="aluno.nome" [size]="32" />
+                        <span class="va-aluno-texto">
+                          <span class="va-aluno-nome">{{ aluno.nome }}</span>
+                          <span class="va-aluno-matricula">Matrícula {{ aluno.matricula }}</span>
+                        </span>
+                      </saea-checkbox>
+                      @if (recemMovidos().has(aluno.id)) {
+                        <span class="va-movido">movido</span>
+                      }
+                      <span class="material-icons va-alca" aria-hidden="true">drag_indicator</span>
+                    </li>
+                  }
+                </ul>
+              }
+            </section>
+          }
+        </div>
+
+        <p class="va-dica">
+          <span class="material-icons" aria-hidden="true">pan_tool_alt</span>
+          Marque vários e use o botão ao lado, ou arraste um aluno (ou os marcados) até a turma.
+        </p>
+      }
+    </app-card>
+
+    <!-- Direita: as turmas da sala, que recebem os alunos. -->
+    <app-card
+      class="saea-card-fill"
+      title="Turmas da sala"
+      [subtitle]="sala() ? sala()!.nome + ' · ' + sala()!.carteiras + ' carteiras' : ''"
+    >
+      @if (!sala()) {
+        <app-empty-state icon="groups" title="Escolha a sala" description="As turmas da sala aparecem aqui, para receber os alunos." />
+      } @else {
+        <div class="va-turmas saea-scroll">
+          @for (turma of turmasDaSala(); track turma.id) {
+            <div
+              class="va-turma"
+              [class.va-turma--escolhida]="destinoId() === turma.id"
+              [class.va-turma--alvo-possivel]="arrastando()"
+              [class.va-turma--alvo]="alvoDoArraste() === turma.id"
+              (dragover)="aoArrastarSobre(turma.id, $event)"
+              (dragleave)="aoSairDoAlvo(turma.id, $event)"
+              (drop)="aoSoltar(turma.id, $event)"
+            >
+              <button type="button" class="va-turma-escolher" [attr.aria-pressed]="destinoId() === turma.id" (click)="escolherDestino(turma.id)">
+                <span class="va-turma-topo">
+                  <span class="va-turma-nome">{{ turma.nome }}</span>
+                  <span class="va-turma-meta">{{ turma.turno }} · {{ turma.segmento }}</span>
+                  @if (turma.excede) {
+                    <app-badge tone="danger">Excede carteiras</app-badge>
+                  }
+                </span>
+                <span class="va-vagas">
+                  <span class="va-vagas-trilha"><span class="va-vagas-barra" [class.va-vagas-barra--excede]="turma.excede" [style.width.%]="turma.pct"></span></span>
+                  <span class="va-vagas-texto">{{ qtdAlunos(turma.alunos.length) }} · {{ turma.carteiras }} carteiras</span>
+                </span>
+              </button>
+            </div>
+          }
+        </div>
+
+        <div class="va-acao">
+          <app-button [disabled]="qtdSelecionados() === 0 || !destino()" (clicked)="moverSelecionados()">{{ rotuloMover() }}</app-button>
+        </div>
+      }
+    </app-card>
+  </div>
+</div>

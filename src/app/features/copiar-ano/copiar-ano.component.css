@@ -1,0 +1,182 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * Regra de altura do projeto (styles.css): o resultado ocupa o resto da tela e rola por dentro. Em
+ * tela baixa, os anos e o resumo tomavam a altura toda e a tabela ficava com altura zero: o resultado
+ * tem uma altura mínima e, quando não cabe, a página rola.
+ */
+.ca-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.ca-page > app-card:first-child {
+  flex-shrink: 0;
+}
+.ca-page > app-card.saea-card-fill {
+  min-height: 480px;
+}
+
+.ca-filtros {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) auto minmax(0, 220px) auto;
+  align-items: end;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.ca-seta {
+  padding-bottom: var(--sp-3);
+  color: var(--saea-ink-faint);
+}
+.ca-aviso {
+  margin: calc(var(--sp-2) * -1) 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--saea-danger);
+}
+
+.ca-resumo {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.ca-resumo-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.ca-resumo-titulo {
+  min-width: 56px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--saea-ink-soft);
+}
+.ca-vazio {
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-faint);
+}
+.ca-nota {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+}
+
+.ca-abas {
+  flex-shrink: 0;
+}
+
+/* A tabela da aba rola; o resumo, as abas e o rodapé ficam. */
+.ca-painel {
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.ca-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.ca-tabela th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--sp-3) var(--sp-2);
+  border-bottom: 1px solid var(--saea-border);
+  background: var(--saea-surface);
+  text-align: left;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  color: var(--saea-ink-faint);
+}
+.ca-tabela td {
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--saea-border);
+  vertical-align: middle;
+}
+/* Só a situação (a última) ocupa a sobra; o resto fica do tamanho do conteúdo. */
+.ca-tabela th:not(:last-child),
+.ca-tabela td:not(:last-child) {
+  width: 1%;
+  padding-right: var(--sp-5);
+  white-space: nowrap;
+}
+.ca-forte {
+  font-weight: 600;
+  color: var(--saea-ink);
+}
+.ca-suave {
+  color: var(--saea-ink-soft);
+}
+.ca-codigo {
+  margin-left: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-faint);
+}
+.ca-erro {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--saea-danger);
+}
+
+.ca-rodape {
+  flex-shrink: 0;
+  margin: var(--sp-2) 0 0;
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--saea-border);
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+}
+
+.ca-progresso {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr);
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  width: 100%;
+  margin-bottom: var(--sp-4);
+}
+.ca-progresso-texto {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--saea-ink);
+}
+.ca-progresso-trilha {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--saea-chip-bg);
+}
+.ca-progresso-barra {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--saea-primary);
+  transition: width var(--dur-short) var(--ease-out);
+}
+.ca-dica {
+  grid-column: 1 / -1;
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+
+@media (max-width: 880px) {
+  .ca-filtros {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ca-seta {
+    display: none;
+  }
+}

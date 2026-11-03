@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   ApiAnoLetivoDto,
+  ApiCopiaAnoPlanoDto,
+  ApiCopiaSalaResultadoDto,
   ApiRegraDto,
   ApiSalaDoAnoDto,
   ApiSolicitacaoDto,
@@ -148,6 +150,30 @@ export class OcupacaoApiService {
       CODSALADESTINO: request.destino.codSala,
       QUANTIDADE: request.quantidade,
       ANO: request.ano,
+    });
+  }
+
+  /** Plano da cópia de um ano letivo para outro: o que cada sala e turma vira no destino (não grava). */
+  getPlanoCopiaAno(codUsuario: string, anoOrigem: string, anoDestino: string): Observable<ApiCopiaAnoPlanoDto> {
+    return this.http.post<ApiCopiaAnoPlanoDto>(`${this.baseUrl}/OC_SAL_COPIAR_ANO_PLANO`, {
+      CODUSUARIO: codUsuario,
+      ANOORIGEM: anoOrigem,
+      ANODESTINO: anoDestino,
+    });
+  }
+
+  /** Copia um lote de salas do plano (Ids de origem no PRJ4087040) para o ano de destino. */
+  copiarSalasDoAno(
+    codUsuario: string,
+    anoOrigem: string,
+    anoDestino: string,
+    ids: string[],
+  ): Observable<ApiCopiaSalaResultadoDto[]> {
+    return this.http.post<ApiCopiaSalaResultadoDto[]>(`${this.baseUrl}/OC_SAL_COPIAR_ANO_SALAS`, {
+      CODUSUARIO: codUsuario,
+      ANOORIGEM: anoOrigem,
+      ANODESTINO: anoDestino,
+      IDS: ids,
     });
   }
 }

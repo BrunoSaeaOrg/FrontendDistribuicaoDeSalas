@@ -1,0 +1,218 @@
+<div class="ca-page">
+  <app-card title="Copiar ano letivo" subtitle="Copia tudo de um ano letivo para outro: salas, carteiras, capacidade e as turmas nas salas.">
+    <div class="ca-filtros">
+      <app-select
+        label="Copiar de"
+        [ngModel]="anoOrigem()"
+        (ngModelChange)="escolherOrigem($event)"
+        [options]="anoOptions()"
+        [disabled]="copiando()"
+      />
+      <span class="material-icons ca-seta" aria-hidden="true">arrow_forward</span>
+      <app-select
+        label="Para"
+        [ngModel]="anoDestino()"
+        (ngModelChange)="escolherDestino($event)"
+        [options]="anoOptions()"
+        [disabled]="copiando()"
+      />
+      <app-button [loading]="copiando()" loadingText="Copiando..." [disabled]="!podeCopiar()" (clicked)="copiar()">
+        {{ anosValidos() ? 'Copiar ' + anoOrigem() + ' para ' + anoDestino() : 'Copiar' }}
+      </app-button>
+    </div>
+    @if (anoOrigem() && anoOrigem() === anoDestino()) {
+      <p class="ca-aviso">Escolha um ano de destino diferente do de origem.</p>
+    } @else if (uiMode.readOnlyMode()) {
+      <p class="ca-aviso">Só quem pode editar consegue copiar.</p>
+    }
+    <app-alert tone="info">
+      <strong>O ano de destino fica igual ao de origem.</strong> O registro de cada sala no PRJ4087040 vai com todos os
+      campos (carteiras, capacidade e os demais): o que falta é criado e o que está diferente recebe os valores da origem.
+      Cada turma do destino vai para a mesma sala da turma de mesmo código, e a que está sem sala na origem sai da sala no
+      destino. Turmas que só existem no destino não são mexidas. Unidade, andar, sala e tipo são do cadastro da sala;
+      alunos e status vêm das turmas do destino. Antes de gravar, a tela mostra o que vai mudar.
+    </app-alert>
+  </app-card>
+
+  <app-card class="saea-card-fill" title="Resultado" [subtitle]="plano() ? anoOrigem() + ' → ' + anoDestino() : ''">
+    @if (progresso(); as p) {
+      <div class="ca-progresso" role="status">
+        <span class="ca-progresso-texto">
+          @switch (p.fase) {
+            @case ('preparando') {
+              Lendo {{ anoOrigem() }} e {{ anoDestino() }} no RM...
+            }
+            @case ('salas') {
+              Copiando salas: {{ p.atual }} de {{ p.total }}
+            }
+            @case ('turmas') {
+              Gravando as turmas nas salas: {{ p.atual }} de {{ p.total }}
+            }
+          }
+        </span>
+        <span class="ca-progresso-trilha">
+          <span class="ca-progresso-barra" [style.width.%]="p.total ? (p.atual / p.total) * 100 : 0"></span>
+        </span>
+        <span class="ca-dica">Não feche esta tela até terminar.</span>
+      </div>
+    }
+
+    @if (plano()) {
+      <div class="ca-resumo">
+        <div class="ca-resumo-linha">
+          <span class="ca-resumo-titulo">Salas</span>
+          @for (item of resumoSalas(); track item.texto) {
+            <app-badge [tone]="item.tom">{{ item.quantidade }} {{ item.texto }}</app-badge>
+          } @empty {
+            <span class="ca-vazio">Nenhuma sala em {{ anoOrigem() }}.</span>
+          }
+        </div>
+        <div class="ca-resumo-linha">
+          <span class="ca-resumo-titulo">Turmas</span>
+          @for (item of resumoTurmas(); track item.texto) {
+            <app-badge [tone]="item.tom">{{ item.quantidade }} {{ item.texto }}</app-badge>
+          } @empty {
+            <span class="ca-vazio">Nenhuma turma numa sala em {{ anoOrigem() }} nem em {{ anoDestino() }}.</span>
+          }
+        </div>
+        @if (deFora(); as f) {
+          @if (f.semPeriodo.length) {
+            <p class="ca-nota">
+              @if (plano()!.periodosDoRm) {
+                {{ f.semPeriodo.join(', ') }} não {{ f.semPeriodo.length > 1 ? 'têm' : 'tem' }} período letivo
+                {{ anoDestino() }} no RM e {{ f.semPeriodo.length > 1 ? 'ficaram' : 'ficou' }} de fora. Depois de criar o
+                período, copie de novo.
+              } @else {
+                {{ f.semPeriodo.join(', ') }} ainda não {{ f.semPeriodo.length > 1 ? 'têm' : 'tem' }} turmas em
+                {{ anoDestino() }} e {{ f.semPeriodo.length > 1 ? 'ficaram' : 'ficou' }} de fora: enquanto a consulta
+                API.OC.SAL.PLETIVO não for criada no RM, o período letivo sai das turmas.
+              }
+            </p>
+          }
+          @if (f.ambiguas.length) {
+            <p class="ca-nota">
+              {{ f.ambiguas.join(', ') }} {{ f.ambiguas.length > 1 ? 'têm' : 'tem' }} mais de um período letivo em
+              {{ anoDestino() }} e {{ f.ambiguas.length > 1 ? 'ficaram' : 'ficou' }} de fora: não dá para saber em qual gravar.
+            </p>
+          }
+          @if (f.turmasSemDestino) {
+            <p class="ca-nota">
+              {{ f.turmasSemDestino }} {{ f.turmasSemDestino > 1 ? 'turmas' : 'turma' }} de {{ anoOrigem() }} ainda não
+              {{ f.turmasSemDestino > 1 ? 'existem' : 'existe' }} em {{ anoDestino() }} no RM. Depois que forem criadas,
+              copie de novo para colocá-las nas salas.
+            </p>
+          }
+        }
+      </div>
+
+      <saea-tabs class="ca-abas" [tabs]="abas()" [(active)]="aba" ariaLabel="Itens copiados" idPrefix="copia" />
+
+      <section class="ca-painel saea-scroll" role="tabpanel" [id]="'copia-panel-' + aba()" [attr.aria-labelledby]="'copia-tab-' + aba()">
+        @if (aba() === 'salas') {
+          <table class="ca-tabela">
+            <thead>
+              <tr>
+                <th>Unidade</th>
+                <th>Andar</th>
+                <th>Sala</th>
+                <th>Tipo</th>
+                <th>Carteiras</th>
+                <th>Capacidade</th>
+                <th>Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (sala of salas(); track sala.id) {
+                <tr>
+                  <td>
+                    {{ sala.unidade }}
+                    <span class="ca-codigo">filial {{ sala.codFilial }}</span>
+                  </td>
+                  <td class="ca-suave">{{ sala.andarPorExtenso }}</td>
+                  <td class="ca-forte">{{ sala.sala }}</td>
+                  <td class="ca-suave">{{ sala.tipoSala }}</td>
+                  <td>
+                    {{ sala.carteiras }}
+                    @if (sala.carteirasAntes !== null) {
+                      <span class="ca-codigo">era {{ sala.carteirasAntes }}</span>
+                    }
+                  </td>
+                  <td>
+                    {{ sala.capacidade }}
+                    @if (sala.capacidadeAntes !== null) {
+                      <span class="ca-codigo">era {{ sala.capacidadeAntes }}</span>
+                    }
+                  </td>
+                  <td>
+                    <app-badge [tone]="situacao(sala.estado).tom">{{ situacao(sala.estado).rotulo }}</app-badge>
+                    @if (sala.erro) {
+                      <span class="ca-erro">{{ sala.erro }}</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <table class="ca-tabela">
+            <thead>
+              <tr>
+                <th>Unidade</th>
+                <th>Turma</th>
+                <th>Sala em {{ anoOrigem() }}</th>
+                <th>Em {{ anoDestino() }} estava</th>
+                <th>Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (turma of turmas(); track turma.chave) {
+                <tr>
+                  <td>
+                    {{ turma.unidade }}
+                    <span class="ca-codigo">filial {{ turma.codFilial }}</span>
+                  </td>
+                  <td>
+                    {{ turma.turma }}
+                    <span class="ca-codigo">{{ turma.codTurma }}</span>
+                  </td>
+                  @if (turma.sala) {
+                    <td class="ca-forte">{{ turma.sala }}</td>
+                  } @else {
+                    <td class="ca-suave">Sem sala</td>
+                  }
+                  @if (turma.salaNoDestino) {
+                    <td>{{ turma.salaNoDestino }}</td>
+                  } @else {
+                    <td class="ca-suave">Sem sala</td>
+                  }
+                  <td>
+                    <app-badge [tone]="situacao(turma.estado).tom">{{ situacao(turma.estado).rotulo }}</app-badge>
+                    @if (turma.erro) {
+                      <span class="ca-erro">{{ turma.erro }}</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </section>
+
+      @if (copiada()) {
+        <p class="ca-rodape">
+          Cópia concluída.
+          @if (turmasPendentes() > 0) {
+            O RM ainda estava gravando {{ turmasPendentes() }} turma(s).
+          }
+          Abra o Painel em {{ anoDestino() }} para ver como ficou.
+        </p>
+      }
+    } @else if (!progresso()) {
+      <app-empty-state
+        icon="content_copy"
+        title="Escolha os anos e clique em Copiar"
+        description="O ano de destino fica igual ao de origem. Antes de gravar, aqui aparece o que vai mudar e o que fica de fora."
+      />
+    }
+  </app-card>
+</div>

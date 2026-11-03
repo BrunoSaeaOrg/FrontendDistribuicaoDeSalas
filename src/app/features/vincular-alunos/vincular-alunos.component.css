@@ -1,0 +1,290 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Regra de altura do projeto (styles.css): as duas colunas vão até o rodapé e rolam por dentro. */
+.va-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  flex: 1;
+  min-height: 0;
+}
+.va-page > app-alert {
+  flex-shrink: 0;
+}
+
+.va-colunas {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--sp-5);
+}
+
+.va-filtros {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.va-barra {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 32px;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--saea-border);
+}
+.va-contagem {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--saea-ink-soft);
+}
+
+/* Um bloco por turma da sala, e o dos sem turma por último. */
+.va-grupo + .va-grupo {
+  margin-top: var(--sp-3);
+}
+.va-grupo-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-2) var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--saea-ink-soft);
+}
+.va-grupo-qtd {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--saea-ink-faint);
+}
+.va-grupo-vazio {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-8);
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-faint);
+}
+
+.va-alunos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.va-aluno {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-right: var(--sp-2);
+  border-radius: var(--radius-md);
+  cursor: grab;
+  transition: background var(--dur-micro) var(--ease-out);
+}
+.va-aluno:hover {
+  background: var(--saea-surface-sunken);
+}
+.va-aluno:active {
+  cursor: grabbing;
+}
+.va-aluno--marcado,
+.va-aluno--marcado:hover {
+  background: color-mix(in srgb, var(--saea-primary) 10%, transparent);
+}
+
+/* O rótulo do checkbox ocupa a linha: avatar, nome e matrícula. */
+.va-aluno-check {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+.va-aluno-check ::ng-deep .saea-checkbox__label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2);
+  cursor: inherit;
+}
+.va-aluno-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.va-aluno-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--saea-ink);
+}
+.va-aluno-matricula {
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+.va-movido {
+  flex-shrink: 0;
+  padding: 1px var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--saea-primary) 14%, transparent);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--saea-primary-strong);
+}
+.va-alca {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--saea-ink-faint);
+}
+
+.va-dica {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+.va-dica .material-icons {
+  font-size: 16px;
+  color: var(--saea-ink-faint);
+}
+
+/* Turmas da sala: cada cartão escolhe a turma pelo botão e recebe o arraste. */
+.va-turmas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  /* Folga para o anel de foco dentro da área rolável. */
+  padding: 2px;
+}
+
+.va-turma {
+  flex-shrink: 0;
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-md);
+  background: var(--saea-surface);
+  transition:
+    border-color var(--dur-short) var(--ease-out),
+    background var(--dur-short) var(--ease-out);
+}
+.va-turma--escolhida {
+  border-color: var(--saea-primary-strong);
+  background: color-mix(in srgb, var(--saea-primary) 6%, var(--saea-surface));
+}
+/* Como na Planta: tracejado em todas enquanto arrasta, e cheio na que está embaixo do cursor. */
+.va-turma--alvo-possivel {
+  border-style: dashed;
+  border-color: var(--saea-primary);
+}
+.va-turma--alvo {
+  border-style: solid;
+  border-color: var(--saea-primary-strong);
+  background: var(--saea-chip-bg);
+}
+
+.va-turma-escolher {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: none;
+  border-radius: inherit;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.va-turma-escolher:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 2px;
+}
+
+.va-turma-topo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.va-turma-nome {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--saea-ink);
+}
+.va-turma-meta {
+  flex: 1;
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+
+.va-vagas {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.va-vagas-trilha {
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--saea-chip-bg);
+}
+.va-vagas-barra {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--saea-primary);
+  transition: width var(--dur-short) var(--ease-out);
+}
+.va-vagas-barra--excede {
+  background: var(--saea-danger);
+}
+.va-vagas-texto {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--saea-ink-soft);
+}
+
+.va-acao {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--sp-4);
+  margin-top: var(--sp-2);
+  border-top: 1px solid var(--saea-border);
+}
+
+/* Mobile: uma coluna embaixo da outra, e a página rola. Sem arrastar no toque, o botão resolve. */
+@media (max-width: 880px) {
+  .va-colunas {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+  .va-filtros {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .va-lista,
+  .va-turmas {
+    max-height: 50vh;
+  }
+}

@@ -9,7 +9,7 @@ import {
 } from '@sistemas-saea/saea-design-system';
 import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
-import { Turno, TurmaVinculada } from '../../core/models';
+import { nomeDoAndar, Turno, TurmaVinculada } from '../../core/models';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
@@ -86,13 +86,6 @@ interface TurmaRow {
 }
 
 const TURNOS: Turno[] = ['manha', 'tarde'];
-
-/** ANDAR do RM por extenso: "T" é o térreo e os outros vêm só com o número ("1" → "1º andar"). */
-function nomeDoAndar(andar: string): string {
-  if (!andar) return '—';
-  if (/^t$/i.test(andar)) return 'Térreo';
-  return /^\d+$/.test(andar) ? `${andar}º andar` : andar;
-}
 
 const NOME_TURNO: Record<Turno, string> = { manha: 'manhã', tarde: 'tarde' };
 

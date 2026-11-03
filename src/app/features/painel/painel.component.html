@@ -37,8 +37,9 @@
         <table class="painel-table">
           <thead>
             <tr>
-              <th>Sala</th>
               <th>Unidade</th>
+              <th>Andar</th>
+              <th>Sala</th>
               <th>Tipo</th>
               <th>Carteiras</th>
               <th>Capacidade</th>
@@ -51,12 +52,13 @@
           <tbody>
             @for (row of rows(); track row.id) {
               <tr>
-                <td class="painel-cell-strong">{{ row.nome }}</td>
                 <td>
                   <span class="painel-inline">
                     <span class="painel-unit-dot" [style.background]="row.unidadeCor"></span>{{ row.unidadeNome }}
                   </span>
                 </td>
+                <td class="painel-cell-soft">{{ row.andar }}</td>
+                <td class="painel-cell-strong">{{ row.nome }}</td>
                 <td class="painel-cell-soft">{{ row.tipo }}</td>
                 <td>{{ row.carteiras }}</td>
                 <td>{{ row.capacidade }}</td>

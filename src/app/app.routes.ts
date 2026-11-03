@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { environment } from '../environments/environment';
 import { authGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
@@ -45,5 +46,24 @@ export const routes: Routes = [
       import('./features/ocupacao/ocupacao.component').then((m) => m.OcupacaoComponent),
     data: { breadcrumb: 'Mapa de Ocupação' },
   },
+  {
+    path: 'copiar-ano',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/copiar-ano/copiar-ano.component').then((m) => m.CopiarAnoComponent),
+    data: { breadcrumb: 'Copiar ano letivo' },
+  },
+  // Protótipo com dados fictícios (ver o componente). Desligado no environment, a rota não existe
+  // e o endereço cai no '**' (Painel).
+  ...(environment.telaVincularAlunos
+    ? [
+        {
+          path: 'vincular-alunos',
+          canActivate: [authGuard],
+          loadComponent: () =>
+            import('./features/vincular-alunos/vincular-alunos.component').then((m) => m.VincularAlunosComponent),
+          data: { breadcrumb: 'Vincular aluno à turma' },
+        },
+      ]
+    : []),
   { path: '**', redirectTo: 'painel' },
 ];

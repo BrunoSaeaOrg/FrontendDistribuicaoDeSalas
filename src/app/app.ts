@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { environment } from '../environments/environment';
 import { BreakpointService } from './core/services/breakpoint.service';
 import { LayoutService } from './core/services/layout.service';
 import { UsuarioService } from './core/services/usuario.service';
@@ -19,6 +20,11 @@ const NAV_ITEMS: SidePanelItem[] = [
   { icon: 'inbox', label: 'Solicitações', description: 'Pedidos de novas carteiras.', route: 'solicitacoes' },
   { icon: 'rule', label: 'Regras de ocupação', description: 'Critérios de capacidade física.', route: 'regras' },
   { icon: 'bar_chart', label: 'Mapa de Ocupação', description: 'Total por unidade, turno, segmento, série e turma.', route: 'ocupacao' },
+  { icon: 'content_copy', label: 'Copiar ano letivo', description: 'Salas, carteiras e turmas para outro ano.', route: 'copiar-ano' },
+  // Protótipo: some do menu (desktop e mobile) junto com a rota, pelo environment.
+  ...(environment.telaVincularAlunos
+    ? [{ icon: 'person_add', label: 'Vincular aluno à turma', description: 'Protótipo com dados fictícios.', route: 'vincular-alunos' }]
+    : []),
 ];
 
 @Component({
