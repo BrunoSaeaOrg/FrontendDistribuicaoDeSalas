@@ -32,7 +32,7 @@ describe('SalasService.trocandoAno', () => {
           },
         },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
-        { provide: RegrasService, useValue: {} },
+        { provide: RegrasService, useValue: { regrasDaFilial: () => ({ areaPorAluno: 1.5, pctMaximoUtilizacao: 90, permitirExcesso: false }), carregarFiliais: () => {} } },
       ],
     });
     const salas = TestBed.inject(SalasService);
@@ -80,7 +80,7 @@ describe('SalasService.anosLetivos', () => {
           },
         },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
-        { provide: RegrasService, useValue: {} },
+        { provide: RegrasService, useValue: { regrasDaFilial: () => ({ areaPorAluno: 1.5, pctMaximoUtilizacao: 90, permitirExcesso: false }), carregarFiliais: () => {} } },
       ],
     });
     const salas = TestBed.inject(SalasService);

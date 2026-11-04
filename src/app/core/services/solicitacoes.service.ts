@@ -23,7 +23,8 @@ function paraSolicitacao(dto: ApiSolicitacaoDto, salasService: SalasService): So
     codSolicitacao: dto.codSolicitacao,
     salaId: sala?.id ?? `${dto.codFilial}-${dto.codBloco}-${dto.codPredio}-${dto.codSala}`,
     salaNome: sala?.nome ?? dto.codSala,
-    unidadeId: sala?.unidadeId ?? '',
+    // A unidade é a filial (id = CODFILIAL): conhecida mesmo quando a sala não está no ano em tela.
+    unidadeId: sala?.unidadeId ?? String(dto.codFilial),
     codFilial: dto.codFilial,
     quantidade: dto.quantidade,
     justificativa: dto.justificativa,
@@ -71,11 +72,11 @@ export class SolicitacoesService {
     });
   }
 
-  /** Recarrega as solicitacoes da(s) filial(is) do usuario autenticado. */
+  /** Recarrega as solicitacoes das unidades (uma por filial) do usuario autenticado. */
   carregar(): void {
     const codUsuario = this.authService.currentUser()?.username ?? '';
     if (!codUsuario) return;
-    const filiais = this.salasService.filiais();
+    const filiais = this.salasService.unidades();
     if (filiais.length === 0) return;
 
     this._loading.set(true);

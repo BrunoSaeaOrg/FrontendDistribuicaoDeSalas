@@ -25,10 +25,10 @@ const sala = (codFilial: number, filial: string, codSala: string): ApiSalaDoAnoD
   ANO: '2026',
 });
 
-// A CASJ tem duas filiais (2 e 13), que viram uma unidade só pelo nome; a Sul tem a 6.
+// A CASJ tem duas filiais (2 e 13), e cada uma é uma unidade; a Sul tem a 6.
 const SALAS = [sala(2, 'CASJ', '17'), sala(13, 'CASJ', '5'), sala(6, 'Sul', '1')];
 
-describe('TurmasComponent: filtro de filial', () => {
+describe('TurmasComponent: filtro de unidade', () => {
   function criar() {
     TestBed.configureTestingModule({
       imports: [TurmasComponent],
@@ -43,7 +43,7 @@ describe('TurmasComponent: filtro de filial', () => {
           },
         },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
-        { provide: RegrasService, useValue: { regras: signal({ pctMaximoUtilizacao: 90 }) } },
+        { provide: RegrasService, useValue: { regrasDaFilial: () => ({ areaPorAluno: 1.5, pctMaximoUtilizacao: 90, permitirExcesso: false }), carregarFiliais: () => {} } },
       ],
     });
     const fixture = TestBed.createComponent(TurmasComponent);
@@ -52,37 +52,26 @@ describe('TurmasComponent: filtro de filial', () => {
   }
 
   const salas = (tela: TurmasComponent) => tela.rows().map((r) => r.nome);
-  const rotulos = (tela: TurmasComponent) => tela.filialOptions().map((o) => o.label);
+  const rotulos = (tela: TurmasComponent) => tela.unidadeOptions().map((o) => o.label);
 
-  it('lista cada filial com o nome da unidade, e escolher uma deixa só as salas dela', () => {
+  it('cada filial é uma unidade no campo Unidade, e não há mais campo Filial', () => {
     const fixture = criar();
     const tela = fixture.componentInstance;
+    const el = fixture.nativeElement as HTMLElement;
 
-    expect(rotulos(tela)).toEqual(['Todas as filiais', 'CASJ · filial 2', 'Sul · filial 6', 'CASJ · filial 13']);
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Filial');
+    expect(rotulos(tela)).toEqual(['Todas as unidades', 'CASJ · filial 2', 'CASJ · filial 13', 'Sul · filial 6']);
+    expect(el.querySelector('app-select[label="Filial"]')).toBeNull();
     expect(salas(tela)).toEqual(['Sala 17', 'Sala 5', 'Sala 1']);
-
-    tela.filial.set('13');
-    expect(salas(tela)).toEqual(['Sala 5']);
   });
 
-  it('com uma unidade, só as filiais dela; a filial de outra unidade volta para "Todas"', () => {
+  it('escolher uma unidade deixa só as salas daquela filial', () => {
     const tela = criar().componentInstance;
 
-    tela.selecionarUnidade('casj');
-    expect(rotulos(tela)).toEqual(['Todas as filiais', 'CASJ · filial 2', 'CASJ · filial 13']);
-
-    // A 13 é da CASJ: continua ao trocar de "Todas" para CASJ e de volta.
-    tela.filial.set('13');
-    tela.selecionarUnidade('todas');
-    expect(tela.filial()).toBe('13');
-    tela.selecionarUnidade('casj');
-    expect(tela.filial()).toBe('13');
+    tela.selecionarUnidade('13');
     expect(salas(tela)).toEqual(['Sala 5']);
-
-    // A Sul não tem a 13: a filial volta para "Todas" e aparecem as salas da Sul.
-    tela.selecionarUnidade('sul');
-    expect(tela.filial()).toBe('todas');
-    expect(salas(tela)).toEqual(['Sala 1']);
+    tela.selecionarUnidade('2');
+    expect(salas(tela)).toEqual(['Sala 17']);
+    tela.selecionarUnidade('todas');
+    expect(salas(tela)).toEqual(['Sala 17', 'Sala 5', 'Sala 1']);
   });
 });

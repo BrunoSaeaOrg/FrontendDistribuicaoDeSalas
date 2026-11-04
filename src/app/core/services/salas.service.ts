@@ -66,25 +66,6 @@ export function motivoDaFalha(err: unknown): string {
 /** Turma a vincular; com `salaAtual`, ela está em outra sala e será movida. */
 export type TurmaParaVincular = Pick<TurmaLivre, 'codTurma' | 'idPerlet' | 'nome'> & { salaAtual?: string };
 
-/** Valor do campo Filial que não filtra nada. */
-export const TODAS_AS_FILIAIS = 'todas';
-
-/**
- * Uma filial das salas do ano. A unidade vem do nome da filial no RM, então a mesma unidade (ex.:
- * CASJ) pode ter várias filiais: o campo Filial é que separa uma da outra.
- */
-export interface FilialDoAno {
-  codFilial: number;
-  /** CODFILIAL como texto: o valor no campo Filial. */
-  codigo: string;
-  unidadeId: string;
-  unidadeNome: string;
-  /** "CASJ · filial 2". */
-  nome: string;
-  /** Quantas salas do ano são dela. */
-  salas: number;
-}
-
 @Injectable({ providedIn: 'root' })
 export class SalasService {
   private readonly ocupacaoApi = inject(OcupacaoApiService);
@@ -157,32 +138,6 @@ export class SalasService {
     return Array.from(set).sort();
   });
 
-  /**
-   * Filiais distintas das salas do ano, em ordem de CODFILIAL (uma unidade pode ter várias, ex:
-   * CASJ = 2, 13 e 16). Alimenta o campo Filial das telas (opcoesDeFilial), as Regras e a carga
-   * das Solicitações.
-   */
-  readonly filiais = computed<FilialDoAno[]>(() => {
-    const mapa = new Map<number, FilialDoAno>();
-    this._salas().forEach((s) => {
-      const atual = mapa.get(s.codFilial);
-      if (atual) {
-        atual.salas++;
-        return;
-      }
-      const unidadeNome = this.unidade(s.unidadeId)?.nome ?? s.unidadeId;
-      mapa.set(s.codFilial, {
-        codFilial: s.codFilial,
-        codigo: String(s.codFilial),
-        unidadeId: s.unidadeId,
-        unidadeNome,
-        nome: unidadeNome ? `${unidadeNome} · filial ${s.codFilial}` : `Filial ${s.codFilial}`,
-        salas: 1,
-      });
-    });
-    return Array.from(mapa.values()).sort((a, b) => a.codFilial - b.codFilial);
-  });
-
   readonly totalSalas = computed(() => this._salas().length);
   readonly totalCarteiras = computed(() => this._salas().reduce((a, s) => a + s.carteiras, 0));
   readonly totalCapacidade = computed(() =>
@@ -241,6 +196,8 @@ export class SalasService {
         if (carga !== this.carga) return;
         const { unidades, salas, turmasLivres } = fundirSalasEApi(salasDto, turmasXSalasDto, turmasDto);
         this._unidades.set(unidades);
+        // As regras de ocupação são por filial (= unidade): só lê as que ainda não vieram.
+        this.regrasService.carregarFiliais(unidades.map((u) => u.codFilial));
         this._salas.set(salas);
         this._turmasLivres.set(turmasLivres);
         this._anoCarregado.set(ano);
@@ -336,35 +293,6 @@ export class SalasService {
     return this._salas().filter((s) => s.unidadeId === unidadeId);
   }
 
-  /**
-   * Opções do campo Filial: "Todas as filiais" e as da unidade (sem unidade, ou com "todas", as de
-   * todas). A escolhida que não está entre elas (ex.: o ano novo não tem essa filial) entra também,
-   * para o campo não trocar de valor sozinho: a lista de salas é que fica vazia.
-   */
-  opcoesDeFilial(unidadeId: string, escolhida: string): { value: string; label: string }[] {
-    const todas = this.filiais();
-    const daUnidade = todas.filter((f) => !unidadeId || unidadeId === 'todas' || f.unidadeId === unidadeId);
-    const opcoes = daUnidade.map((f) => ({ codigo: f.codigo, nome: f.nome }));
-    if (escolhida !== TODAS_AS_FILIAIS && !opcoes.some((f) => f.codigo === escolhida)) {
-      opcoes.push({ codigo: escolhida, nome: todas.find((f) => f.codigo === escolhida)?.nome ?? `Filial ${escolhida}` });
-    }
-    return [
-      { value: TODAS_AS_FILIAIS, label: 'Todas as filiais' },
-      ...opcoes.sort((a, b) => Number(a.codigo) - Number(b.codigo)).map((f) => ({ value: f.codigo, label: f.nome })),
-    ];
-  }
-
-  /** A filial é de uma sala da unidade. "Todas as filiais" e a unidade "todas" valem sempre. */
-  filialEhDaUnidade(filial: string, unidadeId: string): boolean {
-    if (filial === TODAS_AS_FILIAIS || !unidadeId || unidadeId === 'todas') return true;
-    return this._salas().some((s) => String(s.codFilial) === filial && s.unidadeId === unidadeId);
-  }
-
-  /** A sala está na filial escolhida ("Todas as filiais" aceita qualquer uma). */
-  salaNaFilial(sala: Pick<Sala, 'codFilial'>, filial: string): boolean {
-    return filial === TODAS_AS_FILIAIS || String(sala.codFilial) === filial;
-  }
-
   turmasLivresPara(sala: Sala, turno: Turno): TurmaLivre[] {
     return this._turmasLivres().filter((t) => t.codFilial === sala.codFilial && t.turno === turno);
   }
@@ -392,6 +320,34 @@ export class SalasService {
     return sala.capacidade;
   }
 
+  /**
+   * Quantas carteiras a sala pode ter pela regra de ocupação da filial: capacidade × % máximo de
+   * utilização, para baixo (30 com 50% → 15; 25 com 90% → 22). Sem capacidade no RM não há
+   * limite (null).
+   */
+  limiteDeUso(sala: Sala): number | null {
+    const cap = this.capacidade(sala);
+    if (!(cap > 0)) return null;
+    const pct = this.regrasService.regrasDaFilial(sala.codFilial).pctMaximoUtilizacao ?? 90;
+    // O epsilon segura contas como 0,7 × 30 = 20,999...
+    return Math.floor((cap * pct) / 100 + 1e-9);
+  }
+
+  /** As regras da filial deixam passar do limite ("Permitir exceder", com observação nas Regras). */
+  podeExcederLimite(sala: Sala): boolean {
+    return this.regrasService.regrasDaFilial(sala.codFilial).permitirExcesso;
+  }
+
+  /**
+   * Quantas carteiras a sala ainda pode receber sem passar do limite. Infinity quando o limite não
+   * barra: a filial permite exceder ou a sala não tem capacidade no RM.
+   */
+  carteirasQueCabem(sala: Sala): number {
+    const limite = this.limiteDeUso(sala);
+    if (limite === null || this.podeExcederLimite(sala)) return Infinity;
+    return Math.max(0, limite - sala.carteiras);
+  }
+
   /** Turmas vinculadas à sala no turno (pode ser mais de uma); vazio = sala livre. */
   turmasNoTurno(sala: Sala, turno: Turno): TurmaVinculada[] {
     return sala.turnos[turno] ?? [];
@@ -411,7 +367,7 @@ export class SalasService {
   /** Status a partir da ocupacao (do turno, ou do maior turno) sobre uma capacidade de referencia. */
   private statusPorCapacidade(sala: Sala, cap: number, turno?: Turno): StatusInfo {
     const ratio = cap > 0 ? this.alunosNaSala(sala, turno) / cap : 0;
-    const limite = (this.regrasService.regras().pctMaximoUtilizacao ?? 90) / 100;
+    const limite = (this.regrasService.regrasDaFilial(sala.codFilial).pctMaximoUtilizacao ?? 90) / 100;
     if (ratio > 1) return { label: 'Excedida', tone: 'danger', key: 'excedida' as StatusOcupacao };
     if (ratio >= limite) return { label: 'Quase lotada', tone: 'warning', key: 'quase' as StatusOcupacao };
     return { label: 'Disponível', tone: 'success', key: 'disponivel' as StatusOcupacao };
@@ -555,11 +511,21 @@ export class SalasService {
 
   /**
    * Move `quantidade` carteira(s) vaga(s) de uma sala para outra (drag-and-drop da tela Planta), no
-   * período letivo do ano em uso.
+   * período letivo do ano em uso. Não manda nada (e devolve false) se o destino passaria do limite
+   * da regra de ocupação e a filial não permite exceder.
    */
-  transferirCarteira(origem: Sala, destino: Sala, quantidade = 1): void {
+  transferirCarteira(origem: Sala, destino: Sala, quantidade = 1): boolean {
     const codUsuario = this.authService.currentUser()?.username ?? '';
-    if (!codUsuario) return;
+    if (!codUsuario) return false;
+    if (quantidade > this.carteirasQueCabem(destino)) {
+      const limite = this.limiteDeUso(destino);
+      const pct = this.regrasService.regrasDaFilial(destino.codFilial).pctMaximoUtilizacao;
+      this.toast.warning(
+        `${destino.nome} está no limite`,
+        `Pode ter até ${limite} carteiras (${pct}% da capacidade de ${this.capacidade(destino)}) e já tem ${destino.carteiras}.`,
+      );
+      return false;
+    }
     this.ocupacaoApi
       .transferirCarteira({
         codUsuario,
@@ -594,5 +560,6 @@ export class SalasService {
           this.carregar();
         },
       });
+    return true;
   }
 }

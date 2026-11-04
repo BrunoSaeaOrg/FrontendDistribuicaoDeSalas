@@ -7,6 +7,7 @@ import {
   ApiCopiaAnoPlanoDto,
   ApiCopiaSalaResultadoDto,
   ApiRegraDto,
+  ApiRegraSalvaDto,
   ApiSalaDoAnoDto,
   ApiSolicitacaoDto,
   ApiStatusSolicitacao,
@@ -59,11 +60,12 @@ export class OcupacaoApiService {
     percMaxUtil: number;
     permExceder: boolean;
     obs: string;
-  }): Observable<{ Data?: string; CodRetorno?: number }> {
-    return this.http.post<{ Data?: string; CodRetorno?: number }>(`${this.baseUrl}/OC_SAL_REGRAS_SALVAR`, {
+  }): Observable<ApiRegraSalvaDto> {
+    // Responde 200 com o registro como ficou no RM; falha vem como erro HTTP.
+    return this.http.post<ApiRegraSalvaDto>(`${this.baseUrl}/OC_SAL_REGRAS_SALVAR`, {
       CODFILIAL: String(request.codFilial),
-      // O TOTVS espera o decimal no formato brasileiro (1,5).
-      AREAPORPESSOA: String(request.areaPorPessoa).replace('.', ','),
+      // Com ponto ("1.5"); o back manda ao RM como número. Com "1,5" o RM gravava 15.
+      AREAPORPESSOA: String(request.areaPorPessoa),
       PERCMAXUTIL: String(request.percMaxUtil),
       // Padrao RM (antigo TOTVS) para campo SN: 1 = Sim, 2 = Nao.
       PERMEXCEDER: request.permExceder ? '1' : '2',

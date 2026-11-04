@@ -1,9 +1,7 @@
 <div class="turmas-page">
   <div class="turmas-filter">
     <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" [carregando]="carregando()" />
-    <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="selecionarUnidade($event)" [options]="unidadeOptions()" />
-    <app-select label="Filial" [ngModel]="filial()" (ngModelChange)="filial.set($event)" [options]="filialOptions()" />
-    <app-input label="Sala" placeholder="Nome da sala..." [ngModel]="buscaSala()" (ngModelChange)="buscaSala.set($event)" />
+    <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="selecionarUnidade($event)" [options]="unidadeOptions()" />    <app-input label="Sala" placeholder="Nome da sala..." [ngModel]="buscaSala()" (ngModelChange)="buscaSala.set($event)" />
     <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="selecionarSegmento($event)" [options]="segmentoOptions()" />
     <app-select label="Série" [ngModel]="serie()" (ngModelChange)="serie.set($event)" [options]="serieOptions()" />
   </div>

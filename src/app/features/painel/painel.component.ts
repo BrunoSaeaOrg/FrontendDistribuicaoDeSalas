@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { nomeDoAndar, Turno } from '../../core/models';
-import { SalasService, TODAS_AS_FILIAIS } from '../../core/services/salas.service';
+import { SalasService } from '../../core/services/salas.service';
 import { BadgeTone } from '../../shared/ui/badge/badge.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
@@ -33,7 +33,6 @@ interface PeriodoCell {
 interface PainelRow {
   id: string;
   unidadeId: string;
-  codFilial: number;
   nome: string;
   unidadeNome: string;
   unidadeCor: string;
@@ -64,9 +63,8 @@ export class PainelComponent {
   private readonly salasService = inject(SalasService);
   private readonly router = inject(Router);
 
+  /** Unidade = filial do RM ("CASJ · filial 2"); 'todas' = todas. */
   readonly unidade = signal('todas');
-  /** CODFILIAL ('todas' = todas): a mesma unidade (ex.: CASJ) pode ter várias filiais. */
-  readonly filial = signal(TODAS_AS_FILIAIS);
   readonly turno = signal('todas');
   readonly status = signal('todas');
   readonly busca = signal('');
@@ -93,13 +91,10 @@ export class PainelComponent {
     { value: 'todas', label: 'Todas as unidades' },
     ...this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
   ]);
-  /** "CASJ · filial 2" etc.; com uma unidade escolhida, só as filiais dela. */
-  readonly filialOptions = computed<SelectOption[]>(() => this.salasService.opcoesDeFilial(this.unidade(), this.filial()));
 
-  /** Pelo campo ou pelos chips de unidade: a filial que não é da unidade nova volta para "Todas". */
+  /** Pelo campo ou pelos chips de unidade. */
   selecionarUnidade(unidade: string): void {
     this.unidade.set(unidade);
-    if (!this.salasService.filialEhDaUnidade(this.filial(), unidade)) this.filial.set(TODAS_AS_FILIAIS);
   }
   readonly turnoOptions: SelectOption[] = [
     { value: 'todas', label: 'Todos os turnos' },
@@ -167,7 +162,6 @@ export class PainelComponent {
       return {
         id: s.id,
         unidadeId: s.unidadeId,
-        codFilial: s.codFilial,
         nome: s.nome,
         unidadeNome: u.nome,
         unidadeCor: u.cor,
@@ -190,8 +184,6 @@ export class PainelComponent {
     const busca = this.busca().trim().toLowerCase();
 
     if (unidade !== 'todas') rows = rows.filter((r) => r.unidadeId === unidade);
-    const filial = this.filial();
-    rows = rows.filter((r) => this.salasService.salaNaFilial(r, filial));
     if (turno !== 'todas') {
       rows = rows.filter((r) => {
         const chip = r.turnoChips.find((c) => c.turno === turno);
@@ -211,9 +203,7 @@ export class PainelComponent {
     this.selecionarUnidade(this.unidade() === id ? 'todas' : id);
   }
 
-  /** Com uma filial no filtro, a Planta abre nela também. */
   verPlanta(row: PainelRow): void {
-    const filial = this.filial() === TODAS_AS_FILIAIS ? null : this.filial();
-    this.router.navigate(['planta'], { queryParams: { unidade: row.unidadeId, sala: row.id, filial } });
+    this.router.navigate(['planta'], { queryParams: { unidade: row.unidadeId, sala: row.id } });
   }
 }

@@ -2,9 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { RegrasService } from '../../core/services/regras.service';
-import { SalasService, TODAS_AS_FILIAIS } from '../../core/services/salas.service';
+import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
 import { Turno } from '../../core/models';
+import { AlertComponent } from '../../shared/ui/alert/alert.component';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
@@ -12,13 +13,15 @@ import { CarregandoComponent } from '../../shared/ui/carregando/carregando.compo
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
-type DeskKind = 'aluno' | 'vaga' | 'excedente' | 'espaco';
+type DeskKind = 'aluno' | 'vaga' | 'excedente' | 'espaco' | 'bloqueado';
 
 interface DeskSlot {
   index: number;
   kind: DeskKind;
   icon: string;
   tooltip: string;
+  /** Posição além do limite da regra de ocupação (só existe quando a filial deixa exceder ou a sala já passou). */
+  acimaDoLimite: boolean;
 }
 
 const TURNOS: Turno[] = ['manha', 'tarde'];
@@ -26,7 +29,7 @@ const TURNOS: Turno[] = ['manha', 'tarde'];
 @Component({
   selector: 'app-planta',
   standalone: true,
-  imports: [FormsModule, BadgeComponent, ButtonComponent, CardComponent, CarregandoComponent, EmptyStateComponent, SelectComponent],
+  imports: [FormsModule, AlertComponent, BadgeComponent, ButtonComponent, CardComponent, CarregandoComponent, EmptyStateComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './planta.component.html',
   styleUrl: './planta.component.css',
@@ -42,11 +45,10 @@ export class PlantaComponent {
   /** Sala sobre a qual o arraste está passando (destaque de zona de drop). */
   readonly dropAlvoId = signal<string | null>(null);
 
+  /** Unidade = filial do RM ("CASJ · filial 2"). */
   readonly unidadeId = signal(
     this.route.snapshot.queryParamMap.get('unidade') || this.salasService.unidades()[0]?.id || '',
   );
-  /** CODFILIAL ('todas' = todas): a mesma unidade (ex.: CASJ) pode ter várias filiais. */
-  readonly filial = signal(this.route.snapshot.queryParamMap.get('filial') || TODAS_AS_FILIAIS);
   readonly salaId = signal(this.route.snapshot.queryParamMap.get('sala') || '');
   readonly turno = signal<Turno>('manha');
   readonly segmento = signal('todas');
@@ -55,8 +57,6 @@ export class PlantaComponent {
   readonly unidadeOptions = computed<SelectOption[]>(() =>
     this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
   );
-  /** "CASJ · filial 2" etc., só as da unidade escolhida. */
-  readonly filialOptions = computed<SelectOption[]>(() => this.salasService.opcoesDeFilial(this.unidadeId(), this.filial()));
   /** Ano letivo das turmas: os anos vêm do RM, e trocar recarrega as turmas daquele ano. */
   readonly anoLetivo = this.salasService.anoLetivo;
   /** O ano escolhido ainda está vindo do RM: spinner no campo do ano e véu sobre o conteúdo. */
@@ -93,10 +93,9 @@ export class PlantaComponent {
     );
   };
 
-  /** As salas da unidade (e da filial, se escolhida) que atendem ao segmento e à série. */
+  /** As salas da unidade que atendem ao segmento e à série. */
   readonly salasDaUnidade = computed(() => {
-    const filial = this.filial();
-    let list = this.salasService.salasDaUnidade(this.unidadeId()).filter((s) => this.salasService.salaNaFilial(s, filial));
+    let list = this.salasService.salasDaUnidade(this.unidadeId());
     if (this.segmento() !== 'todas' || this.serie() !== 'todas') {
       list = list.filter((s) => this.matchesFiltro(s.id));
     }
@@ -129,6 +128,39 @@ export class PlantaComponent {
     return sala ? this.salasService.statusInfoCarteiras(sala) : { label: '', tone: 'success' as const, key: 'disponivel' as const };
   });
 
+  /** As regras de ocupação da filial da sala (cada unidade tem as suas). */
+  private readonly regraDaSala = computed(() => {
+    const sala = this.sala();
+    return sala ? this.regrasService.regrasDaFilial(sala.codFilial) : null;
+  });
+
+  /**
+   * Quantas carteiras a sala pode ter pela regra: capacidade × % máximo de utilização (30 com 50%
+   * → 15). null = sala sem capacidade no RM, sem limite.
+   */
+  readonly limite = computed(() => {
+    const sala = this.sala();
+    return sala ? this.salasService.limiteDeUso(sala) : null;
+  });
+
+  /** A filial deixa passar do limite ("Permitir exceder" nas Regras). */
+  readonly podeExceder = computed(() => this.regraDaSala()?.permitirExcesso ?? false);
+
+  /** "Limite de 15 carteiras (50% de 30)", no cabeçalho da sala. */
+  readonly limiteLabel = computed(() => {
+    const limite = this.limite();
+    if (limite === null) return 'Sem capacidade cadastrada: sem limite';
+    const pct = this.regraDaSala()?.pctMaximoUtilizacao ?? 90;
+    const base = `Limite de ${limite} ${limite === 1 ? 'carteira' : 'carteiras'} (${pct}% de ${this.capacidadeNormativa()})`;
+    return this.podeExceder() ? `${base}, pode exceder` : base;
+  });
+
+  /** A sala já tem mais carteiras do que o limite (de antes da regra, ou com "Permitir exceder"). */
+  readonly acimaDoLimite = computed(() => {
+    const limite = this.limite();
+    return limite !== null && this.capacidade() > limite;
+  });
+
   /**
    * Cor da barra de ocupação, interpolada continuamente (cinza → laranja → vermelho)
    * conforme a ocupação se aproxima e ultrapassa o limite configurado em Regras de
@@ -136,7 +168,7 @@ export class PlantaComponent {
    * limite exato (ex: 88% ainda parecia "tudo bem" mesmo bem perto do alerta).
    */
   readonly progressColor = computed(() => {
-    const limite = this.regrasService.regras().pctMaximoUtilizacao ?? 90;
+    const limite = this.regraDaSala()?.pctMaximoUtilizacao ?? 90;
     const pct = this.plantaPct();
     const disponivel = { r: 148, g: 163, b: 184 }; // --saea-ink-faint
     const alerta = { r: 238, g: 98, b: 17 }; // --saea-warning
@@ -180,11 +212,19 @@ export class PlantaComponent {
     return Math.min(100, Math.round((this.alunosAtuais() / cap) * 100));
   });
 
+  /**
+   * A grade da sala: as carteiras (com e sem aluno), os alunos sem carteira e o espaço que sobra até
+   * a capacidade. O espaço vai até o limite da regra de ocupação; dali até a capacidade fica
+   * bloqueado, ou, se a filial deixa exceder, livre mas marcado como acima do limite.
+   */
   readonly deskSlots = computed<DeskSlot[]>(() => {
     const sala = this.sala();
     if (!sala) return [];
     const cap = this.capacidade();
     const capNorm = Math.max(cap, this.capacidadeNormativa());
+    const limite = this.limite() ?? capNorm;
+    const podeExceder = this.podeExceder();
+    const pct = this.regraDaSala()?.pctMaximoUtilizacao ?? 90;
     const alunos = this.alunosAtuais();
     const totalSlots = Math.max(cap, capNorm, alunos);
     const slots: DeskSlot[] = [];
@@ -204,19 +244,33 @@ export class PlantaComponent {
         kind = 'excedente';
         icon = 'priority_high';
         tooltip = 'Além das carteiras físicas da sala';
-      } else if (i < capNorm) {
+      } else if (i < limite) {
         kind = 'espaco';
         icon = 'add';
-        tooltip = 'Cabe carteira aqui, dentro da capacidade da sala';
+        tooltip = `Cabe carteira aqui, dentro do limite de ${pct}%`;
+      } else if (i < capNorm && podeExceder) {
+        kind = 'espaco';
+        icon = 'add';
+        tooltip = `Acima do limite de ${pct}%: permitido pelas regras de ocupação`;
+      } else if (i < capNorm) {
+        kind = 'bloqueado';
+        icon = 'block';
+        tooltip = `Bloqueado pela regra de ocupação: a sala pode usar ${pct}% da capacidade`;
       } else {
         kind = 'excedente';
         icon = 'priority_high';
         tooltip = 'Além da capacidade da sala';
       }
-      slots.push({ index: i, kind, icon, tooltip });
+      const acimaDoLimite = i >= limite && kind !== 'bloqueado' && kind !== 'excedente';
+      if (acimaDoLimite && kind !== 'espaco') tooltip += ` (acima do limite de ${pct}%)`;
+      slots.push({ index: i, kind, icon, tooltip, acimaDoLimite });
     }
     return slots;
   });
+
+  /** A legenda só mostra "Bloqueado" e "Acima do limite" quando a grade tem esses quadros. */
+  readonly temBloqueado = computed(() => this.deskSlots().some((d) => d.kind === 'bloqueado'));
+  readonly temAcimaDoLimite = computed(() => this.deskSlots().some((d) => d.acimaDoLimite));
 
   readonly outrasSalas = computed(() => {
     const sala = this.sala();
@@ -230,6 +284,9 @@ export class PlantaComponent {
         tipo: s.tipo,
         ocupadas: this.salasService.alunosNoTurno(s, turno),
         carteiras: s.carteiras,
+        limite: this.salasService.limiteDeUso(s),
+        /** Quantas carteiras ainda pode receber pela regra (Infinity = o limite não barra). */
+        cabem: this.salasService.carteirasQueCabem(s),
         statusInfo: this.salasService.statusInfoCarteiras(s),
       }));
   });
@@ -250,10 +307,41 @@ export class PlantaComponent {
   readonly transferQuantidade = signal(1);
 
   readonly transferDestinoOptions = computed<SelectOption[]>(() =>
-    this.outrasSalas().map((s) => ({ value: s.id, label: `${s.nome} (${s.carteiras} carteiras)` })),
+    this.outrasSalas().map((s) => {
+      const cabe = s.cabem === Infinity ? '' : s.cabem > 0 ? ` · cabem mais ${s.cabem}` : ' · no limite';
+      return { value: s.id, label: `${s.nome} (${s.carteiras} carteiras${cabe})` };
+    }),
   );
 
   readonly transferDestino = computed(() => this.salasService.sala(this.transferDestinoId() ?? ''));
+
+  /** Quantas carteiras o destino ainda pode receber pela regra (Infinity = o limite não barra). */
+  readonly cabemNoDestino = computed(() => {
+    const destino = this.transferDestino();
+    return destino ? this.salasService.carteirasQueCabem(destino) : 0;
+  });
+
+  /** Teto do "+": as vagas da sala de origem e o que o destino ainda pode receber. */
+  readonly transferMaximo = computed(() => Math.min(this.vagasNaSalaAtual(), this.cabemNoDestino()));
+
+  /** O aviso da regra embaixo da quantidade: o que o destino recebe, ou que vai passar do limite. */
+  readonly transferAvisoLimite = computed<{ tone: 'info' | 'warning' | 'danger'; text: string } | null>(() => {
+    const destino = this.transferDestino();
+    if (!destino) return null;
+    const limite = this.salasService.limiteDeUso(destino);
+    if (limite === null) return null;
+    const pct = this.regrasService.regrasDaFilial(destino.codFilial).pctMaximoUtilizacao;
+    const regra = `limite de ${limite} = ${pct}% de ${this.salasService.capacidade(destino)}`;
+    const depois = destino.carteiras + this.transferQuantidade();
+    if (this.salasService.podeExcederLimite(destino)) {
+      return depois > limite
+        ? { tone: 'warning', text: `${destino.nome} fica com ${depois} carteiras, acima do ${regra}. As regras de ocupação permitem exceder.` }
+        : null;
+    }
+    const cabem = this.cabemNoDestino();
+    if (cabem <= 0) return { tone: 'danger', text: `${destino.nome} já está no ${regra} e não recebe mais carteiras.` };
+    return { tone: 'info', text: `${destino.nome} recebe até ${cabem} ${cabem === 1 ? 'carteira' : 'carteiras'} (${regra}).` };
+  });
 
   readonly transferPreview = computed(() => {
     const origem = this.sala();
@@ -272,7 +360,9 @@ export class PlantaComponent {
 
   abrirTransferModal(): void {
     this.transferStep.set(1);
-    this.transferDestinoId.set(this.outrasSalas()[0]?.id ?? '');
+    // Começa pela primeira sala que ainda pode receber carteira.
+    const outras = this.outrasSalas();
+    this.transferDestinoId.set((outras.find((s) => s.cabem > 0) ?? outras[0])?.id ?? '');
     this.transferQuantidade.set(1);
     this.transferOpen.set(true);
   }
@@ -283,6 +373,8 @@ export class PlantaComponent {
 
   onTransferDestinoChange(id: string): void {
     this.transferDestinoId.set(id);
+    // O novo destino pode receber menos do que o que estava escolhido.
+    this.transferQuantidade.update((q) => Math.max(1, Math.min(q, this.transferMaximo())));
   }
 
   transferQuantidadeMenos(): void {
@@ -290,12 +382,17 @@ export class PlantaComponent {
   }
 
   transferQuantidadeMais(): void {
-    const max = this.vagasNaSalaAtual();
+    const max = this.transferMaximo();
     this.transferQuantidade.update((q) => Math.min(max, q + 1));
   }
 
+  /** Dá para seguir: há destino e ele recebe ao menos a quantidade escolhida. */
+  readonly podeAvancarTransfer = computed(
+    () => !!this.transferDestinoId() && this.transferQuantidade() <= this.transferMaximo(),
+  );
+
   transferAvancar(): void {
-    if (!this.transferDestinoId()) return;
+    if (!this.podeAvancarTransfer()) return;
     this.transferStep.set(2);
   }
 
@@ -307,20 +404,12 @@ export class PlantaComponent {
     const origem = this.sala();
     const destino = this.transferDestino();
     if (!origem || !destino) return;
-    this.salasService.transferirCarteira(origem, destino, this.transferQuantidade());
-    this.transferStep.set(3);
+    if (this.salasService.transferirCarteira(origem, destino, this.transferQuantidade())) this.transferStep.set(3);
   }
 
   onUnidadeChange(uid: string): void {
     this.unidadeId.set(uid);
-    if (!this.salasService.filialEhDaUnidade(this.filial(), uid)) this.filial.set(TODAS_AS_FILIAIS);
     this.salaId.set(this.salasDaUnidade()[0]?.id ?? '');
-  }
-
-  /** A sala que não é da filial nova dá lugar à primeira dela. */
-  onFilialChange(filial: string): void {
-    this.filial.set(filial);
-    if (!this.salasDaUnidade().some((s) => s.id === this.salaId())) this.salaId.set(this.salasDaUnidade()[0]?.id ?? '');
   }
 
   onSalaChange(id: string): void {
@@ -351,6 +440,9 @@ export class PlantaComponent {
 
   onOutraSalaDragOver(salaId: string, event: DragEvent): void {
     if (!this.arrastando()) return;
+    // Sala no limite da regra: sem preventDefault o navegador não deixa soltar ali.
+    const sala = this.salasService.sala(salaId);
+    if (!sala || this.salasService.carteirasQueCabem(sala) < 1) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
     this.dropAlvoId.set(salaId);

@@ -19,19 +19,26 @@ function semAcentos(texto: string | null | undefined): string {
   return (texto ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '');
 }
 
-function slugify(nome: string | null | undefined): string {
-  return semAcentos(nome)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
 /**
  * OC_SAL_SALAS expoe o nome da unidade em FILIAL, enquanto OC_SAL_TURMASXSALAS e
  * OC_SAL_TURMAS usam UNIDADE. Aceita os dois e cai para o codigo da filial se faltarem.
  */
 function nomeUnidade(dto: { UNIDADE?: string; FILIAL?: string; CODFILIAL: number }): string {
   return dto.UNIDADE?.trim() || dto.FILIAL?.trim() || `Filial ${dto.CODFILIAL}`;
+}
+
+/**
+ * Cada filial é uma unidade: a CASJ, com as filiais 2, 13 e 16, vira três unidades ("CASJ · filial
+ * 2", "CASJ · filial 13" e "CASJ · filial 16"). O id é o CODFILIAL, que as três consultas trazem
+ * igual (o nome pode vir escrito diferente em FILIAL e em UNIDADE).
+ */
+function unidadeId(dto: { CODFILIAL: number }): string {
+  return String(dto.CODFILIAL);
+}
+
+function nomeDaUnidade(dto: { UNIDADE?: string; FILIAL?: string; CODFILIAL: number }): string {
+  const nome = dto.UNIDADE?.trim() || dto.FILIAL?.trim();
+  return nome ? `${nome} · filial ${dto.CODFILIAL}` : `Filial ${dto.CODFILIAL}`;
 }
 
 function salaId(dto: ApiSalaDto): string {
@@ -58,24 +65,27 @@ function chaveSubturma(codTurma: string, idPerlet: number): string {
   return `${codTurma}|${idPerlet}`;
 }
 
-function registrarUnidade(
-  unidadesMap: Map<string, Unidade>,
-  dto: { UNIDADE?: string; FILIAL?: string; CODFILIAL: number },
-): void {
-  const nome = nomeUnidade(dto);
-  const id = slugify(nome);
-  if (!id || unidadesMap.has(id)) return;
-  unidadesMap.set(id, {
-    id,
-    nome,
-    cor: CORES_UNIDADE[unidadesMap.size % CORES_UNIDADE.length],
+/** As unidades (uma por filial) em ordem de nome e de filial, cada uma com a sua cor. */
+function unidadesDasSalas(salasDto: ApiSalaDto[]): Unidade[] {
+  const porFilial = new Map<number, ApiSalaDto>();
+  salasDto.forEach((dto) => {
+    if (!porFilial.has(dto.CODFILIAL)) porFilial.set(dto.CODFILIAL, dto);
   });
+  const comparador = new Intl.Collator('pt-BR', { sensitivity: 'base' });
+  return [...porFilial.values()]
+    .sort((a, b) => comparador.compare(nomeUnidade(a), nomeUnidade(b)) || a.CODFILIAL - b.CODFILIAL)
+    .map((dto, i) => ({
+      id: unidadeId(dto),
+      nome: nomeDaUnidade(dto),
+      cor: CORES_UNIDADE[i % CORES_UNIDADE.length],
+      codFilial: dto.CODFILIAL,
+    }));
 }
 
 function criarSala(dto: ApiSalaDto): Sala {
   return {
     id: salaId(dto),
-    unidadeId: slugify(nomeUnidade(dto)),
+    unidadeId: unidadeId(dto),
     nome: dto.SALA,
     tipo: dto.TIPOSALA,
     andar: (dto.ANDAR ?? '').trim(),
@@ -116,9 +126,6 @@ export function fundirSalasEApi(
   const filiaisDoUsuario = new Set(salasDto.map((dto) => dto.CODFILIAL));
   const semSala = turmasXSalasDto.filter((dto) => !temSala(dto) && filiaisDoUsuario.has(dto.CODFILIAL));
   const turmasDasFiliais = turmasDto.filter((dto) => filiaisDoUsuario.has(dto.CODFILIAL));
-
-  const unidadesMap = new Map<string, Unidade>();
-  salasDto.forEach((dto) => registrarUnidade(unidadesMap, dto));
 
   const salasPorId = new Map(salasDto.map((dto) => [salaId(dto), criarSala(dto)]));
 
@@ -216,7 +223,7 @@ export function fundirSalasEApi(
             codTurma: dto.CODTURMA,
             idPerlet: dto.IDPERLET,
             codFilial: dto.CODFILIAL,
-            unidadeId: slugify(nomeUnidade(dto)),
+            unidadeId: unidadeId(dto),
             nome: dto.TURMA ?? dto.CODTURMA,
             turno,
             alunos: dto.OCUPACAO,
@@ -226,5 +233,5 @@ export function fundirSalasEApi(
     })
     .filter((t): t is TurmaLivre => t !== null);
 
-  return { unidades: Array.from(unidadesMap.values()), salas: Array.from(salasPorId.values()), turmasLivres };
+  return { unidades: unidadesDasSalas(salasDto), salas: Array.from(salasPorId.values()), turmasLivres };
 }

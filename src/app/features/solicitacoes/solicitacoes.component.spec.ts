@@ -40,11 +40,11 @@ const pedido = (codSolicitacao: number, codFilial: number, codSala: string, stat
   dataDecisao: null,
 });
 
-// CASJ com as filiais 2, 13 e 16 (uma unidade só, pelo nome; a 16 sem pedidos) e a Sul com a 6.
+// Cada filial é uma unidade: CASJ · filial 2, 13 e 16 (a 16 sem pedidos) e Sul · filial 6.
 const SALAS = [sala(2, 'CASJ', '17'), sala(13, 'CASJ', '5'), sala(16, 'CASJ', '40'), sala(6, 'Sul', '1')];
 const PEDIDOS = [pedido(1, 2, '17', 'P'), pedido(2, 2, '17', 'A'), pedido(3, 13, '5', 'P'), pedido(4, 6, '1', 'R')];
 
-describe('SolicitacoesComponent: fila por filial', () => {
+describe('SolicitacoesComponent: fila por unidade', () => {
   let fixture: ComponentFixture<SolicitacoesComponent>;
 
   beforeEach(async () => {
@@ -63,7 +63,7 @@ describe('SolicitacoesComponent: fila por filial', () => {
           },
         },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
-        { provide: RegrasService, useValue: { regras: signal({ pctMaximoUtilizacao: 90, permitirExcesso: false }) } },
+        { provide: RegrasService, useValue: { regrasDaFilial: () => ({ areaPorAluno: 1.5, pctMaximoUtilizacao: 90, permitirExcesso: false }), carregarFiliais: () => {} } },
       ],
     });
     fixture = TestBed.createComponent(SolicitacoesComponent);
@@ -73,7 +73,7 @@ describe('SolicitacoesComponent: fila por filial', () => {
   });
 
   const tela = () => fixture.componentInstance;
-  const fila = () => tela().solicitacoesRows().map((r) => `${r.solicitacao.salaNome} (${r.filialNome}) ${r.statusLabel}`);
+  const fila = () => tela().solicitacoesRows().map((r) => `${r.solicitacao.salaNome} (${r.unidadeNome}) ${r.statusLabel}`);
   const el = () => fixture.nativeElement as HTMLElement;
 
   it('mostra todas as solicitações, da mais nova para a mais antiga, com o status só no badge', () => {
@@ -89,44 +89,44 @@ describe('SolicitacoesComponent: fila por filial', () => {
     expect(el().querySelectorAll('.sol-badge-pulse')).toHaveLength(2);
   });
 
-  it('a filial escolhida muda a fila', () => {
-    tela().onFilialChange('13');
-    expect(fila()).toEqual(['Sala 5 (CASJ · filial 13) Pendente']);
-
-    tela().onFilialChange('2');
-    expect(fila()).toEqual(['Sala 17 (CASJ · filial 2) Aprovada', 'Sala 17 (CASJ · filial 2) Pendente']);
+  it('cada filial é uma unidade no campo Unidade, e não há mais campo Filial', () => {
+    expect(tela().unidadeOptions().map((o) => o.label)).toEqual([
+      'Todas as unidades',
+      'CASJ · filial 2',
+      'CASJ · filial 13',
+      'CASJ · filial 16',
+      'Sul · filial 6',
+    ]);
+    expect(el().querySelector('app-select[label="Filial"]')).toBeNull();
   });
 
-  it('filial sem solicitação: a fila vazia diz qual é', () => {
-    tela().onFilialChange('16');
+  it('a unidade escolhida muda a fila', () => {
+    tela().onUnidadeChange('13');
+    expect(fila()).toEqual(['Sala 5 (CASJ · filial 13) Pendente']);
+
+    tela().onUnidadeChange('2');
+    expect(fila()).toEqual(['Sala 17 (CASJ · filial 2) Aprovada', 'Sala 17 (CASJ · filial 2) Pendente']);
+
+    tela().onUnidadeChange('todas');
+    expect(fila()).toHaveLength(4);
+  });
+
+  it('unidade sem solicitação: a fila vazia diz qual é', () => {
+    tela().onUnidadeChange('16');
     fixture.detectChanges();
     expect(fila()).toEqual([]);
     expect(tela().filaVazia()).toBe('Nenhuma solicitação da CASJ · filial 16');
     expect(el().textContent).toContain('Nenhuma solicitação da CASJ · filial 16');
   });
 
-  it('a unidade também filtra a fila; a filial de outra unidade volta para "Todas"', () => {
-    tela().onFilialChange('13');
-    tela().onUnidadeChange('sul');
-    expect(tela().filial()).toBe('todas');
-    expect(fila()).toEqual(['Sala 1 (Sul · filial 6) Recusada']);
-
-    tela().onUnidadeChange('casj');
-    expect(fila()).toEqual([
-      'Sala 5 (CASJ · filial 13) Pendente',
-      'Sala 17 (CASJ · filial 2) Aprovada',
-      'Sala 17 (CASJ · filial 2) Pendente',
-    ]);
-  });
-
-  it('no formulário, as salas de várias filiais levam o nome da filial; numa filial só, não', () => {
+  it('no formulário, as salas de várias unidades levam o nome da unidade; numa unidade só, não', () => {
     expect(tela().salaOptions().map((o) => o.label)).toEqual([
       'Sala 17 · CASJ · filial 2',
       'Sala 5 · CASJ · filial 13',
       'Sala 40 · CASJ · filial 16',
       'Sala 1 · Sul · filial 6',
     ]);
-    tela().onFilialChange('13');
+    tela().onUnidadeChange('13');
     expect(tela().salaOptions().map((o) => o.label)).toEqual(['Sala 5']);
   });
 });

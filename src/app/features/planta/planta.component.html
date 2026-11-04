@@ -1,8 +1,6 @@
 <div class="planta-page">
   <div class="planta-filters">
-    <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />
-    <app-select label="Filial" [ngModel]="filial()" (ngModelChange)="onFilialChange($event)" [options]="filialOptions()" />
-    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" [carregando]="carregando()" />
+    <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" [carregando]="carregando()" />
     <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="onSegmentoChange($event)" [options]="segmentoOptions()" />
     <app-select label="Série" [ngModel]="serie()" (ngModelChange)="onSerieChange($event)" [options]="serieOptions()" />
     <app-select label="Sala" [ngModel]="sala()?.id ?? ''" (ngModelChange)="onSalaChange($event)" [options]="salaOptions()" />
@@ -31,6 +29,13 @@
           <div>
             <div class="planta-nome">{{ sala()!.nome }}</div>
             <div class="planta-meta">{{ sala()!.tipo }} · {{ sala()!.area }} m²</div>
+            <div class="planta-limite" [class.planta-limite--acima]="acimaDoLimite()">
+              <span class="material-icons planta-limite-icon" aria-hidden="true">rule</span>
+              {{ limiteLabel() }}
+              @if (acimaDoLimite()) {
+                · já tem {{ capacidade() }}
+              }
+            </div>
           </div>
           <app-badge [tone]="statusInfo().tone">{{ statusInfo().label }}</app-badge>
         </div>
@@ -46,6 +51,16 @@
             <span class="planta-legend-item">
               <span class="planta-legend-dot planta-legend-dot--espaco"><span class="material-icons planta-legend-icon">add</span></span>Espaço disponível
             </span>
+            @if (temAcimaDoLimite()) {
+              <span class="planta-legend-item">
+                <span class="planta-legend-dot planta-legend-dot--espaco planta-desk--acima"><span class="material-icons planta-legend-icon">add</span></span>Acima do limite
+              </span>
+            }
+            @if (temBloqueado()) {
+              <span class="planta-legend-item">
+                <span class="planta-legend-dot planta-legend-dot--bloqueado"><span class="material-icons planta-legend-icon">block</span></span>Bloqueado pela regra
+              </span>
+            }
             <span class="planta-legend-item">
               <span class="planta-legend-dot planta-legend-dot--excedente"><span class="material-icons planta-legend-icon">priority_high</span></span>Acima da capacidade
             </span>
@@ -89,6 +104,7 @@
               @for (desk of deskSlots(); track desk.index) {
                 <div
                   class="planta-desk planta-desk--{{ desk.kind }}"
+                  [class.planta-desk--acima]="desk.acimaDoLimite"
                   [class.planta-desk--draggable]="desk.kind === 'vaga' && uiMode.editorMode()"
                   [title]="desk.kind === 'vaga' && uiMode.editorMode() ? 'Arraste para mover esta carteira para outra sala' : desk.tooltip"
                   [draggable]="desk.kind === 'vaga' && uiMode.editorMode()"
@@ -103,20 +119,27 @@
         </div>
       </app-card>
 
-      <app-card class="saea-card-fill" [title]="filial() === 'todas' ? 'Outras salas da unidade' : 'Outras salas da filial'">
+      <app-card class="saea-card-fill" title="Outras salas da unidade">
         <div class="planta-outras saea-scroll">
           @for (room of outrasSalas(); track room.id) {
             <div
               class="planta-outra-row"
               [class.planta-outra-row--dropzone]="arrastando()"
               [class.planta-outra-row--droptarget]="dropAlvoId() === room.id"
+              [class.planta-outra-row--cheia]="arrastando() && room.cabem < 1"
+              [attr.title]="arrastando() && room.cabem < 1 ? room.nome + ' está no limite da regra de ocupação' : null"
               (dragover)="onOutraSalaDragOver(room.id, $event)"
               (dragleave)="onOutraSalaDragLeave(room.id)"
               (drop)="onOutraSalaDrop(room.id, $event)"
             >
               <div>
                 <div class="planta-outra-nome">{{ room.nome }}</div>
-                <div class="planta-outra-meta">{{ room.tipo }} · {{ room.ocupadas }} de {{ room.carteiras }} carteiras ocupadas</div>
+                <div class="planta-outra-meta">
+                  {{ room.tipo }} · {{ room.ocupadas }} de {{ room.carteiras }} carteiras ocupadas
+                  @if (room.limite !== null) {
+                    · limite {{ room.limite }}
+                  }
+                </div>
               </div>
               <div class="planta-outra-actions">
                 <app-badge [tone]="room.statusInfo.tone">{{ room.statusInfo.label }}</app-badge>
@@ -180,11 +203,15 @@
               <button
                 type="button"
                 class="transfer-qty-btn"
-                [disabled]="transferQuantidade() >= vagasNaSalaAtual()"
+                [disabled]="transferQuantidade() >= transferMaximo()"
                 (click)="transferQuantidadeMais()"
               >+</button>
             </div>
           </div>
+
+          @if (transferAvisoLimite(); as aviso) {
+            <app-alert [tone]="aviso.tone">{{ aviso.text }}</app-alert>
+          }
         }
 
         @if (transferStep() === 2 && transferPreview(); as prev) {
@@ -234,7 +261,7 @@
       <div class="transfer-foot">
         @if (transferStep() === 1) {
           <app-button variant="ghost" (clicked)="fecharTransferModal()">Cancelar</app-button>
-          <app-button variant="primary" [disabled]="!transferDestinoId()" (clicked)="transferAvancar()">Continuar</app-button>
+          <app-button variant="primary" [disabled]="!podeAvancarTransfer()" (clicked)="transferAvancar()">Continuar</app-button>
         }
         @if (transferStep() === 2) {
           <app-button variant="ghost" (clicked)="transferVoltar()">Voltar</app-button>

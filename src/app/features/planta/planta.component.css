@@ -290,6 +290,23 @@
   color: var(--saea-ink-faint);
   border: 1px dashed var(--saea-border);
 }
+/* Espaço até a capacidade que a regra de ocupação não deixa usar (% máximo de utilização). */
+.planta-desk--bloqueado {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--saea-chip-bg) 0 4px,
+    transparent 4px 8px
+  );
+  color: var(--saea-ink-faint);
+  border: 1px solid var(--saea-border);
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+/* Acima do limite da regra: a filial deixa exceder, ou a sala já tinha carteiras a mais. */
+.planta-desk--acima {
+  box-shadow: inset 0 0 0 2px var(--saea-warning);
+  border-color: transparent;
+}
 
 .planta-info-row {
   display: flex;
@@ -351,6 +368,28 @@
   color: var(--saea-ink-faint);
   border: 1px dashed var(--saea-border);
 }
+.planta-legend-dot--bloqueado {
+  background: repeating-linear-gradient(-45deg, var(--saea-chip-bg) 0 3px, transparent 3px 6px);
+  color: var(--saea-ink-faint);
+  border: 1px solid var(--saea-border);
+}
+
+/* "Limite de 15 carteiras (50% de 30)", embaixo do nome da sala. */
+.planta-limite {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+.planta-limite-icon {
+  font-size: 14px;
+}
+.planta-limite--acima {
+  color: var(--saea-warning);
+  font-weight: 600;
+}
 
 /*
  * A altura vem do card (.saea-card-fill). Declara flex + overflow aqui junto:
@@ -393,6 +432,14 @@
   background: var(--saea-chip-bg);
   border-style: solid;
   border-color: var(--saea-primary-strong);
+}
+/* No limite da regra de ocupação: não é zona de drop (vale nos dois layouts). */
+.planta-outra-row.planta-outra-row--cheia,
+:host-context(.saea-shell--lateral) .planta-outra-row.planta-outra-row--cheia {
+  border-style: dashed;
+  border-color: var(--saea-border);
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 /*
  * Layout "Barra lateral": as outras salas viram linhas de lista, com divisória embaixo.

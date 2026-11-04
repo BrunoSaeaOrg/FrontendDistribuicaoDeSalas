@@ -5,16 +5,16 @@
 
   <div class="regras-row">
     <app-card class="regras-card saea-carregavel" title="Regras de ocupação">
-      <!-- As filiais do seletor vêm das salas: sem elas a lista fica vazia. -->
+      <!-- As unidades do seletor vêm das salas: sem elas a lista fica vazia. -->
       <app-carregando [ativo]="regrasService.carregando() || salasService.trocandoAno()" texto="Carregando as regras..." />
       <div class="regras-form">
         <app-select
-          label="Filial"
-          [options]="filialOptions()"
+          label="Unidade"
+          [options]="unidadeOptions()"
           [ngModel]="codFilial()"
           (ngModelChange)="codFilial.set($event)"
           [disabled]="uiMode.readOnlyMode()"
-          helper="As regras são gravadas na filial selecionada."
+          helper="As regras são gravadas na unidade selecionada."
         />
         <app-input
           label="Área por pessoa (m²)"
@@ -38,12 +38,14 @@
           [disabled]="uiMode.readOnlyMode()"
           (checkedChange)="regrasService.setPermitirExcesso($event)"
         />
+        <!-- Com "Permitir exceder" ligado, a observação é obrigatória: é o porquê de as salas poderem passar do limite. -->
         <app-input
-          label="Observações"
+          [label]="regrasService.regras().permitirExcesso ? 'Observações (obrigatória)' : 'Observações'"
           [ngModel]="regrasService.obs()"
           (ngModelChange)="regrasService.setObs($event)"
           [disabled]="uiMode.readOnlyMode()"
-          placeholder="Motivo da alteração (opcional)"
+          [placeholder]="regrasService.regras().permitirExcesso ? 'Por que as salas podem passar do limite?' : 'Motivo da alteração (opcional)'"
+          [error]="regrasService.faltaObs() && uiMode.editorMode() ? 'Obrigatória quando é permitido exceder o limite.' : ''"
         />
         @if (uiMode.editorMode()) {
           <div class="regras-actions">

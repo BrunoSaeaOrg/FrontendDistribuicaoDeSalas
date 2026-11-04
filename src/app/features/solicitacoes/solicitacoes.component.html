@@ -6,10 +6,9 @@
   <div class="sol-grid" [class.sol-grid--so-fila]="!uiMode.editorMode()">
     <!-- Esquerda: os filtros e, embaixo, o formulário. A fila começa na mesma altura dos filtros. -->
     <div class="sol-lado">
-      <!-- Unidade e filial valem para o formulário (as salas) e para a fila. -->
+      <!-- A unidade vale para o formulário (as salas) e para a fila. -->
       <div class="sol-filtros">
         <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />
-        <app-select label="Filial" [ngModel]="filial()" (ngModelChange)="onFilialChange($event)" [options]="filialOptions()" />
       </div>
 
       @if (uiMode.editorMode()) {
@@ -33,7 +32,6 @@
       }
     </div>
 
-    <app-card class="saea-card-fill saea-carregavel" title="Solicitações">
       <app-carregando [ativo]="carregando()" texto="Carregando as solicitações..." />
 
       @if (solicitacoesRows().length === 0) {
@@ -56,8 +54,8 @@
                   <td class="sol-data">{{ item.solicitacao.data || '—' }}</td>
                   <td>
                     <span class="sol-sala">{{ item.solicitacao.salaNome }}</span>
-                    <span class="sol-filial">
-                      <span class="sol-dot" [style.background]="item.unidadeCor"></span>{{ item.filialNome }}
+                    <span class="sol-unidade">
+                      <span class="sol-dot" [style.background]="item.unidadeCor"></span>{{ item.unidadeNome }}
                     </span>
                   </td>
                   <td class="sol-col-num sol-qtd">+{{ item.solicitacao.quantidade }}</td>
@@ -71,6 +69,6 @@
           </table>
         </div>
       }
-    </app-card>
+   
   </div>
 </div>

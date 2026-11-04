@@ -171,7 +171,7 @@ describe('fundirSalasEApi', () => {
     const r = fundirSalasEApi([sala('12')], [vinculo(outraFilial)], []);
 
     expect(r.turmasLivres).toEqual([]);
-    expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ']);
+    expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ · filial 2']);
     expect(r.salas).toHaveLength(1);
   });
 
@@ -202,6 +202,17 @@ describe('fundirSalasEApi', () => {
     const r = fundirSalasEApi([sala('12')], [], [outraFilial]);
 
     expect(r.turmasLivres).toEqual([]);
-    expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ']);
+    expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ · filial 2']);
+  });
+
+  it('cada filial é uma unidade: a CASJ com as filiais 2 e 13 vira duas, com o CODFILIAL como id', () => {
+    const t13 = turma('EF5A-M', 'Manhã', 13);
+
+    const r = fundirSalasEApi([sala('12', 13), sala('1', 2), { ...sala('3', 6), FILIAL: 'Alfa' }], [], [t13]);
+
+    expect(r.unidades.map((u) => `${u.id} ${u.nome}`)).toEqual(['6 Alfa · filial 6', '2 CASJ · filial 2', '13 CASJ · filial 13']);
+    expect(new Set(r.unidades.map((u) => u.cor)).size).toBe(3);
+    expect(r.salas.map((s) => `${s.nome} → ${s.unidadeId}`)).toEqual(['Sala 12 → 13', 'Sala 1 → 2', 'Sala 3 → 6']);
+    expect(r.turmasLivres.map((x) => x.unidadeId)).toEqual(['13']);
   });
 });

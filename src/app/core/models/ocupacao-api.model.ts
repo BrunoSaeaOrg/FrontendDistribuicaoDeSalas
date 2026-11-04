@@ -76,6 +76,12 @@ export interface ApiRegraDto {
   OBS: string;
 }
 
+/**
+ * Resposta de OC_SAL_REGRAS_SALVAR: o registro como ficou gravado no RM (sem FILIAL; o OBS só
+ * vem se o RM tiver o campo). Não há CodRetorno: sucesso é o 200.
+ */
+export type ApiRegraSalvaDto = Partial<ApiRegraDto> & { id?: string };
+
 /** Status de uma solicitacao em OC_SOLICITACOES: P = Pendente, A = Aprovada, R = Recusada. */
 export type ApiStatusSolicitacao = 'P' | 'A' | 'R';
 

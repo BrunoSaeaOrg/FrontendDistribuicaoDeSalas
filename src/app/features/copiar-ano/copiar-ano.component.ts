@@ -81,11 +81,11 @@ function chaveDoRegistro(s: ApiCopiaSalaDto): string {
 /**
  * Salas por ano: copia salas de um ano letivo para outro (ex.: 2026 → 2027), uma tela só. Ao
  * escolher os anos, a tela lê o plano (OC_SAL_COPIAR_ANO_PLANO, que só lê o RM) e lista as salas
- * de cada filial (o campo Filial deixa só uma na tela, sem reler o RM); a pessoa marca as salas (ou
+ * de cada unidade, que é uma filial do RM (o campo Unidade deixa só uma na tela, sem reler o RM); a pessoa marca as salas (ou
  * todas) e Copiar grava só as marcadas que estão na tela: o registro de
  * carteiras e capacidade da sala (OC_SAL_COPIAR_ANO_SALAS, em lotes). Depois relê o plano: o que
  * gravou vira "Igual" e o que falhou fica marcado para copiar de novo. As turmas não vão junto: as
- * de cada ano entram nas salas pela tela Salas → Turmas. A filial entra assim que tem período letivo
+ * de cada ano entram nas salas pela tela Salas → Turmas. A unidade entra assim que tem período letivo
  * no destino, com ou sem turma.
  */
 @Component({
@@ -150,7 +150,7 @@ export class CopiarAnoComponent {
     });
   }
 
-  /** Todas as filiais do plano; a tela mostra só a escolhida em `filial`. */
+  /** Todas as unidades (filiais) do plano; a tela mostra só a escolhida em `unidade`. */
   private readonly todosOsGrupos = computed<GrupoFilial[]>(() => {
     const plano = this.plano();
     if (!plano) return [];
@@ -167,6 +167,8 @@ export class CopiarAnoComponent {
 
     const linhas = [...porChave.entries()].map(([chave, registros]) => {
       const registro = registros[0];
+      // Cada filial é uma unidade: "CASJ · filial 2", o mesmo nome do campo Unidade das outras telas.
+      const unidade = registro.unidade ? `${registro.unidade} · filial ${registro.codFilial}` : `Filial ${registro.codFilial}`;
       const aGravar = registros.filter((r) => r.situacao === 'copiar' || r.situacao === 'atualizar').length;
       const erro = falhas.get(chave);
       const estado: EstadoSala = erro
@@ -180,7 +182,7 @@ export class CopiarAnoComponent {
       return {
         chave,
         codFilial: registro.codFilial,
-        unidade: registro.unidade,
+        unidade,
         andar: nomeDoAndar(registro.andar),
         nome: registro.sala || 'Sala sem nome',
         tipo: registro.tipoSala,
@@ -195,14 +197,13 @@ export class CopiarAnoComponent {
       };
     });
 
-    // Por filial; a filial cujas salas não têm período no destino vira só o motivo.
+    // Por unidade (filial); a que não tem período no destino vira só o motivo.
     const filiais = new Map<number, typeof linhas>();
     linhas.forEach((l) => filiais.set(l.codFilial, [...(filiais.get(l.codFilial) ?? []), l]));
     return [...filiais.entries()]
       .sort(([a], [b]) => a - b)
       .map(([codFilial, daFilial]) => {
-        const unidade = daFilial.find((l) => l.unidade)?.unidade ?? '';
-        const titulo = unidade ? `${unidade} · filial ${codFilial}` : `Filial ${codFilial}`;
+        const titulo = daFilial[0].unidade;
         const semPeriodo = daFilial.every((l) => l.situacoes.every((s) => s === 'sem-periodo'));
         const ambiguo = daFilial.every((l) => l.situacoes.every((s) => s === 'periodo-ambiguo'));
         if (semPeriodo || ambiguo) {
@@ -224,41 +225,41 @@ export class CopiarAnoComponent {
   });
 
   /**
-   * A filial da cópia ('' = todas). Só muda quando a pessoa escolhe: trocar os anos não mexe nela, e
-   * se a filial não tiver salas no ano de origem, a lista fica vazia com o aviso.
+   * A unidade da cópia (o CODFILIAL; '' = todas). Só muda quando a pessoa escolhe: trocar os anos não
+   * mexe nela, e se a unidade não tiver salas no ano de origem, a lista fica vazia com o aviso.
    */
-  readonly filial = signal('');
+  readonly unidade = signal('');
 
-  /** O nome de cada filial já vista num plano: a escolhida continua com nome num ano em que não aparece. */
-  private readonly nomesDasFiliais = linkedSignal<GrupoFilial[], ReadonlyMap<string, string>>({
+  /** O nome de cada unidade já vista num plano: a escolhida continua com nome num ano em que não aparece. */
+  private readonly nomesDasUnidades = linkedSignal<GrupoFilial[], ReadonlyMap<string, string>>({
     source: this.todosOsGrupos,
     computation: (grupos, anterior) =>
       new Map([...(anterior?.value ?? []), ...grupos.map((g) => [String(g.codFilial), g.titulo] as const)]),
   });
 
-  /** As filiais do plano e, se não estiver nele, a escolhida, para o campo nunca perder o valor. */
-  readonly filialOptions = computed<SelectOption[]>(() => {
-    const nomes = this.nomesDasFiliais();
+  /** As unidades do plano e, se não estiver nele, a escolhida, para o campo nunca perder o valor. */
+  readonly unidadeOptions = computed<SelectOption[]>(() => {
+    const nomes = this.nomesDasUnidades();
     const codigos = new Set(this.todosOsGrupos().map((g) => String(g.codFilial)));
-    if (this.filial()) codigos.add(this.filial());
+    if (this.unidade()) codigos.add(this.unidade());
     return [
-      { value: '', label: 'Todas as filiais' },
+      { value: '', label: 'Todas as unidades' },
       ...[...codigos]
         .sort((a, b) => Number(a) - Number(b))
         .map((c) => ({ value: c, label: nomes.get(c) ?? `Filial ${c}` })),
     ];
   });
 
-  /** O nome da filial escolhida; '' em "Todas as filiais". */
-  readonly nomeDaFilial = computed(() => {
-    const filial = this.filial();
-    return filial ? (this.nomesDasFiliais().get(filial) ?? `Filial ${filial}`) : '';
+  /** O nome da unidade escolhida; '' em "Todas as unidades". */
+  readonly nomeDaUnidade = computed(() => {
+    const unidade = this.unidade();
+    return unidade ? (this.nomesDasUnidades().get(unidade) ?? `Filial ${unidade}`) : '';
   });
 
   readonly grupos = computed<GrupoFilial[]>(() => {
-    const filial = this.filial();
+    const unidade = this.unidade();
     const grupos = this.todosOsGrupos();
-    return filial ? grupos.filter((g) => String(g.codFilial) === filial) : grupos;
+    return unidade ? grupos.filter((g) => String(g.codFilial) === unidade) : grupos;
   });
 
   private readonly linhas = computed(() => this.grupos().flatMap((g) => g.linhas));
@@ -268,7 +269,7 @@ export class CopiarAnoComponent {
   readonly temSalas = computed(() => this.linhas().length > 0);
   readonly tudoIgual = computed(() => this.temSalas() && this.selecionaveis().length === 0 && !this.uiMode.readOnlyMode());
   readonly textoTudoIgual = computed(() => {
-    const salas = this.nomeDaFilial() ? `as salas da ${this.nomeDaFilial()}` : 'as salas';
+    const salas = this.nomeDaUnidade() ? `as salas da ${this.nomeDaUnidade()}` : 'as salas';
     return `Todas ${salas} em ${this.anoDestino()} já estão iguais às de ${this.anoOrigem()}.`;
   });
 
@@ -290,10 +291,10 @@ export class CopiarAnoComponent {
     if (!this.copiando()) this.anoDestino.set(ano);
   }
 
-  /** Só filtra a lista (o plano já tem todas as filiais). As marcadas saem: o Copiar é da filial que está na tela. */
-  escolherFilial(filial: string): void {
-    if (this.copiando() || filial === this.filial()) return;
-    this.filial.set(filial);
+  /** Só filtra a lista (o plano já tem todas as unidades). As marcadas saem: o Copiar é da unidade que está na tela. */
+  escolherUnidade(unidade: string): void {
+    if (this.copiando() || unidade === this.unidade()) return;
+    this.unidade.set(unidade);
     this.selecionadas.set(new Set());
   }
 
@@ -306,7 +307,7 @@ export class CopiarAnoComponent {
     });
   }
 
-  /** O checkbox da filial marca (ou desmarca) as salas dela que têm algo a copiar. */
+  /** O checkbox da unidade marca (ou desmarca) as salas dela que têm algo a copiar. */
   marcarFilial(grupo: GrupoFilial, marcadas: boolean): void {
     this.selecionadas.update((atual) => {
       const proximas = new Set(atual);

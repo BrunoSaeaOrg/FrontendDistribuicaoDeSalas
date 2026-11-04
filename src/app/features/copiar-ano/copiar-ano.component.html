@@ -13,11 +13,11 @@
       <div class="ca-escolhas">
         <!-- Sempre na tela: sem lista ainda (lendo pela 1ª vez, anos inválidos), fica desativado. -->
         <app-select
-          class="ca-filial-escolha"
-          label="Filial"
-          [ngModel]="filial()"
-          (ngModelChange)="escolherFilial($event)"
-          [options]="filialOptions()"
+          class="ca-unidade-escolha"
+          label="Unidade"
+          [ngModel]="unidade()"
+          (ngModelChange)="escolherUnidade($event)"
+          [options]="unidadeOptions()"
           [disabled]="copiando() || !plano()"
         />
         <div class="ca-anos">
@@ -47,11 +47,11 @@
           <app-button action variant="secondary" (clicked)="tentarDeNovo()">Tentar de novo</app-button>
         </app-empty-state>
       } @else if (plano() && grupos().length === 0) {
-        @if (nomeDaFilial()) {
+        @if (nomeDaUnidade()) {
           <app-empty-state
             icon="meeting_room"
-            [title]="'Nenhuma sala da ' + nomeDaFilial() + ' em ' + anoOrigem()"
-            description="Escolha outra filial ou outro ano."
+            [title]="'Nenhuma sala da ' + nomeDaUnidade() + ' em ' + anoOrigem()"
+            description="Escolha outra unidade ou outro ano."
           />
         } @else {
           <app-empty-state icon="meeting_room" [title]="'Nenhuma sala em ' + anoOrigem()" description="Não há salas para copiar nesse ano." />

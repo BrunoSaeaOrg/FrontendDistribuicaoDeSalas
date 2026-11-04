@@ -21,7 +21,7 @@
   min-height: 420px;
 }
 
-/* Filial e anos à esquerda, Copiar à direita. */
+/* Unidade e anos à esquerda, Copiar à direita. */
 .ca-barra {
   flex-shrink: 0;
   display: flex;
@@ -43,7 +43,7 @@
   align-items: flex-end;
   gap: var(--sp-3);
 }
-.ca-filial-escolha {
+.ca-unidade-escolha {
   width: 240px;
 }
 .ca-anos app-select {
@@ -167,14 +167,14 @@
 
 /*
  * Celular: cada sala vira um bloco (marca à esquerda; nome e carteiras em cima, "andar · tipo" e
- * capacidade embaixo). A unidade sai: já está no título da filial.
+ * capacidade embaixo). A unidade sai: já está no título do grupo.
  */
 @media (max-width: 640px) {
   .ca-anos app-select {
     width: 120px;
   }
   .ca-escolhas,
-  .ca-filial-escolha {
+  .ca-unidade-escolha {
     width: 100%;
   }
   .ca-acao,

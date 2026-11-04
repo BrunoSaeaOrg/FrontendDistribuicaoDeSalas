@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RegrasService } from '../../core/services/regras.service';
-import { SalasService, TODAS_AS_FILIAIS } from '../../core/services/salas.service';
+import { SalasService } from '../../core/services/salas.service';
 import { SolicitacoesService } from '../../core/services/solicitacoes.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
 import { AlertComponent, AlertTone } from '../../shared/ui/alert/alert.component';
@@ -46,16 +46,14 @@ export class SolicitacoesComponent {
   readonly uiMode = inject(UiModeService);
 
   readonly enviando = this.solicitacoesService.enviando;
-  /** As solicitações só carregam depois das salas (precisam das filiais): o véu cobre as duas cargas. */
+  /** As solicitações só carregam depois das salas (precisam das unidades): o véu cobre as duas cargas. */
   readonly carregando = computed(() => this.solicitacoesService.loading() || this.salasService.trocandoAno());
 
   /**
-   * Unidade e filial ficam em cima do formulário, na altura da fila, e valem para as duas partes: as
-   * salas do formulário de nova solicitação e a fila. 'todas' = todas.
+   * A unidade (uma filial do RM, "CASJ · filial 2") fica em cima do formulário, na altura da fila, e
+   * vale para as duas partes: as salas do formulário de nova solicitação e a fila. 'todas' = todas.
    */
   readonly unidadeId = signal('todas');
-  /** CODFILIAL ('todas' = todas): a mesma unidade (ex.: CASJ) pode ter várias filiais. */
-  readonly filial = signal(TODAS_AS_FILIAIS);
   readonly salaId = signal('');
   readonly quantidade = signal(2);
   readonly justificativa = signal('');
@@ -65,30 +63,19 @@ export class SolicitacoesComponent {
     ...this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
   ]);
 
-  /** "CASJ · filial 2" etc.; com uma unidade escolhida, só as filiais dela. */
-  readonly filialOptions = computed<SelectOption[]>(() => this.salasService.opcoesDeFilial(this.unidadeId(), this.filial()));
-
-  /** As salas da unidade e da filial escolhidas (sem unidade, as de todas). */
+  /** As salas da unidade escolhida (sem unidade, as de todas). */
   readonly salasDaUnidade = computed(() => {
     const unidade = this.unidadeId();
-    const filial = this.filial();
-    const salas = unidade === 'todas' ? this.salasService.salas() : this.salasService.salasDaUnidade(unidade);
-    return salas.filter((s) => this.salasService.salaNaFilial(s, filial));
+    return unidade === 'todas' ? this.salasService.salas() : this.salasService.salasDaUnidade(unidade);
   });
 
-  /** O nome da filial de cada CODFILIAL ("CASJ · filial 2"). */
-  private readonly nomesDasFiliais = computed(
-    () => new Map(this.salasService.filiais().map((f) => [f.codFilial, { nome: f.nome, unidadeId: f.unidadeId }])),
-  );
-
-  /** Com salas de mais de uma filial na lista, o nome leva a filial: "Sala 1" existe em várias. */
+  /** Com salas de mais de uma unidade na lista, o nome leva a unidade: "Sala 1" existe em várias. */
   readonly salaOptions = computed<SelectOption[]>(() => {
     const salas = this.salasDaUnidade();
-    const variasFiliais = new Set(salas.map((s) => s.codFilial)).size > 1;
-    const nomes = this.nomesDasFiliais();
+    const variasUnidades = new Set(salas.map((s) => s.unidadeId)).size > 1;
     return salas.map((s) => ({
       value: s.id,
-      label: variasFiliais ? `${s.nome} · ${nomes.get(s.codFilial)?.nome ?? `filial ${s.codFilial}`}` : s.nome,
+      label: variasUnidades ? `${s.nome} · ${this.nomeDaUnidade(s.unidadeId)}` : s.nome,
     }));
   });
 
@@ -117,16 +104,20 @@ export class SolicitacoesComponent {
     return sala ? this.resultante() > this.capacidade() : false;
   });
 
+  /** As regras de ocupação da filial da sala escolhida (cada unidade tem as suas). */
+  private readonly regrasDaSala = computed(() => {
+    const sala = this.salaAtual();
+    return this.regrasService.regrasDaFilial(sala?.codFilial ?? 0);
+  });
+
   readonly quaseLotada = computed(() => {
     const sala = this.salaAtual();
     if (!sala) return false;
-    const limite = (this.regrasService.regras().pctMaximoUtilizacao ?? 90) / 100;
+    const limite = (this.regrasDaSala().pctMaximoUtilizacao ?? 90) / 100;
     return this.resultante() / this.capacidade() >= limite && this.resultante() <= this.capacidade();
   });
 
-  readonly bloqueiaSemJustificativa = computed(
-    () => this.excede() && !this.regrasService.regras().permitirExcesso,
-  );
+  readonly bloqueiaSemJustificativa = computed(() => this.excede() && !this.regrasDaSala().permitirExcesso);
 
   readonly podeEnviar = computed(() => {
     const sala = this.salaAtual();
@@ -160,10 +151,10 @@ export class SolicitacoesComponent {
     if (!this.excede() && this.quaseLotada()) {
       return {
         tone: 'warning',
-        text: `${sala.nome} ficaria em ${this.resultante()} de ${cap} carteiras, acima do limite de ${this.regrasService.regras().pctMaximoUtilizacao}% de utilização (ficaria "Quase lotada").`,
+        text: `${sala.nome} ficaria em ${this.resultante()} de ${cap} carteiras, acima do limite de ${this.regrasDaSala().pctMaximoUtilizacao}% de utilização (ficaria "Quase lotada").`,
       };
     }
-    if (this.regrasService.regras().permitirExcesso) {
+    if (this.regrasDaSala().permitirExcesso) {
       return {
         tone: 'warning',
         text: `${sala.nome} passaria de ${cap} carteiras (capacidade calculada). Informe uma justificativa para prosseguir.`,
@@ -175,56 +166,44 @@ export class SolicitacoesComponent {
     };
   });
 
-  /**
-   * As solicitações da unidade e da filial escolhidas. A unidade vem da filial: a sala do pedido
-   * pode não estar entre as salas do ano em tela, mas a filial dele é sempre conhecida.
-   */
+  /** As solicitações da unidade escolhida. */
   private readonly solicitacoesDoFiltro = computed(() => {
     const unidade = this.unidadeId();
-    const filial = this.filial();
-    const nomes = this.nomesDasFiliais();
-    return this.solicitacoesService
-      .solicitacoes()
-      .filter((s) => unidade === 'todas' || (s.unidadeId || nomes.get(s.codFilial)?.unidadeId) === unidade)
-      .filter((s) => this.salasService.salaNaFilial(s, filial));
+    const todas = this.solicitacoesService.solicitacoes();
+    return unidade === 'todas' ? todas : todas.filter((s) => s.unidadeId === unidade);
   });
 
   /** A fila, da mais nova para a mais antiga (o código cresce a cada pedido). */
-  readonly solicitacoesRows = computed(() => {
-    const nomes = this.nomesDasFiliais();
-    return [...this.solicitacoesDoFiltro()]
+  readonly solicitacoesRows = computed(() =>
+    [...this.solicitacoesDoFiltro()]
       .sort((a, b) => b.codSolicitacao - a.codSolicitacao)
       .map((s) => {
-        const filial = nomes.get(s.codFilial);
-        const unidade = this.salasService.unidade(s.unidadeId || filial?.unidadeId || '');
+        const unidade = this.salasService.unidade(s.unidadeId);
         return {
           solicitacao: s,
-          filialNome: filial?.nome ?? `Filial ${s.codFilial}`,
+          unidadeNome: unidade?.nome ?? `Filial ${s.codFilial}`,
           unidadeCor: unidade?.cor ?? 'transparent',
           statusLabel: STATUS[s.status].rotulo,
           statusTone: STATUS[s.status].tom,
           pendente: s.status === 'pendente',
         };
-      });
-  });
+      }),
+  );
 
-  /** Fila vazia: o texto diz de qual filial. */
+  /** Fila vazia: o texto diz de qual unidade. */
   readonly filaVazia = computed(() => {
-    const filial = this.filial();
-    if (filial === TODAS_AS_FILIAIS) return 'Nenhuma solicitação';
-    return `Nenhuma solicitação da ${this.nomesDasFiliais().get(Number(filial))?.nome ?? `filial ${filial}`}`;
+    const unidade = this.unidadeId();
+    return unidade === 'todas' ? 'Nenhuma solicitação' : `Nenhuma solicitação da ${this.nomeDaUnidade(unidade)}`;
   });
 
   onUnidadeChange(uid: string): void {
     this.unidadeId.set(uid);
-    if (!this.salasService.filialEhDaUnidade(this.filial(), uid)) this.filial.set(TODAS_AS_FILIAIS);
     this.salaId.set(this.salasDaUnidade()[0]?.id ?? '');
   }
 
-  /** A sala que não é da filial nova dá lugar à primeira dela. */
-  onFilialChange(filial: string): void {
-    this.filial.set(filial);
-    if (!this.salasDaUnidade().some((s) => s.id === this.salaId())) this.salaId.set(this.salasDaUnidade()[0]?.id ?? '');
+  /** "CASJ · filial 2"; a unidade sem sala no ano em tela fica pelo número da filial. */
+  private nomeDaUnidade(unidadeId: string): string {
+    return this.salasService.unidade(unidadeId)?.nome ?? `Filial ${unidadeId}`;
   }
 
   submit(): void {

@@ -7,7 +7,7 @@ import {
   SaeaTooltipDirective,
   SaeaTruncateComponent,
 } from '@sistemas-saea/saea-design-system';
-import { SalasService, TODAS_AS_FILIAIS } from '../../core/services/salas.service';
+import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
 import { nomeDoAndar, Turno, TurmaVinculada } from '../../core/models';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
@@ -157,9 +157,8 @@ export class TurmasComponent {
   private readonly confirmDialog = inject(ConfirmDialogService);
   readonly uiMode = inject(UiModeService);
 
+  /** Unidade = filial do RM ("CASJ · filial 2"); 'todas' = todas. */
   readonly unidade = signal('todas');
-  /** CODFILIAL das salas ('todas' = todas): a mesma unidade (ex.: CASJ) pode ter várias filiais. */
-  readonly filial = signal(TODAS_AS_FILIAIS);
   /** Parte do nome da sala. */
   readonly buscaSala = signal('');
   readonly segmento = signal('todas');
@@ -197,13 +196,8 @@ export class TurmasComponent {
     ...this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
   ]);
 
-  /** "CASJ · filial 2" etc.; com uma unidade escolhida, só as filiais dela (ver SalasService.opcoesDeFilial). */
-  readonly filialOptions = computed<SelectOption[]>(() => this.salasService.opcoesDeFilial(this.unidade(), this.filial()));
-
-  /** A filial escolhida que não é da unidade nova volta para "Todas"; a que é, continua. */
   selecionarUnidade(unidade: string): void {
     this.unidade.set(unidade);
-    if (!this.salasService.filialEhDaUnidade(this.filial(), unidade)) this.filial.set(TODAS_AS_FILIAIS);
   }
 
   readonly segmentoOptions = computed<SelectOption[]>(() => [
@@ -234,7 +228,6 @@ export class TurmasComponent {
 
   readonly rows = computed<TurmaRow[]>(() => {
     const unidade = this.unidade();
-    const filial = this.filial();
     const busca = this.buscaSala().trim().toLowerCase();
     const segmento = this.segmento();
     const serie = this.serie();
@@ -243,7 +236,6 @@ export class TurmasComponent {
     const abertas = this.listasAbertas();
     let list = this.salasService.salas();
     if (unidade !== 'todas') list = list.filter((s) => s.unidadeId === unidade);
-    list = list.filter((s) => this.salasService.salaNaFilial(s, filial));
     if (busca) list = list.filter((s) => s.nome.toLowerCase().includes(busca));
     // Segmento e série são das turmas: fica a sala que tem, em algum turno, uma turma que atende os dois.
     if (segmento !== 'todas' || serie !== 'todas') {

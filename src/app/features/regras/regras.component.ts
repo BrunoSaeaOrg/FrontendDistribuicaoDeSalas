@@ -37,10 +37,11 @@ export class RegrasComponent {
   private readonly toast = inject(ToastService);
   private readonly confirmDialog = inject(ConfirmDialogService);
 
+  /** A unidade escolhida: o id dela é o CODFILIAL, onde as regras são gravadas. */
   readonly codFilial = signal('');
 
   constructor() {
-    // Troca de filial recarrega as regras salvas dela no TOTVS.
+    // Troca de unidade recarrega as regras salvas dela no TOTVS.
     effect(() => {
       const filial = Number(this.codFilial());
       if (!filial) return;
@@ -48,16 +49,18 @@ export class RegrasComponent {
     });
   }
 
-  /** "CASJ · filial 2 (12 salas)": o mesmo nome de filial das outras telas. */
-  readonly filialOptions = computed<SelectOption[]>(() => [
-    { value: '', label: 'Selecione a filial...' },
-    ...this.salasService.filiais().map((f) => ({
-      value: f.codigo,
-      label: `${f.nome} (${f.salas} ${f.salas === 1 ? 'sala' : 'salas'})`,
-    })),
+  /** "CASJ · filial 2 (12 salas)": o mesmo nome de unidade das outras telas. */
+  readonly unidadeOptions = computed<SelectOption[]>(() => [
+    { value: '', label: 'Selecione a unidade...' },
+    ...this.salasService.unidades().map((u) => {
+      const salas = this.salasService.salasDaUnidade(u.id).length;
+      return { value: u.id, label: `${u.nome} (${salas} ${salas === 1 ? 'sala' : 'salas'})` };
+    }),
   ]);
 
-  readonly podeSalvar = computed(() => !!this.codFilial() && !this.regrasService.salvando());
+  readonly podeSalvar = computed(
+    () => !!this.codFilial() && !this.regrasService.salvando() && !this.regrasService.faltaObs(),
+  );
 
   onAreaChange(value: string | number): void {
     this.regrasService.setAreaPorAluno(Number(value));
