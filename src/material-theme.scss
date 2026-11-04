@@ -43,6 +43,15 @@ html[data-theme='dark'] {
   @include saea.custom-properties-dark;
 }
 
+// Layout "Barra lateral": paleta Névoa (ver _colors.scss). Os tokens ficam no shell, então só o
+// que está dentro dele muda; o Clássico e o celular continuam com os do :root.
+.saea-shell--lateral {
+  @include saea.barra-lateral-light;
+}
+html[data-theme='dark'] .saea-shell--lateral {
+  @include saea.barra-lateral-dark;
+}
+
 body {
   color-scheme: light;
   background-color: var(--saea-bg);

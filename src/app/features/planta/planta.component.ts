@@ -2,12 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { RegrasService } from '../../core/services/regras.service';
-import { SalasService } from '../../core/services/salas.service';
+import { SalasService, TODAS_AS_FILIAIS } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
 import { Turno } from '../../core/models';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
+import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
@@ -25,7 +26,7 @@ const TURNOS: Turno[] = ['manha', 'tarde'];
 @Component({
   selector: 'app-planta',
   standalone: true,
-  imports: [FormsModule, BadgeComponent, ButtonComponent, CardComponent, EmptyStateComponent, SelectComponent],
+  imports: [FormsModule, BadgeComponent, ButtonComponent, CardComponent, CarregandoComponent, EmptyStateComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './planta.component.html',
   styleUrl: './planta.component.css',
@@ -44,6 +45,8 @@ export class PlantaComponent {
   readonly unidadeId = signal(
     this.route.snapshot.queryParamMap.get('unidade') || this.salasService.unidades()[0]?.id || '',
   );
+  /** CODFILIAL ('todas' = todas): a mesma unidade (ex.: CASJ) pode ter várias filiais. */
+  readonly filial = signal(this.route.snapshot.queryParamMap.get('filial') || TODAS_AS_FILIAIS);
   readonly salaId = signal(this.route.snapshot.queryParamMap.get('sala') || '');
   readonly turno = signal<Turno>('manha');
   readonly segmento = signal('todas');
@@ -52,8 +55,13 @@ export class PlantaComponent {
   readonly unidadeOptions = computed<SelectOption[]>(() =>
     this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
   );
+  /** "CASJ · filial 2" etc., só as da unidade escolhida. */
+  readonly filialOptions = computed<SelectOption[]>(() => this.salasService.opcoesDeFilial(this.unidadeId(), this.filial()));
   /** Ano letivo das turmas: os anos vêm do RM, e trocar recarrega as turmas daquele ano. */
   readonly anoLetivo = this.salasService.anoLetivo;
+  /** O ano escolhido ainda está vindo do RM: spinner no campo do ano e véu sobre o conteúdo. */
+  readonly carregando = this.salasService.loading;
+  readonly trocandoAno = this.salasService.trocandoAno;
   readonly anoLetivoOptions = computed<SelectOption[]>(() =>
     this.salasService.anosLetivos().map((ano) => ({ value: ano, label: ano })),
   );
@@ -85,8 +93,10 @@ export class PlantaComponent {
     );
   };
 
+  /** As salas da unidade (e da filial, se escolhida) que atendem ao segmento e à série. */
   readonly salasDaUnidade = computed(() => {
-    let list = this.salasService.salasDaUnidade(this.unidadeId());
+    const filial = this.filial();
+    let list = this.salasService.salasDaUnidade(this.unidadeId()).filter((s) => this.salasService.salaNaFilial(s, filial));
     if (this.segmento() !== 'todas' || this.serie() !== 'todas') {
       list = list.filter((s) => this.matchesFiltro(s.id));
     }
@@ -303,8 +313,14 @@ export class PlantaComponent {
 
   onUnidadeChange(uid: string): void {
     this.unidadeId.set(uid);
-    const first = this.salasService.salasDaUnidade(uid)[0];
-    this.salaId.set(first ? first.id : '');
+    if (!this.salasService.filialEhDaUnidade(this.filial(), uid)) this.filial.set(TODAS_AS_FILIAIS);
+    this.salaId.set(this.salasDaUnidade()[0]?.id ?? '');
+  }
+
+  /** A sala que não é da filial nova dá lugar à primeira dela. */
+  onFilialChange(filial: string): void {
+    this.filial.set(filial);
+    if (!this.salasDaUnidade().some((s) => s.id === this.salaId())) this.salaId.set(this.salasDaUnidade()[0]?.id ?? '');
   }
 
   onSalaChange(id: string): void {

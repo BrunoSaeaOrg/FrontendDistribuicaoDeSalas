@@ -5,22 +5,70 @@
   min-height: 0;
 }
 
+/*
+ * Duas colunas na altura toda: à esquerda os filtros e, embaixo, o formulário; à direita a fila,
+ * que começa na mesma altura dos filtros.
+ */
 .sol-page {
-  display: grid;
-  grid-template-columns: 1fr 1.3fr;
+  display: flex;
+  flex-direction: column;
   gap: var(--sp-5);
-  /* stretch (nao start): os dois cards compartilham a mesma altura,
-     igual ao menu lateral — mesmo padrao usado em .planta-grid. */
+  flex: 1;
+  min-height: 0;
+}
+
+.sol-lado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-width: 0;
+  min-height: 0;
+}
+/* O formulário fica com o resto da altura da coluna. */
+.sol-lado > app-card {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.sol-filtros {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+/* Só leitura: sem formulário, os filtros ficam numa linha acima da fila, sem esticar. */
+.sol-grid--so-fila .sol-filtros {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 260px));
+}
+
+.sol-grid {
+  display: grid;
+  /* A fila tem mais colunas: fica com a maior parte da largura. */
+  grid-template-columns: minmax(280px, 1fr) 2fr;
+  gap: var(--sp-5);
+  /* stretch (não start): os dois cards compartilham a mesma altura, como em .planta-grid. */
   align-items: stretch;
   flex: 1;
   min-height: 0;
 }
-.sol-page > app-card {
+/* Só leitura: sem formulário, a fila ocupa a largura toda. */
+.sol-grid--so-fila {
+  grid-template-columns: 1fr;
+}
+.sol-grid > app-card {
   min-height: 0;
 }
 
+/*
+ * Uma coluna só e sem altura presa à tela: os cards ficam do tamanho do conteúdo e a página rola
+ * (presos, o formulário e a fila eram cortados).
+ */
 @media (max-width: 880px) {
-  .sol-page {
+  .sol-page,
+  .sol-grid {
+    flex: none;
+  }
+  .sol-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -31,70 +79,86 @@
   gap: var(--sp-4);
 }
 
-.sol-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
+/*
+ * A tabela rola por dentro do card (.saea-card-fill). Os dois eixos junto com o flex: um
+ * overflow-x isolado anularia o overflow-y de .saea-scroll.
+ */
+.sol-tabela-wrap {
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: auto;
   overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: var(--sp-2);
 }
 
-.sol-item {
-  border: 1px solid var(--saea-border);
-  border-radius: var(--radius-md);
-  padding: var(--sp-4);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-/* Layout "Barra lateral": os pedidos viram linhas de lista, com divisória embaixo. */
-:host-context(.saea-shell--lateral) .sol-item {
-  border-color: transparent transparent var(--saea-border);
-  border-radius: 0;
-  padding: var(--sp-3) 0;
-}
-
-.sol-item-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
-.sol-item-title {
-  font-weight: 600;
-  color: var(--saea-ink);
+.sol-tabela {
+  width: 100%;
+  border-collapse: collapse;
   font-size: var(--fs-sm);
 }
+.sol-tabela thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.sol-tabela th {
+  text-align: left;
+  padding: var(--sp-3) var(--sp-2);
+  color: var(--saea-ink-faint);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--saea-surface);
+  /* Linha de baixo como sombra: borda de célula não acompanha o cabeçalho preso ao rolar. */
+  box-shadow: inset 0 -1px 0 var(--saea-border);
+}
+.sol-tabela td {
+  padding: var(--sp-3) var(--sp-2);
+  border-bottom: 1px solid var(--saea-border);
+  vertical-align: middle;
+}
+.sol-tabela .sol-col-num {
+  text-align: center;
+}
 
-.sol-item-unidade {
+.sol-data {
+  color: var(--saea-ink-soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.sol-sala {
+  display: block;
+  font-weight: 600;
+  color: var(--saea-ink);
+  white-space: nowrap;
+}
+.sol-filial {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-xs);
   color: var(--saea-ink-soft);
   white-space: nowrap;
 }
-
-.sol-item-dot {
+.sol-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-  display: inline-block;
 }
-
-.sol-item-just {
-  font-size: var(--fs-xs);
+.sol-qtd {
+  font-weight: 700;
+  color: var(--saea-ink);
+  font-variant-numeric: tabular-nums;
+}
+/* Justificativa numa linha só; a inteira fica na dica. */
+.sol-just {
+  max-width: 0;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--saea-ink-soft);
-}
-
-.sol-item-date {
-  font-size: var(--fs-2xs);
-  color: var(--saea-ink-faint);
 }
 
 .sol-badge-pulse {
@@ -114,5 +178,62 @@
   }
   50% {
     opacity: 0.45;
+  }
+}
+
+/*
+ * Celular: cada pedido vira um bloco (sala e status em cima, justificativa inteira no meio, data e
+ * carteiras embaixo).
+ */
+@media (max-width: 640px) {
+  .sol-filtros,
+  .sol-grid--so-fila .sol-filtros {
+    grid-template-columns: 1fr;
+  }
+
+  .sol-tabela,
+  .sol-tabela tbody {
+    display: block;
+  }
+  .sol-tabela thead {
+    display: none;
+  }
+  .sol-tabela tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'sala status'
+      'just just'
+      'data qtd';
+    gap: 4px var(--sp-3);
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--saea-border);
+  }
+  .sol-tabela td {
+    padding: 0;
+    border: 0;
+  }
+  .sol-tabela td:nth-child(1) {
+    grid-area: data;
+    font-size: var(--fs-xs);
+  }
+  .sol-tabela td:nth-child(2) {
+    grid-area: sala;
+  }
+  .sol-tabela td:nth-child(3) {
+    grid-area: qtd;
+  }
+  .sol-tabela td:nth-child(3)::after {
+    content: ' carteiras';
+    font-weight: 400;
+    color: var(--saea-ink-faint);
+  }
+  .sol-tabela td:nth-child(4) {
+    grid-area: just;
+    max-width: none;
+    white-space: normal;
+  }
+  .sol-tabela td:nth-child(5) {
+    grid-area: status;
   }
 }

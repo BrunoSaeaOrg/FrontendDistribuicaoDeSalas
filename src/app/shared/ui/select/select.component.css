@@ -54,6 +54,21 @@
   pointer-events: none;
 }
 
+/* No lugar da seta enquanto o valor escolhido carrega. Sem transform: a animação já gira. */
+.saea-select-spinner {
+  position: absolute;
+  right: var(--sp-4);
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border: 2px solid var(--saea-chip-bg);
+  border-top-color: var(--saea-primary-strong);
+  border-radius: 50%;
+  animation: saea-spin 700ms linear infinite;
+  pointer-events: none;
+}
+
 .saea-field-error {
   font-size: var(--fs-xs);
   color: var(--saea-danger);

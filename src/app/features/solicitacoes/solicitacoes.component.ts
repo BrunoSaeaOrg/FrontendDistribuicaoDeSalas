@@ -1,16 +1,25 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RegrasService } from '../../core/services/regras.service';
-import { SalasService } from '../../core/services/salas.service';
+import { SalasService, TODAS_AS_FILIAIS } from '../../core/services/salas.service';
 import { SolicitacoesService } from '../../core/services/solicitacoes.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
 import { AlertComponent, AlertTone } from '../../shared/ui/alert/alert.component';
-import { BadgeComponent } from '../../shared/ui/badge/badge.component';
+import { StatusSolicitacao } from '../../core/models';
+import { BadgeComponent, BadgeTone } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
+import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
+
+/** O status de cada pedido só aparece no badge (o de pendente pisca). */
+const STATUS: Record<StatusSolicitacao, { rotulo: string; tom: BadgeTone }> = {
+  pendente: { rotulo: 'Pendente', tom: 'warning' },
+  aprovada: { rotulo: 'Aprovada', tom: 'success' },
+  recusada: { rotulo: 'Recusada', tom: 'danger' },
+};
 
 @Component({
   selector: 'app-solicitacoes',
@@ -21,6 +30,7 @@ import { SelectComponent, SelectOption } from '../../shared/ui/select/select.com
     BadgeComponent,
     ButtonComponent,
     CardComponent,
+    CarregandoComponent,
     EmptyStateComponent,
     InputComponent,
     SelectComponent,
@@ -36,21 +46,51 @@ export class SolicitacoesComponent {
   readonly uiMode = inject(UiModeService);
 
   readonly enviando = this.solicitacoesService.enviando;
+  /** As solicitações só carregam depois das salas (precisam das filiais): o véu cobre as duas cargas. */
+  readonly carregando = computed(() => this.solicitacoesService.loading() || this.salasService.trocandoAno());
 
-  readonly unidadeId = signal(this.salasService.unidades()[0]?.id ?? '');
+  /**
+   * Unidade e filial ficam em cima do formulário, na altura da fila, e valem para as duas partes: as
+   * salas do formulário de nova solicitação e a fila. 'todas' = todas.
+   */
+  readonly unidadeId = signal('todas');
+  /** CODFILIAL ('todas' = todas): a mesma unidade (ex.: CASJ) pode ter várias filiais. */
+  readonly filial = signal(TODAS_AS_FILIAIS);
   readonly salaId = signal('');
   readonly quantidade = signal(2);
   readonly justificativa = signal('');
 
-  readonly unidadeOptions = computed<SelectOption[]>(() =>
-    this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
+  readonly unidadeOptions = computed<SelectOption[]>(() => [
+    { value: 'todas', label: 'Todas as unidades' },
+    ...this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
+  ]);
+
+  /** "CASJ · filial 2" etc.; com uma unidade escolhida, só as filiais dela. */
+  readonly filialOptions = computed<SelectOption[]>(() => this.salasService.opcoesDeFilial(this.unidadeId(), this.filial()));
+
+  /** As salas da unidade e da filial escolhidas (sem unidade, as de todas). */
+  readonly salasDaUnidade = computed(() => {
+    const unidade = this.unidadeId();
+    const filial = this.filial();
+    const salas = unidade === 'todas' ? this.salasService.salas() : this.salasService.salasDaUnidade(unidade);
+    return salas.filter((s) => this.salasService.salaNaFilial(s, filial));
+  });
+
+  /** O nome da filial de cada CODFILIAL ("CASJ · filial 2"). */
+  private readonly nomesDasFiliais = computed(
+    () => new Map(this.salasService.filiais().map((f) => [f.codFilial, { nome: f.nome, unidadeId: f.unidadeId }])),
   );
 
-  readonly salasDaUnidade = computed(() => this.salasService.salasDaUnidade(this.unidadeId()));
-
-  readonly salaOptions = computed<SelectOption[]>(() =>
-    this.salasDaUnidade().map((s) => ({ value: s.id, label: s.nome })),
-  );
+  /** Com salas de mais de uma filial na lista, o nome leva a filial: "Sala 1" existe em várias. */
+  readonly salaOptions = computed<SelectOption[]>(() => {
+    const salas = this.salasDaUnidade();
+    const variasFiliais = new Set(salas.map((s) => s.codFilial)).size > 1;
+    const nomes = this.nomesDasFiliais();
+    return salas.map((s) => ({
+      value: s.id,
+      label: variasFiliais ? `${s.nome} · ${nomes.get(s.codFilial)?.nome ?? `filial ${s.codFilial}`}` : s.nome,
+    }));
+  });
 
   private readonly salaAtual = computed(() => {
     const id = this.salaId() || this.salasDaUnidade()[0]?.id;
@@ -135,24 +175,56 @@ export class SolicitacoesComponent {
     };
   });
 
-  readonly solicitacoesRows = computed(() =>
-    this.solicitacoesService.solicitacoes().map((s) => {
-      const unidade = this.salasService.unidade(s.unidadeId);
-      return {
-        solicitacao: s,
-        unidadeNome: unidade?.nome ?? '',
-        unidadeCor: unidade?.cor ?? 'transparent',
-        statusLabel: { pendente: 'Pendente', aprovada: 'Aprovada', recusada: 'Recusada' }[s.status],
-        statusTone: ({ pendente: 'warning', aprovada: 'success', recusada: 'danger' } as const)[s.status],
-        pendente: s.status === 'pendente',
-      };
-    }),
-  );
+  /**
+   * As solicitações da unidade e da filial escolhidas. A unidade vem da filial: a sala do pedido
+   * pode não estar entre as salas do ano em tela, mas a filial dele é sempre conhecida.
+   */
+  private readonly solicitacoesDoFiltro = computed(() => {
+    const unidade = this.unidadeId();
+    const filial = this.filial();
+    const nomes = this.nomesDasFiliais();
+    return this.solicitacoesService
+      .solicitacoes()
+      .filter((s) => unidade === 'todas' || (s.unidadeId || nomes.get(s.codFilial)?.unidadeId) === unidade)
+      .filter((s) => this.salasService.salaNaFilial(s, filial));
+  });
+
+  /** A fila, da mais nova para a mais antiga (o código cresce a cada pedido). */
+  readonly solicitacoesRows = computed(() => {
+    const nomes = this.nomesDasFiliais();
+    return [...this.solicitacoesDoFiltro()]
+      .sort((a, b) => b.codSolicitacao - a.codSolicitacao)
+      .map((s) => {
+        const filial = nomes.get(s.codFilial);
+        const unidade = this.salasService.unidade(s.unidadeId || filial?.unidadeId || '');
+        return {
+          solicitacao: s,
+          filialNome: filial?.nome ?? `Filial ${s.codFilial}`,
+          unidadeCor: unidade?.cor ?? 'transparent',
+          statusLabel: STATUS[s.status].rotulo,
+          statusTone: STATUS[s.status].tom,
+          pendente: s.status === 'pendente',
+        };
+      });
+  });
+
+  /** Fila vazia: o texto diz de qual filial. */
+  readonly filaVazia = computed(() => {
+    const filial = this.filial();
+    if (filial === TODAS_AS_FILIAIS) return 'Nenhuma solicitação';
+    return `Nenhuma solicitação da ${this.nomesDasFiliais().get(Number(filial))?.nome ?? `filial ${filial}`}`;
+  });
 
   onUnidadeChange(uid: string): void {
     this.unidadeId.set(uid);
-    const first = this.salasService.salasDaUnidade(uid)[0];
-    this.salaId.set(first ? first.id : '');
+    if (!this.salasService.filialEhDaUnidade(this.filial(), uid)) this.filial.set(TODAS_AS_FILIAIS);
+    this.salaId.set(this.salasDaUnidade()[0]?.id ?? '');
+  }
+
+  /** A sala que não é da filial nova dá lugar à primeira dela. */
+  onFilialChange(filial: string): void {
+    this.filial.set(filial);
+    if (!this.salasDaUnidade().some((s) => s.id === this.salaId())) this.salaId.set(this.salasDaUnidade()[0]?.id ?? '');
   }
 
   submit(): void {

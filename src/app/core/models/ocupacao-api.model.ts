@@ -55,9 +55,15 @@ export interface ApiTurmaDto {
   OCUPACAO: number;
 }
 
-/** Ano letivo do usuário (OC_SAL_ANOS, que lê API.OC.SAL.ANO no RM). */
+/**
+ * Período letivo do usuário (OC_SAL_ANOS, que lê API.OC.SAL.ANO no RM): uma linha por período, então
+ * o mesmo ANO se repete quando há mais de um período nele (um por filial).
+ */
 export interface ApiAnoLetivoDto {
+  IDPERLET?: number | null;
   ANO: string;
+  /** Só se a consulta trouxer a coluna: o back repassa o que vier. */
+  CODFILIAL?: number | null;
 }
 
 export interface ApiRegraDto {
@@ -95,7 +101,7 @@ export interface ApiSolicitacaoDto {
 }
 
 /**
- * Situação de uma sala ou turma na cópia de ano letivo (OC_SAL_COPIAR_ANO_*; ver CopiaAnoSituacao
+ * Situação de uma sala na cópia de ano letivo (OC_SAL_COPIAR_ANO_*; ver CopiaAnoSituacao
  * no backend). Como ApiSolicitacaoDto, os DTOs da cópia são classes C#: vêm em camelCase.
  */
 export type ApiSituacaoCopiaAno =
@@ -104,11 +110,6 @@ export type ApiSituacaoCopiaAno =
   | 'ja-existe'
   | 'sem-periodo'
   | 'periodo-ambiguo'
-  | 'vincular'
-  | 'mover'
-  | 'liberar'
-  | 'ja-vinculada'
-  | 'sem-turma'
   | 'criada'
   | 'atualizada'
   | 'falhou';
@@ -132,32 +133,12 @@ export interface ApiCopiaSalaDto {
 }
 
 /**
- * Uma subturma no plano: `sala` é a dela na origem (a que terá no destino) e `salaNoDestino`, a que
- * tem hoje; vazio = sem sala. Com "vincular", "mover" e "liberar", é o request do salvar da turma do
- * destino (no "liberar", a sala vai vazia).
+ * Plano da cópia: só as salas (o registro de carteiras e capacidade). As turmas não vão junto: as
+ * de cada ano entram nas salas pela tela Salas → Turmas. O período do destino é o da filial no ano
+ * de destino (API.OC.SAL.ANO traz os IDPERLET), com ou sem turma.
  */
-export interface ApiCopiaTurmaDto {
-  codFilial: number;
-  unidade: string;
-  codTurma: string;
-  turma: string;
-  sala: string;
-  codBloco: string;
-  codPredio: string;
-  codSala: string;
-  salaNoDestino: string;
-  idPerletDestino: number | null;
-  situacao: ApiSituacaoCopiaAno;
-}
-
 export interface ApiCopiaAnoPlanoDto {
   salas: ApiCopiaSalaDto[];
-  turmas: ApiCopiaTurmaDto[];
-  /**
-   * true: o período do destino veio de API.OC.SAL.PLETIVO. false: essa consulta não existe no RM e
-   * o período saiu das turmas do ano, então filial sem turma no destino fica de fora.
-   */
-  periodosDoRm: boolean;
 }
 
 export interface ApiCopiaSalaResultadoDto {

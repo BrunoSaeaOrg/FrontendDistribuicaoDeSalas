@@ -7,12 +7,13 @@ import {
   SaeaTooltipDirective,
   SaeaTruncateComponent,
 } from '@sistemas-saea/saea-design-system';
-import { SalasService } from '../../core/services/salas.service';
+import { SalasService, TODAS_AS_FILIAIS } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
 import { nomeDoAndar, Turno, TurmaVinculada } from '../../core/models';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
+import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { ConfirmDialogService } from '../../shared/ui/confirm-dialog/confirm-dialog.service';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
@@ -137,6 +138,7 @@ function emChips<T>(lista: T[], aberta: boolean, rotulo: (item: T) => string): L
     BadgeComponent,
     ButtonComponent,
     CardComponent,
+    CarregandoComponent,
     EmptyStateComponent,
     InputComponent,
     MultiSelectComponent,
@@ -156,6 +158,8 @@ export class TurmasComponent {
   readonly uiMode = inject(UiModeService);
 
   readonly unidade = signal('todas');
+  /** CODFILIAL das salas ('todas' = todas): a mesma unidade (ex.: CASJ) pode ter várias filiais. */
+  readonly filial = signal(TODAS_AS_FILIAIS);
   /** Parte do nome da sala. */
   readonly buscaSala = signal('');
   readonly segmento = signal('todas');
@@ -163,6 +167,9 @@ export class TurmasComponent {
 
   /** Ano letivo dos vínculos: os anos vêm do RM, e trocar recarrega as turmas daquele ano. */
   readonly anoLetivo = this.salasService.anoLetivo;
+  /** O ano escolhido ainda está vindo do RM: spinner no campo do ano e véu sobre o conteúdo. */
+  readonly carregando = this.salasService.loading;
+  readonly trocandoAno = this.salasService.trocandoAno;
   readonly anoLetivoOptions = computed<SelectOption[]>(() =>
     this.salasService.anosLetivos().map((ano) => ({ value: ano, label: ano })),
   );
@@ -189,6 +196,15 @@ export class TurmasComponent {
     { value: 'todas', label: 'Todas as unidades' },
     ...this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
   ]);
+
+  /** "CASJ · filial 2" etc.; com uma unidade escolhida, só as filiais dela (ver SalasService.opcoesDeFilial). */
+  readonly filialOptions = computed<SelectOption[]>(() => this.salasService.opcoesDeFilial(this.unidade(), this.filial()));
+
+  /** A filial escolhida que não é da unidade nova volta para "Todas"; a que é, continua. */
+  selecionarUnidade(unidade: string): void {
+    this.unidade.set(unidade);
+    if (!this.salasService.filialEhDaUnidade(this.filial(), unidade)) this.filial.set(TODAS_AS_FILIAIS);
+  }
 
   readonly segmentoOptions = computed<SelectOption[]>(() => [
     { value: 'todas', label: 'Todos os segmentos' },
@@ -218,6 +234,7 @@ export class TurmasComponent {
 
   readonly rows = computed<TurmaRow[]>(() => {
     const unidade = this.unidade();
+    const filial = this.filial();
     const busca = this.buscaSala().trim().toLowerCase();
     const segmento = this.segmento();
     const serie = this.serie();
@@ -226,6 +243,7 @@ export class TurmasComponent {
     const abertas = this.listasAbertas();
     let list = this.salasService.salas();
     if (unidade !== 'todas') list = list.filter((s) => s.unidadeId === unidade);
+    list = list.filter((s) => this.salasService.salaNaFilial(s, filial));
     if (busca) list = list.filter((s) => s.nome.toLowerCase().includes(busca));
     // Segmento e série são das turmas: fica a sala que tem, em algum turno, uma turma que atende os dois.
     if (segmento !== 'todas' || serie !== 'todas') {

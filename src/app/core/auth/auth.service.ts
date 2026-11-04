@@ -3,7 +3,6 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, finalize, from, map, Observable, of, shareReplay, switchMap, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { LayoutService } from '../services/layout.service';
 import { ToastService } from '../services/toast.service';
 import { encryptLoginPayload, importRsaPublicKeyFromSpki, isLoginEncryptionSupported } from './login-encryption.util';
 import {
@@ -23,7 +22,6 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
-  private readonly layout = inject(LayoutService);
   private readonly baseUrl = `${environment.apiUrl}/auth`;
 
   /** Renovação em andamento: várias chamadas com 401 ao mesmo tempo esperam a mesma. */
@@ -46,11 +44,8 @@ export class AuthService {
 
     return this.performEncryptedLogin(usuario, senha).pipe(
       tap((response) => {
-        if (response.success) {
-          this.persistSession(response);
-          // Todo login começa no Clássico; a troca pelo avatar vale até a pessoa sair.
-          this.layout.escolher('padrao');
-        }
+        // O layout e o tema do colaborador entram pelo PreferenciasService, que vê o usuário mudar.
+        if (response.success) this.persistSession(response);
       }),
     );
   }

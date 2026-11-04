@@ -7,6 +7,7 @@ import { UiModeService } from '../../core/services/ui-mode.service';
 import { AlertComponent } from '../../shared/ui/alert/alert.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
+import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { ConfirmDialogService } from '../../shared/ui/confirm-dialog/confirm-dialog.service';
 import { InputComponent } from '../../shared/ui/input/input.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
@@ -20,6 +21,7 @@ import { SwitchComponent } from '../../shared/ui/switch/switch.component';
     AlertComponent,
     ButtonComponent,
     CardComponent,
+    CarregandoComponent,
     InputComponent,
     SelectComponent,
     SwitchComponent,
@@ -38,7 +40,7 @@ export class RegrasComponent {
   readonly codFilial = signal('');
 
   constructor() {
-    // Troca de unidade recarrega as regras salvas dessa filial no TOTVS.
+    // Troca de filial recarrega as regras salvas dela no TOTVS.
     effect(() => {
       const filial = Number(this.codFilial());
       if (!filial) return;
@@ -46,11 +48,12 @@ export class RegrasComponent {
     });
   }
 
+  /** "CASJ · filial 2 (12 salas)": o mesmo nome de filial das outras telas. */
   readonly filialOptions = computed<SelectOption[]>(() => [
-    { value: '', label: 'Selecione a unidade...' },
+    { value: '', label: 'Selecione a filial...' },
     ...this.salasService.filiais().map((f) => ({
-      value: String(f.codFilial),
-      label: `${f.unidadeNome} — filial ${f.codFilial} (${f.salas} salas)`,
+      value: f.codigo,
+      label: `${f.nome} (${f.salas} ${f.salas === 1 ? 'sala' : 'salas'})`,
     })),
   ]);
 

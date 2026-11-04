@@ -1,0 +1,44 @@
+/* Sem caixa própria: o véu se posiciona pelo pai (.saea-carregavel). */
+:host {
+  display: contents;
+}
+
+.saea-carregando {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--saea-surface) 78%, transparent);
+  backdrop-filter: blur(1px);
+  font-family: var(--font-body);
+  animation: saea-carregando-entra var(--dur-short) var(--ease-out);
+}
+
+.saea-carregando-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--saea-chip-bg);
+  border-top-color: var(--saea-primary-strong);
+  border-radius: 50%;
+  animation: saea-spin 700ms linear infinite;
+}
+
+.saea-carregando-texto {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--saea-ink-soft);
+}
+
+@keyframes saea-carregando-entra {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

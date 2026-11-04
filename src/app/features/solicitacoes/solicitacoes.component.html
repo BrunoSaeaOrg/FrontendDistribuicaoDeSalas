@@ -1,46 +1,76 @@
 <div class="sol-page">
-  @if (uiMode.editorMode()) {
-    <app-card class="saea-card-fill" title="Nova solicitação" subtitle="Peça a inclusão de novas carteiras em uma sala">
-      <div class="sol-form">
-        <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />
-        <app-select label="Sala" [ngModel]="salaSelecionadaId()" (ngModelChange)="salaId.set($event)" [options]="salaOptions()" />
-        <app-input label="Quantidade de carteiras" type="number" [ngModel]="quantidade()" (ngModelChange)="quantidade.set($event)" />
-        <app-input label="Justificativa" placeholder="Motivo do pedido..." [ngModel]="justificativa()" (ngModelChange)="justificativa.set($event)" />
-        <app-alert [tone]="alert().tone">{{ alert().text }}</app-alert>
-        <div>
-          <app-button
-            variant="primary"
-            [disabled]="!podeEnviar()"
-            [loading]="enviando()"
-            loadingText="Enviando..."
-            (clicked)="submit()"
-          >Enviar solicitação</app-button>
-        </div>
-      </div>
-    </app-card>
-  }
   @if (uiMode.readOnlyMode()) {
     <app-alert tone="primary">Somente coordenadores podem solicitar novas carteiras. Fale com a coordenação da unidade.</app-alert>
   }
 
-  <app-card class="saea-card-fill" title="Solicitações">
-    @if (solicitacoesRows().length === 0) {
-      <app-empty-state icon="inbox" title="Nenhuma solicitação" />
-    }
-    <div class="sol-list">
-      @for (item of solicitacoesRows(); track item.solicitacao.id) {
-        <div class="sol-item">
-          <div class="sol-item-top">
-            <span class="sol-item-title">{{ item.solicitacao.salaNome }} · +{{ item.solicitacao.quantidade }} carteiras</span>
-            <app-badge [tone]="item.statusTone" [class.sol-badge-pulse]="item.pendente">{{ item.statusLabel }}</app-badge>
+  <div class="sol-grid" [class.sol-grid--so-fila]="!uiMode.editorMode()">
+    <!-- Esquerda: os filtros e, embaixo, o formulário. A fila começa na mesma altura dos filtros. -->
+    <div class="sol-lado">
+      <!-- Unidade e filial valem para o formulário (as salas) e para a fila. -->
+      <div class="sol-filtros">
+        <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />
+        <app-select label="Filial" [ngModel]="filial()" (ngModelChange)="onFilialChange($event)" [options]="filialOptions()" />
+      </div>
+
+      @if (uiMode.editorMode()) {
+        <app-card class="saea-card-fill" title="Nova solicitação" subtitle="Peça a inclusão de novas carteiras em uma sala">
+          <div class="sol-form">
+            <app-select label="Sala" [ngModel]="salaSelecionadaId()" (ngModelChange)="salaId.set($event)" [options]="salaOptions()" />
+            <app-input label="Quantidade de carteiras" type="number" [ngModel]="quantidade()" (ngModelChange)="quantidade.set($event)" />
+            <app-input label="Justificativa" placeholder="Motivo do pedido..." [ngModel]="justificativa()" (ngModelChange)="justificativa.set($event)" />
+            <app-alert [tone]="alert().tone">{{ alert().text }}</app-alert>
+            <div>
+              <app-button
+                variant="primary"
+                [disabled]="!podeEnviar()"
+                [loading]="enviando()"
+                loadingText="Enviando..."
+                (clicked)="submit()"
+              >Enviar solicitação</app-button>
+            </div>
           </div>
-          <span class="sol-item-unidade">
-            <span class="sol-item-dot" [style.background]="item.unidadeCor"></span>{{ item.unidadeNome }}
-          </span>
-          <div class="sol-item-just">{{ item.solicitacao.justificativa }}</div>
-          <div class="sol-item-date">{{ item.solicitacao.data }}</div>
-        </div>
+        </app-card>
       }
     </div>
-  </app-card>
+
+    <app-card class="saea-card-fill saea-carregavel" title="Solicitações">
+      <app-carregando [ativo]="carregando()" texto="Carregando as solicitações..." />
+
+      @if (solicitacoesRows().length === 0) {
+        <app-empty-state icon="inbox" [title]="filaVazia()" />
+      } @else {
+        <div class="sol-tabela-wrap saea-scroll">
+          <table class="sol-tabela">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Sala</th>
+                <th class="sol-col-num">Carteiras</th>
+                <th>Justificativa</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of solicitacoesRows(); track item.solicitacao.id) {
+                <tr>
+                  <td class="sol-data">{{ item.solicitacao.data || '—' }}</td>
+                  <td>
+                    <span class="sol-sala">{{ item.solicitacao.salaNome }}</span>
+                    <span class="sol-filial">
+                      <span class="sol-dot" [style.background]="item.unidadeCor"></span>{{ item.filialNome }}
+                    </span>
+                  </td>
+                  <td class="sol-col-num sol-qtd">+{{ item.solicitacao.quantidade }}</td>
+                  <td class="sol-just" [title]="item.solicitacao.justificativa">{{ item.solicitacao.justificativa || '—' }}</td>
+                  <td>
+                    <app-badge [tone]="item.statusTone" [class.sol-badge-pulse]="item.pendente">{{ item.statusLabel }}</app-badge>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </app-card>
+  </div>
 </div>

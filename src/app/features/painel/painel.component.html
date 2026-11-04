@@ -1,7 +1,8 @@
 <div class="painel-page">
   <div class="painel-filters">
-    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" />
-    <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="unidade.set($event)" [options]="unidadeOptions()" />
+    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" [carregando]="carregando()" />
+    <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="selecionarUnidade($event)" [options]="unidadeOptions()" />
+    <app-select label="Filial" [ngModel]="filial()" (ngModelChange)="filial.set($event)" [options]="filialOptions()" />
     <app-select label="Turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)" [options]="turnoOptions" />
     <app-select label="Status" [ngModel]="status()" (ngModelChange)="status.set($event)" [options]="statusOptions" />
     <app-input label="Buscar sala" placeholder="Nome da sala..." [ngModel]="busca()" (ngModelChange)="busca.set($event)" />
@@ -23,7 +24,8 @@
     </div>
   }
 
-  <app-card class="saea-card-fill">
+  <app-card class="saea-card-fill saea-carregavel">
+    <app-carregando [ativo]="trocandoAno()" [texto]="'Carregando ' + anoLetivo() + '...'" />
     @if (semSalasNoAno()) {
       <app-empty-state
         icon="event_busy"
@@ -37,16 +39,19 @@
         <table class="painel-table">
           <thead>
             <tr>
-              <th>Unidade</th>
-              <th>Andar</th>
-              <th>Sala</th>
-              <th>Tipo</th>
-              <th>Carteiras</th>
-              <th>Capacidade</th>
-              <th>Alunos</th>
-              <th>Status</th>
-              <th>Turmas</th>
-              <th></th>
+              <th rowspan="2">Unidade</th>
+              <th rowspan="2">Andar</th>
+              <th rowspan="2">Sala</th>
+              <th rowspan="2">Tipo</th>
+              <th rowspan="2">Carteiras</th>
+              <th rowspan="2">Capacidade</th>
+              <th colspan="2" class="painel-th-grupo">Alunos</th>
+              <th rowspan="2">Turmas</th>
+              <th rowspan="2"></th>
+            </tr>
+            <tr>
+              <th class="painel-th-turno">Manhã</th>
+              <th class="painel-th-turno">Tarde</th>
             </tr>
           </thead>
           <tbody>
@@ -62,14 +67,21 @@
                 <td class="painel-cell-soft">{{ row.tipo }}</td>
                 <td>{{ row.carteiras }}</td>
                 <td>{{ row.capacidade }}</td>
-                <td [title]="row.alunosTitle">{{ row.alunos }}</td>
-                <td><app-badge [tone]="row.statusTone">{{ row.statusLabel }}</app-badge></td>
+                @for (p of row.periodos; track p.turno) {
+                  <td
+                    class="painel-cell-periodo"
+                    [class.painel-cell-periodo--fora]="turnoFiltrado() && turnoFiltrado() !== p.turno"
+                    [title]="p.dica"
+                  >{{ p.alunos ?? '—' }}</td>
+                }
                 <td>
+                  <!-- O status de cada turno é a cor da letra; o rótulo diz o mesmo em texto (leitor de tela). -->
                   <div class="painel-chips">
                     @for (chip of row.turnoChips; track chip.turno) {
                       <span
-                        class="painel-turno-chip"
-                        [class.painel-turno-chip--filled]="chip.hasTurma"
+                        class="painel-turno-chip painel-turno-chip--{{ chip.tom ?? 'livre' }}"
+                        role="img"
+                        [attr.aria-label]="chip.rotulo"
                         [title]="chip.turma"
                       >{{ chip.label }}</span>
                     }

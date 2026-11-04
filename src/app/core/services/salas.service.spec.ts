@@ -1,4 +1,95 @@
-import { serieDaTurma } from './salas.service';
+import { signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { of, Subject } from 'rxjs';
+import { AuthService } from '../auth/auth.service';
+import { OcupacaoApiService } from './ocupacao-api.service';
+import { RegrasService } from './regras.service';
+import { SalasService, serieDaTurma } from './salas.service';
+
+describe('SalasService.trocandoAno', () => {
+  it('cobre a tela só enquanto carrega um ano que ainda não está nela', () => {
+    // Cada consulta fica pendente até responder() (as três de uma carga respondem juntas).
+    const pendentes: Subject<unknown[]>[] = [];
+    const pendente = () => {
+      const resposta = new Subject<unknown[]>();
+      pendentes.push(resposta);
+      return resposta;
+    };
+    const responder = () =>
+      pendentes.splice(0).forEach((resposta) => {
+        resposta.next([]);
+        resposta.complete();
+      });
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: OcupacaoApiService,
+          useValue: {
+            getSalasDoAno: vi.fn(pendente),
+            getTurmasXSalas: vi.fn(pendente),
+            getTurmas: vi.fn(pendente),
+            getAnosLetivos: vi.fn(() => of([{ ANO: '2026' }, { ANO: '2027' }])),
+          },
+        },
+        { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
+        { provide: RegrasService, useValue: {} },
+      ],
+    });
+    const salas = TestBed.inject(SalasService);
+    salas.selecionarAno('2026');
+    TestBed.tick();
+
+    // Primeira carga: ainda não há ano nenhum na tela.
+    expect(salas.trocandoAno()).toBe(true);
+    responder();
+    expect(salas.trocandoAno()).toBe(false);
+
+    salas.selecionarAno('2027');
+    expect(salas.trocandoAno()).toBe(true);
+    responder();
+    expect(salas.trocandoAno()).toBe(false);
+
+    // Recarregar o mesmo ano (depois de gravar) não cobre a tela; só o campo do ano mostra.
+    salas.carregar();
+    expect(salas.loading()).toBe(true);
+    expect(salas.trocandoAno()).toBe(false);
+  });
+});
+
+describe('SalasService.anosLetivos', () => {
+  it('vem dos períodos letivos, com cada ano uma vez só', () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'table').mockImplementation(() => {});
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: OcupacaoApiService,
+          useValue: {
+            getSalasDoAno: vi.fn(() => of([])),
+            getTurmasXSalas: vi.fn(() => of([])),
+            getTurmas: vi.fn(() => of([])),
+            // Um por período: 2026 tem três (um por filial), 2027 tem um.
+            getAnosLetivos: vi.fn(() =>
+              of([
+                { IDPERLET: 221, ANO: '2026' },
+                { IDPERLET: 222, ANO: '2026' },
+                { IDPERLET: 223, ANO: '2026' },
+                { IDPERLET: 236, ANO: '2027' },
+              ]),
+            ),
+          },
+        },
+        { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
+        { provide: RegrasService, useValue: {} },
+      ],
+    });
+    const salas = TestBed.inject(SalasService);
+    TestBed.tick();
+
+    expect(salas.anosLetivos()).toEqual(['2026', '2027']);
+    vi.restoreAllMocks();
+  });
+});
 
 describe('serieDaTurma', () => {
   it('junta as grafias do mesmo ano do Fundamental, com turma e turno', () => {

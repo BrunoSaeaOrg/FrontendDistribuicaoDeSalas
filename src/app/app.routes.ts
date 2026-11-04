@@ -47,11 +47,13 @@ export const routes: Routes = [
     data: { breadcrumb: 'Mapa de Ocupação' },
   },
   {
-    path: 'copiar-ano',
+    path: 'salas-por-ano',
     canActivate: [authGuard],
     loadComponent: () => import('./features/copiar-ano/copiar-ano.component').then((m) => m.CopiarAnoComponent),
-    data: { breadcrumb: 'Copiar ano letivo' },
+    data: { breadcrumb: 'Salas por ano' },
   },
+  // Endereço antigo da tela (Copiar ano letivo).
+  { path: 'copiar-ano', redirectTo: 'salas-por-ano', pathMatch: 'full' },
   // Protótipo com dados fictícios (ver o componente). Desligado no environment, a rota não existe
   // e o endereço cai no '**' (Painel).
   ...(environment.telaVincularAlunos

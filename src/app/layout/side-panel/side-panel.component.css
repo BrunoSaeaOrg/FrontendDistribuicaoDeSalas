@@ -180,31 +180,28 @@
 }
 
 /*
- * Layout "Barra lateral" (LAYOUTS.md no handoff do design system): bloco cinza (--saea-bg)
- * sobre a página clara, colado à esquerda e ao pé da tela, com o canto superior direito bem
- * arredondado. Itens só com ícone e nome; o ativo fica numa pílula em tom claro do azul SAEA,
- * com ícone azul e texto escuro (no escuro, pílula marinho com ícone e texto brancos).
+ * Layout "Barra lateral" (LAYOUTS.md no handoff do design system), paleta Névoa: bloco
+ * (--saea-menu-bg) sobre a página clara, colado à esquerda e ao pé da tela, com o canto superior
+ * direito bem arredondado. Itens só com ícone e nome; o ativo vira uma aba na cor da página, como
+ * se o menu se abrisse para o conteúdo. As cores, claras e escuras, são os tokens --saea-menu-*
+ * do shell lateral (_colors.scss, barra-lateral-light/dark); por isso não há regras de escuro aqui.
  */
 .saea-side--lateral {
   /* Começa mais abaixo do cabeçalho, na linha do topo do conteúdo, e desce até o pé da tela. */
   margin-top: var(--sp-10);
   height: calc(100% - var(--sp-10));
   position: static;
-  background: var(--saea-bg);
+  background: var(--saea-menu-bg);
   /*
    * O cabeçalho e o conteúdo são uma folha só que contorna o menu (a curva é o canto interno
    * dela). A sombra que essa folha projeta nas bordas de cima e da direita põe o menu atrás.
    */
-  box-shadow:
-    inset 0 12px 16px -12px rgba(15, 23, 42, 0.14),
-    inset -12px 0 16px -12px rgba(15, 23, 42, 0.14);
+  box-shadow: var(--saea-menu-sombra);
   border-radius: 0 44px 0 0;
   padding: var(--sp-6) var(--sp-4) var(--sp-4) var(--sp-5);
 }
-:host-context([data-theme='dark']) .saea-side--lateral {
-  box-shadow:
-    inset 0 12px 16px -12px rgba(0, 0, 0, 0.4),
-    inset -12px 0 16px -12px rgba(0, 0, 0, 0.4);
+.saea-side--lateral .saea-side-title {
+  color: var(--saea-menu-ink);
 }
 .saea-side--lateral:not(.saea-side--collapsed) {
   width: 248px;
@@ -225,10 +222,7 @@
   padding: var(--sp-1);
 }
 .saea-side--lateral .saea-side-item:not(.saea-side-item--active):hover {
-  background: color-mix(in srgb, var(--saea-primary) 10%, transparent);
-}
-:host-context([data-theme='dark']) .saea-side--lateral .saea-side-item:not(.saea-side-item--active):hover {
-  background: color-mix(in srgb, var(--saea-primary) 35%, transparent);
+  background: var(--saea-menu-hover);
 }
 .saea-side--lateral .saea-side-item-description {
   display: none;
@@ -243,24 +237,20 @@
   font-size: 22px;
   width: 22px;
   height: 22px;
-  color: var(--saea-ink-soft);
+  color: var(--saea-menu-icone);
 }
 .saea-side--lateral .saea-side-item-label {
   font-weight: 500;
+  color: var(--saea-menu-ink);
 }
 .saea-side--lateral .saea-side-item--active {
-  background: color-mix(in srgb, var(--saea-primary) 18%, transparent);
+  background: var(--saea-menu-ativo-bg);
+  box-shadow: var(--saea-menu-ativo-sombra);
 }
 .saea-side--lateral .saea-side-item--active .saea-side-item-label {
   font-weight: 700;
+  color: var(--saea-menu-ativo-ink);
 }
 .saea-side--lateral .saea-side-item--active .saea-side-item-icon mat-icon {
-  color: var(--saea-primary-strong);
-}
-:host-context([data-theme='dark']) .saea-side--lateral .saea-side-item--active {
-  background: var(--saea-primary);
-}
-:host-context([data-theme='dark']) .saea-side--lateral .saea-side-item--active .saea-side-item-label,
-:host-context([data-theme='dark']) .saea-side--lateral .saea-side-item--active .saea-side-item-icon mat-icon {
-  color: #fff;
+  color: var(--saea-menu-ativo-icone);
 }

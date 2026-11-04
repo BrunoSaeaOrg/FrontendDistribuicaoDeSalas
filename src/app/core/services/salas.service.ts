@@ -1,6 +1,8 @@
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
-import { finalize, firstValueFrom, forkJoin } from 'rxjs';
+import { catchError, concatMap, finalize, firstValueFrom, forkJoin, from, map, of, toArray } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { AuthService } from '../auth/auth.service';
+import { linhasDeAlunos, logAlunosPorSala } from '../debug/log-alunos-por-sala';
 import { fundirSalasEApi } from '../mock/ocupacao-adapter';
 import {
   Sala,
@@ -64,6 +66,25 @@ export function motivoDaFalha(err: unknown): string {
 /** Turma a vincular; com `salaAtual`, ela está em outra sala e será movida. */
 export type TurmaParaVincular = Pick<TurmaLivre, 'codTurma' | 'idPerlet' | 'nome'> & { salaAtual?: string };
 
+/** Valor do campo Filial que não filtra nada. */
+export const TODAS_AS_FILIAIS = 'todas';
+
+/**
+ * Uma filial das salas do ano. A unidade vem do nome da filial no RM, então a mesma unidade (ex.:
+ * CASJ) pode ter várias filiais: o campo Filial é que separa uma da outra.
+ */
+export interface FilialDoAno {
+  codFilial: number;
+  /** CODFILIAL como texto: o valor no campo Filial. */
+  codigo: string;
+  unidadeId: string;
+  unidadeNome: string;
+  /** "CASJ · filial 2". */
+  nome: string;
+  /** Quantas salas do ano são dela. */
+  salas: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SalasService {
   private readonly ocupacaoApi = inject(OcupacaoApiService);
@@ -85,11 +106,19 @@ export class SalasService {
   private usuarioCarregado: string | null = null;
   /** Numera as cargas: a resposta de um ano trocado no meio do caminho é descartada. */
   private carga = 0;
+  /** Ano dos dados que estão na tela (o da última carga que chegou); null antes da primeira. */
+  private readonly _anoCarregado = signal<string | null>(null);
 
   readonly unidades = this._unidades.asReadonly();
   readonly salas = this._salas.asReadonly();
   readonly turmasLivres = this._turmasLivres.asReadonly();
   readonly loading = this._loading.asReadonly();
+  /**
+   * Carregando um ano que ainda não está na tela (a primeira carga ou a troca de ano): as telas
+   * cobrem o conteúdo, senão os dados do ano anterior pareceriam os do novo. Recarregar o mesmo
+   * ano (depois de gravar) não cobre nada; só o campo do ano mostra que está carregando.
+   */
+  readonly trocandoAno = computed(() => this._loading() && this._anoCarregado() !== this._anoLetivo());
   readonly error = this._error.asReadonly();
   readonly gravando = this._gravando.asReadonly();
   /** Alguma gravação em andamento: trava vincular/liberar nas outras células também. */
@@ -128,18 +157,26 @@ export class SalasService {
     return Array.from(set).sort();
   });
 
-  /** Filiais distintas (uma unidade pode ter várias, ex: CASJ = 2, 13 e 16). */
-  readonly filiais = computed(() => {
-    const mapa = new Map<number, { codFilial: number; unidadeNome: string; salas: number }>();
+  /**
+   * Filiais distintas das salas do ano, em ordem de CODFILIAL (uma unidade pode ter várias, ex:
+   * CASJ = 2, 13 e 16). Alimenta o campo Filial das telas (opcoesDeFilial), as Regras e a carga
+   * das Solicitações.
+   */
+  readonly filiais = computed<FilialDoAno[]>(() => {
+    const mapa = new Map<number, FilialDoAno>();
     this._salas().forEach((s) => {
       const atual = mapa.get(s.codFilial);
       if (atual) {
         atual.salas++;
         return;
       }
+      const unidadeNome = this.unidade(s.unidadeId)?.nome ?? s.unidadeId;
       mapa.set(s.codFilial, {
         codFilial: s.codFilial,
-        unidadeNome: this.unidade(s.unidadeId)?.nome ?? s.unidadeId,
+        codigo: String(s.codFilial),
+        unidadeId: s.unidadeId,
+        unidadeNome,
+        nome: unidadeNome ? `${unidadeNome} · filial ${s.codFilial}` : `Filial ${s.codFilial}`,
         salas: 1,
       });
     });
@@ -202,16 +239,11 @@ export class SalasService {
     ]).subscribe({
       next: ([salasDto, turmasXSalasDto, turmasDto]) => {
         if (carga !== this.carga) return;
-        // O backend repassa a resposta de API.OC.SAL.PERIO sem mexer: é a consulta crua.
-        console.log(`[API.OC.SAL.PERIO] ano ${ano} (usuário ${codUsuario}): ${salasDto.length} salas`, salasDto);
         const { unidades, salas, turmasLivres } = fundirSalasEApi(salasDto, turmasXSalasDto, turmasDto);
-        console.log(`[SalasService] carga do ano ${ano} (usuário ${codUsuario})`, {
-          rm: { 'API.OC.SAL.PERIO': salasDto, 'API.OC.SAL.TURSA': turmasXSalasDto, 'API.OC.SAL.TURMA': turmasDto },
-          montado: { unidades, salas, turmasLivres },
-        });
         this._unidades.set(unidades);
         this._salas.set(salas);
         this._turmasLivres.set(turmasLivres);
+        this._anoCarregado.set(ano);
         this._loading.set(false);
       },
       error: (err) => {
@@ -237,20 +269,48 @@ export class SalasService {
   private carregarAnos(codUsuario: string): void {
     this.ocupacaoApi.getAnosLetivos(codUsuario).subscribe({
       next: (anos) => {
-        // Já tratada pelo backend (só ANO, sem repetição, em ordem). A resposta crua de
-        // API.OC.SAL.ANO sai no log do backend (OcupacaoSalasService.GetAnosLetivosAsync).
-        console.log(`[API.OC.SAL.ANO] usuário ${codUsuario}: ${anos.length} anos`, anos);
-        const lista = anos.map((a) => a.ANO);
+        // DEBUG temporário: os períodos letivos como vieram do back (um por período, com o IDPERLET).
+        if (!environment.production) {
+          console.log('[debug] OC_SAL_ANOS — períodos letivos (IDPERLET, ANO e as colunas que a consulta trouxer):', anos);
+          console.table(anos);
+        }
+        // O back já manda em ordem; o ano se repete quando tem mais de um período (um por filial).
+        const lista = [...new Set(anos.map((a) => a.ANO))];
         if (lista.length === 0) return;
         this._anosLetivos.set(lista);
         if (!lista.includes(this._anoLetivo())) {
           const corrente = Number(anoCorrente());
           this.selecionarAno(lista.filter((a) => Number(a) <= corrente).at(-1) ?? lista[0]);
         }
+        // DEBUG temporário: alunos de cada sala e turma, em todos os anos e filiais.
+        if (!environment.production) this.logarAlunosPorSala(codUsuario, lista);
       },
       // Sem a lista, o seletor fica só com o ano em uso.
       error: () => {},
     });
+  }
+
+  /**
+   * DEBUG temporário: lê as turmas e os vínculos de cada ano, um ano por vez para não somar carga
+   * no RM, e mostra tudo junto no console (ver log-alunos-por-sala.ts). Roda uma vez por login.
+   */
+  private logarAlunosPorSala(codUsuario: string, anos: string[]): void {
+    from(anos)
+      .pipe(
+        concatMap((ano) =>
+          forkJoin([
+            this.ocupacaoApi.getTurmas(codUsuario, ano),
+            this.ocupacaoApi.getTurmasXSalas(codUsuario, ano),
+            // Só para o nome das salas: sem ele, a sala aparece pelos códigos.
+            this.ocupacaoApi.getSalasDoAno(codUsuario, ano).pipe(catchError(() => of([]))),
+          ]).pipe(map(([turmas, vinculos, salas]) => ({ ano, linhas: linhasDeAlunos(turmas, vinculos, salas) }))),
+        ),
+        toArray(),
+      )
+      .subscribe({
+        next: logAlunosPorSala,
+        error: (err) => console.warn('[alunos por sala] Não foi possível montar o log:', err),
+      });
   }
 
   unidade(id: string): Unidade | undefined {
@@ -274,6 +334,35 @@ export class SalasService {
 
   salasDaUnidade(unidadeId: string): Sala[] {
     return this._salas().filter((s) => s.unidadeId === unidadeId);
+  }
+
+  /**
+   * Opções do campo Filial: "Todas as filiais" e as da unidade (sem unidade, ou com "todas", as de
+   * todas). A escolhida que não está entre elas (ex.: o ano novo não tem essa filial) entra também,
+   * para o campo não trocar de valor sozinho: a lista de salas é que fica vazia.
+   */
+  opcoesDeFilial(unidadeId: string, escolhida: string): { value: string; label: string }[] {
+    const todas = this.filiais();
+    const daUnidade = todas.filter((f) => !unidadeId || unidadeId === 'todas' || f.unidadeId === unidadeId);
+    const opcoes = daUnidade.map((f) => ({ codigo: f.codigo, nome: f.nome }));
+    if (escolhida !== TODAS_AS_FILIAIS && !opcoes.some((f) => f.codigo === escolhida)) {
+      opcoes.push({ codigo: escolhida, nome: todas.find((f) => f.codigo === escolhida)?.nome ?? `Filial ${escolhida}` });
+    }
+    return [
+      { value: TODAS_AS_FILIAIS, label: 'Todas as filiais' },
+      ...opcoes.sort((a, b) => Number(a.codigo) - Number(b.codigo)).map((f) => ({ value: f.codigo, label: f.nome })),
+    ];
+  }
+
+  /** A filial é de uma sala da unidade. "Todas as filiais" e a unidade "todas" valem sempre. */
+  filialEhDaUnidade(filial: string, unidadeId: string): boolean {
+    if (filial === TODAS_AS_FILIAIS || !unidadeId || unidadeId === 'todas') return true;
+    return this._salas().some((s) => String(s.codFilial) === filial && s.unidadeId === unidadeId);
+  }
+
+  /** A sala está na filial escolhida ("Todas as filiais" aceita qualquer uma). */
+  salaNaFilial(sala: Pick<Sala, 'codFilial'>, filial: string): boolean {
+    return filial === TODAS_AS_FILIAIS || String(sala.codFilial) === filial;
   }
 
   turmasLivresPara(sala: Sala, turno: Turno): TurmaLivre[] {
@@ -313,19 +402,27 @@ export class SalasService {
     return this.turmasNoTurno(sala, turno).reduce((total, t) => total + t.alunos, 0);
   }
 
-  /** Status a partir da ocupacao (maior turno) sobre uma capacidade de referencia. */
-  private statusPorCapacidade(sala: Sala, cap: number): StatusInfo {
-    const maiorOcupacao = Math.max(0, ...(['manha', 'tarde'] as Turno[]).map((t) => this.alunosNoTurno(sala, t)));
-    const ratio = cap > 0 ? maiorOcupacao / cap : 0;
+  /** Alunos do turno; sem turno, os do turno mais cheio (o que conta para lotar a sala). */
+  alunosNaSala(sala: Sala, turno?: Turno): number {
+    if (turno) return this.alunosNoTurno(sala, turno);
+    return Math.max(0, ...(['manha', 'tarde'] as Turno[]).map((t) => this.alunosNoTurno(sala, t)));
+  }
+
+  /** Status a partir da ocupacao (do turno, ou do maior turno) sobre uma capacidade de referencia. */
+  private statusPorCapacidade(sala: Sala, cap: number, turno?: Turno): StatusInfo {
+    const ratio = cap > 0 ? this.alunosNaSala(sala, turno) / cap : 0;
     const limite = (this.regrasService.regras().pctMaximoUtilizacao ?? 90) / 100;
     if (ratio > 1) return { label: 'Excedida', tone: 'danger', key: 'excedida' as StatusOcupacao };
     if (ratio >= limite) return { label: 'Quase lotada', tone: 'warning', key: 'quase' as StatusOcupacao };
     return { label: 'Disponível', tone: 'success', key: 'disponivel' as StatusOcupacao };
   }
 
-  /** Status conforme a capacidade normativa (CAPACIDADE) — usado em Solicitacoes, Painel e Ocupacao. */
-  statusInfo(sala: Sala): StatusInfo {
-    return this.statusPorCapacidade(sala, this.capacidade(sala));
+  /**
+   * Status conforme a capacidade normativa (CAPACIDADE) — usado em Solicitacoes, Painel e Ocupacao.
+   * Com `turno`, só os alunos daquele turno (Painel filtrado por turno).
+   */
+  statusInfo(sala: Sala, turno?: Turno): StatusInfo {
+    return this.statusPorCapacidade(sala, this.capacidade(sala), turno);
   }
 
   /** Status conforme as carteiras fisicas (CARTEIRAS) — usado na tela Planta (drag-and-drop). */

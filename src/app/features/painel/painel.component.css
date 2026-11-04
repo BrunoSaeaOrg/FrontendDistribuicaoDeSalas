@@ -86,10 +86,10 @@
   overflow-y: auto;
 }
 
-.painel-table thead th {
+/* O cabeçalho tem duas linhas (Período sobre Manhã e Tarde): o thead inteiro fica preso no topo. */
+.painel-table thead {
   position: sticky;
   top: 0;
-  background: var(--saea-surface);
   z-index: 1;
 }
 
@@ -99,20 +99,37 @@
   font-size: var(--fs-sm);
 }
 .painel-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   text-align: left;
+  vertical-align: bottom;
   padding: var(--sp-3) var(--sp-2);
   color: var(--saea-ink-faint);
   font-size: var(--fs-xs);
   text-transform: uppercase;
   background: var(--saea-surface);
-  border-bottom: 1px solid var(--saea-border);
+  /* Linha de baixo como sombra: borda de célula não acompanha o cabeçalho preso ao rolar. */
+  box-shadow: inset 0 -1px 0 var(--saea-border);
 }
 .painel-table td {
   padding: var(--sp-3) var(--sp-2);
   border-bottom: 1px solid var(--saea-border);
+}
+
+/* Período: o título sobre as duas colunas, e Manhã e Tarde centradas embaixo dele. */
+.painel-table .painel-th-grupo {
+  text-align: center;
+  padding-bottom: var(--sp-1);
+}
+.painel-table .painel-th-turno {
+  text-align: center;
+  padding-top: var(--sp-1);
+}
+.painel-cell-periodo {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* Com um turno no filtro, o outro fica apagado (o status é do turno filtrado). */
+.painel-cell-periodo--fora {
+  color: var(--saea-ink-faint);
 }
 
 .painel-cell-strong {
@@ -152,9 +169,21 @@
   background: var(--saea-chip-bg);
   color: var(--saea-ink-faint);
 }
-.painel-turno-chip--filled {
-  background: rgba(46, 156, 181, 0.14);
-  color: var(--saea-primary-strong);
+/* Turno com turma: a cor do status da sala naquele turno, igual à do badge (shared/ui/badge). */
+/* O verde é escuro: com os 12% do badge ele quase some no fundo claro, então leva mais cor. */
+.painel-turno-chip--success {
+  background: color-mix(in srgb, var(--saea-success) 26%, transparent);
+  color: var(--saea-success);
+}
+.painel-turno-chip--warning {
+  background: rgba(180, 83, 9, 0.12);
+  color: var(--saea-warning);
+}
+/* Excedida também tem contorno: não depende só da cor para se destacar das outras. */
+.painel-turno-chip--danger {
+  background: rgba(192, 57, 43, 0.12);
+  color: var(--saea-danger);
+  box-shadow: inset 0 0 0 1.5px currentColor;
 }
 
 .painel-link {

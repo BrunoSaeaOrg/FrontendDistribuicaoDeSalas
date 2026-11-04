@@ -1,13 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { SalasService } from '../../core/services/salas.service';
+import { SalasService, TODAS_AS_FILIAIS } from '../../core/services/salas.service';
 import { Turno } from '../../core/models';
 import { CardComponent } from '../../shared/ui/card/card.component';
+import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
 type OcupVis = 'tabela' | 'evolucao' | 'colunas';
-type Agrupador = 'unidade' | 'turno' | 'segmento' | 'serie' | 'turma';
+type Agrupador = 'unidade' | 'filial' | 'turno' | 'segmento' | 'serie' | 'turma';
 
 interface Grupo {
   key: string;
@@ -24,6 +25,9 @@ interface EntradaOcupacao {
   unidadeId: string;
   unidadeNome: string;
   unidadeCor: string;
+  codFilial: number;
+  /** "CASJ · filial 2": a mesma unidade pode ter várias filiais. */
+  filialNome: string;
   turno: Turno;
   segmento: string;
   serie: string;
@@ -38,7 +42,7 @@ const TURNOS: Turno[] = ['manha', 'tarde'];
 @Component({
   selector: 'app-ocupacao',
   standalone: true,
-  imports: [FormsModule, CardComponent, EmptyStateComponent, SelectComponent],
+  imports: [FormsModule, CardComponent, CarregandoComponent, EmptyStateComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './ocupacao.component.html',
   styleUrl: './ocupacao.component.css',
@@ -48,7 +52,12 @@ export class OcupacaoComponent {
 
   /** Ano letivo dos dados: os anos vêm do RM, e trocar recarrega as turmas daquele ano. */
   readonly ano = this.salasService.anoLetivo;
+  /** O ano escolhido ainda está vindo do RM: spinner no campo do ano e véu sobre o conteúdo. */
+  readonly carregando = this.salasService.loading;
+  readonly trocandoAno = this.salasService.trocandoAno;
   readonly unidade = signal('todas');
+  /** CODFILIAL ('todas' = todas). Não vale na Evolução, que é por unidade. */
+  readonly filial = signal(TODAS_AS_FILIAIS);
   readonly turno = signal('todas');
   readonly segmento = signal('todas');
   readonly agrupar = signal<Agrupador>('unidade');
@@ -67,6 +76,14 @@ export class OcupacaoComponent {
     const base = this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome }));
     return this.vis() === 'evolucao' ? base : [{ value: 'todas', label: 'Todas as unidades' }, ...base];
   });
+  /** "CASJ · filial 2" etc.; com uma unidade escolhida, só as filiais dela. */
+  readonly filialOptions = computed<SelectOption[]>(() => this.salasService.opcoesDeFilial(this.unidade(), this.filial()));
+
+  /** A filial que não é da unidade nova volta para "Todas". */
+  selecionarUnidade(unidade: string): void {
+    this.unidade.set(unidade);
+    if (!this.salasService.filialEhDaUnidade(this.filial(), unidade)) this.filial.set(TODAS_AS_FILIAIS);
+  }
 
   readonly turnoOptions: SelectOption[] = [
     { value: 'todas', label: 'Todos os turnos' },
@@ -79,6 +96,7 @@ export class OcupacaoComponent {
   ]);
   readonly agruparOptions: { value: Agrupador; label: string }[] = [
     { value: 'unidade', label: 'Unidade' },
+    { value: 'filial', label: 'Filial' },
     { value: 'turno', label: 'Turno' },
     { value: 'segmento', label: 'Segmento' },
     { value: 'serie', label: 'Série' },
@@ -97,8 +115,10 @@ export class OcupacaoComponent {
 
   private readonly entradas = computed<EntradaOcupacao[]>(() => {
     const list: EntradaOcupacao[] = [];
+    const nomesDasFiliais = new Map(this.salasService.filiais().map((f) => [f.codigo, f.nome]));
     this.salasService.salas().forEach((s) => {
       const u = this.salasService.unidade(s.unidadeId)!;
+      const filialNome = nomesDasFiliais.get(String(s.codFilial)) ?? `Filial ${s.codFilial}`;
       TURNOS.forEach((turno) => {
         const turmas = this.salasService.turmasNoTurno(s, turno);
         const capacidade = this.salasService.capacidade(s);
@@ -108,6 +128,8 @@ export class OcupacaoComponent {
             unidadeId: s.unidadeId,
             unidadeNome: u.nome,
             unidadeCor: u.cor,
+            codFilial: s.codFilial,
+            filialNome,
             turno,
             segmento: t.segmento,
             serie: this.salasService.serieFromNome(t.nome),
@@ -131,6 +153,7 @@ export class OcupacaoComponent {
   readonly grupos = computed<Grupo[]>(() => {
     let entradas = this.entradas();
     if (this.unidade() !== 'todas') entradas = entradas.filter((e) => e.unidadeId === this.unidade());
+    if (this.filial() !== TODAS_AS_FILIAIS) entradas = entradas.filter((e) => String(e.codFilial) === this.filial());
     if (this.turno() !== 'todas') entradas = entradas.filter((e) => e.turno === this.turno());
     if (this.segmento() !== 'todas') entradas = entradas.filter((e) => e.segmento === this.segmento());
 
@@ -138,6 +161,8 @@ export class OcupacaoComponent {
       switch (this.agrupar()) {
         case 'unidade':
           return { key: e.unidadeId, label: e.unidadeNome, color: e.unidadeCor };
+        case 'filial':
+          return { key: String(e.codFilial), label: e.filialNome, color: e.unidadeCor };
         case 'turno':
           return { key: e.turno, label: e.turno === 'manha' ? 'Manhã' : 'Tarde', color: null };
         case 'segmento':
@@ -145,7 +170,8 @@ export class OcupacaoComponent {
         case 'serie':
           return { key: e.serie, label: e.serie, color: null };
         default:
-          return { key: e.unidadeId + '|' + e.turma, label: `${e.turma} (${e.unidadeNome})`, color: null };
+          // Pela filial: a CASJ tem várias, e a mesma turma em duas delas não é a mesma turma.
+          return { key: `${e.codFilial}|${e.turma}`, label: `${e.turma} (${e.filialNome})`, color: null };
       }
     };
 
@@ -289,7 +315,7 @@ export class OcupacaoComponent {
     this.vis.set(v);
     if (v === 'evolucao' && this.unidade() === 'todas') {
       const first = this.salasService.unidades()[0];
-      if (first) this.unidade.set(first.id);
+      if (first) this.selecionarUnidade(first.id);
     }
   }
 }

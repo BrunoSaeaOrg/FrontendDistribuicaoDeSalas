@@ -45,7 +45,7 @@ function turnoDoDia(turno: string | undefined): Turno | null {
 }
 
 /** "EF4F-I (3) + EF4F-SM (0)" → EF4F-I com 3 alunos e EF4F-SM com 0. */
-function lerComposicao(composicao: string | undefined): { codTurma: string; alunos: number }[] {
+export function lerComposicao(composicao: string | undefined): { codTurma: string; alunos: number }[] {
   return (composicao ?? '')
     .split('+')
     .map((parte) => /^\s*(.+?)\s*\((\d+)\)\s*$/.exec(parte))
@@ -95,7 +95,7 @@ function criarSala(dto: ApiSalaDto): Sala {
  * volta assim, e as de outras filiais também. Elas não são vínculo — tratá-las como vínculo
  * criava "salas" sem nome na tela (só com "Liberar") e escondia a turma da lista para vincular.
  */
-function temSala(dto: ApiTurmaXSalaDto): boolean {
+export function temSala(dto: ApiTurmaXSalaDto): boolean {
   return String(dto.CODSALA ?? '').trim() !== '';
 }
 

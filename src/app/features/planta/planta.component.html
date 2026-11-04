@@ -1,7 +1,8 @@
 <div class="planta-page">
   <div class="planta-filters">
     <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />
-    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" />
+    <app-select label="Filial" [ngModel]="filial()" (ngModelChange)="onFilialChange($event)" [options]="filialOptions()" />
+    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" [carregando]="carregando()" />
     <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="onSegmentoChange($event)" [options]="segmentoOptions()" />
     <app-select label="Série" [ngModel]="serie()" (ngModelChange)="onSerieChange($event)" [options]="serieOptions()" />
     <app-select label="Sala" [ngModel]="sala()?.id ?? ''" (ngModelChange)="onSalaChange($event)" [options]="salaOptions()" />
@@ -18,11 +19,13 @@
   </div>
 
   @if (!sala()) {
-    <app-card class="saea-card-fill">
+    <app-card class="saea-card-fill saea-carregavel">
+      <app-carregando [ativo]="trocandoAno()" [texto]="'Carregando ' + anoLetivo() + '...'" />
       <app-empty-state icon="meeting_room" title="Nenhuma sala encontrada" description="Ajuste os filtros para ver outras salas." />
     </app-card>
   } @else {
-    <div class="planta-grid">
+    <div class="planta-grid saea-carregavel">
+      <app-carregando [ativo]="trocandoAno()" [texto]="'Carregando ' + anoLetivo() + '...'" />
       <app-card class="saea-card-fill">
         <div class="planta-head">
           <div>
@@ -100,7 +103,7 @@
         </div>
       </app-card>
 
-      <app-card class="saea-card-fill" title="Outras salas da unidade">
+      <app-card class="saea-card-fill" [title]="filial() === 'todas' ? 'Outras salas da unidade' : 'Outras salas da filial'">
         <div class="planta-outras saea-scroll">
           @for (room of outrasSalas(); track room.id) {
             <div

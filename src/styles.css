@@ -102,3 +102,11 @@ html {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+/*
+ * Aplicada no <app-card> (ou num contêiner) que recebe o <app-carregando>: o véu de carregamento
+ * cobre este elemento. Global pelo mesmo motivo de .saea-card-fill: precisa chegar no host do card.
+ */
+.saea-carregavel {
+  position: relative;
+}

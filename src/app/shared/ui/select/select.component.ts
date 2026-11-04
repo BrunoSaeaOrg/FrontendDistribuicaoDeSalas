@@ -24,6 +24,7 @@ let nextId = 0;
           class="saea-select-control"
           [class.saea-select-control--error]="!!error()"
           [disabled]="disabled()"
+          [attr.aria-busy]="carregando() || null"
           [ngModel]="value"
           (ngModelChange)="onSelect($event)"
           (blur)="onTouched()"
@@ -32,7 +33,12 @@ let nextId = 0;
             <option [value]="opt.value">{{ opt.label }}</option>
           }
         </select>
-        <span class="saea-select-arrow">▾</span>
+        <!-- Carregando: o que foi escolhido ainda está vindo do servidor (ex.: o ano letivo). -->
+        @if (carregando()) {
+          <span class="saea-select-spinner" aria-hidden="true"></span>
+        } @else {
+          <span class="saea-select-arrow">▾</span>
+        }
       </div>
       @if (error()) {
         <div class="saea-field-error">{{ error() }}</div>
@@ -57,6 +63,8 @@ export class SelectComponent implements ControlValueAccessor {
   readonly error = input<string>('');
   readonly helper = input<string>('');
   readonly disabled = input(false);
+  /** Spinner no lugar da seta: o valor escolhido ainda está vindo do servidor. */
+  readonly carregando = input(false);
 
   value = '';
   private onChange: (value: string) => void = () => {};

@@ -4,15 +4,17 @@
   }
 
   <div class="regras-row">
-    <app-card class="regras-card" title="Regras de ocupação">
+    <app-card class="regras-card saea-carregavel" title="Regras de ocupação">
+      <!-- As filiais do seletor vêm das salas: sem elas a lista fica vazia. -->
+      <app-carregando [ativo]="regrasService.carregando() || salasService.trocandoAno()" texto="Carregando as regras..." />
       <div class="regras-form">
         <app-select
-          label="Unidade"
+          label="Filial"
           [options]="filialOptions()"
           [ngModel]="codFilial()"
           (ngModelChange)="codFilial.set($event)"
           [disabled]="uiMode.readOnlyMode()"
-          helper="As regras são gravadas na unidade selecionada."
+          helper="As regras são gravadas na filial selecionada."
         />
         <app-input
           label="Área por pessoa (m²)"

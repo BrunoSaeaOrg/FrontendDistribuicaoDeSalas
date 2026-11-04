@@ -1,24 +1,17 @@
 import { signal } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
-import {
-  ApiCopiaAnoPlanoDto,
-  ApiCopiaSalaDto,
-  ApiCopiaTurmaDto,
-  ApiSituacaoCopiaAno,
-} from '../../core/models/ocupacao-api.model';
+import { ApiCopiaAnoPlanoDto, ApiCopiaSalaDto, ApiSituacaoCopiaAno } from '../../core/models/ocupacao-api.model';
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
 import { SalasService } from '../../core/services/salas.service';
-import { ToastService } from '../../core/services/toast.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
-import { ConfirmDialogService } from '../../shared/ui/confirm-dialog/confirm-dialog.service';
 import { CopiarAnoComponent, SALAS_POR_LOTE } from './copiar-ano.component';
 
 const sala = (n: number, situacao: ApiSituacaoCopiaAno = 'copiar', codFilial = 2): ApiCopiaSalaDto => ({
   id: `1|${codFilial}|100|1|1|1|${n}`,
   codFilial,
-  unidade: 'CASJ',
+  unidade: 'Centro',
   andar: '1',
   sala: `Sala ${n}`,
   tipoSala: 'Sala de aula',
@@ -31,31 +24,9 @@ const sala = (n: number, situacao: ApiSituacaoCopiaAno = 'copiar', codFilial = 2
   situacao,
 });
 
-/** Com "liberar", a sala vai vazia (sai da sala); com "mover", ela está noutra sala no destino. */
-const turma = (codTurma: string, situacao: ApiSituacaoCopiaAno = 'vincular'): ApiCopiaTurmaDto => {
-  const semSala = situacao === 'liberar';
-  return {
-    codFilial: 2,
-    unidade: 'CASJ',
-    codTurma,
-    turma: `${codTurma} - Manhã`,
-    sala: semSala ? '' : 'Sala 1',
-    codBloco: semSala ? '' : '1',
-    codPredio: semSala ? '' : '1',
-    codSala: semSala ? '' : '1',
-    salaNoDestino: situacao === 'mover' || semSala ? 'Sala 12' : '',
-    idPerletDestino: ['vincular', 'mover', 'liberar'].includes(situacao) ? 300 : null,
-    situacao,
-  };
-};
+const plano = (salas: ApiCopiaSalaDto[]): ApiCopiaAnoPlanoDto => ({ salas });
 
-const plano = (salas: ApiCopiaSalaDto[], turmas: ApiCopiaTurmaDto[] = [], periodosDoRm = true): ApiCopiaAnoPlanoDto => ({
-  salas,
-  turmas,
-  periodosDoRm,
-});
-
-describe('CopiarAnoComponent', () => {
+describe('CopiarAnoComponent (Salas por ano)', () => {
   const anoLetivo = signal('2026');
   const somenteLeitura = signal(false);
   let api: {
@@ -63,15 +34,19 @@ describe('CopiarAnoComponent', () => {
     copiarSalasDoAno: ReturnType<typeof vi.fn>;
     salvarTurmaXSala: ReturnType<typeof vi.fn>;
   };
-  let confirm: ReturnType<typeof vi.fn>;
   let carregar: ReturnType<typeof vi.fn>;
 
-  function criar(p?: ApiCopiaAnoPlanoDto): CopiarAnoComponent {
-    if (p) api.getPlanoCopiaAno.mockReturnValue(of(p));
+  async function criar(p: ApiCopiaAnoPlanoDto): Promise<ComponentFixture<CopiarAnoComponent>> {
+    api.getPlanoCopiaAno.mockReturnValue(of(p));
     const fixture = TestBed.createComponent(CopiarAnoComponent);
     fixture.detectChanges();
-    return fixture.componentInstance;
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture;
   }
+
+  const texto = (fixture: ComponentFixture<CopiarAnoComponent>) => (fixture.nativeElement as HTMLElement).textContent ?? '';
+  const chave = (n: number, codFilial = 2) => `${codFilial}|1|1|${n}`;
 
   beforeEach(() => {
     anoLetivo.set('2026');
@@ -83,7 +58,6 @@ describe('CopiarAnoComponent', () => {
       ),
       salvarTurmaXSala: vi.fn(() => of({ sucesso: 1, concluido: true })),
     };
-    confirm = vi.fn().mockResolvedValue(true);
     carregar = vi.fn();
     TestBed.configureTestingModule({
       imports: [CopiarAnoComponent],
@@ -91,221 +65,240 @@ describe('CopiarAnoComponent', () => {
         { provide: OcupacaoApiService, useValue: api },
         { provide: SalasService, useValue: { anoLetivo, anosLetivos: signal(['2025', '2026', '2027']), carregar } },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
-        { provide: ConfirmDialogService, useValue: { confirm } },
         { provide: UiModeService, useValue: { readOnlyMode: somenteLeitura } },
       ],
     });
   });
 
-  it('começa no ano da tela e no seguinte, se o seguinte existir no RM', () => {
-    const tela = criar();
+  it('abre no ano da tela e no seguinte e já lista as salas por filial, sem gravar nada', async () => {
+    const fixture = await criar(plano([sala(1), sala(2, 'ja-existe'), sala(5, 'copiar', 13)]));
+    const tela = fixture.componentInstance;
+
     expect([tela.anoOrigem(), tela.anoDestino()]).toEqual(['2026', '2027']);
-
-    anoLetivo.set('2027');
-    expect([tela.anoOrigem(), tela.anoDestino()]).toEqual(['2027', '']);
-  });
-
-  it(`um clique copia tudo: as salas em lotes de ${SALAS_POR_LOTE} e depois as turmas no período do destino`, async () => {
-    const tela = criar(
-      plano(
-        [...Array.from({ length: 23 }, (_, i) => sala(i + 1)), sala(99, 'ja-existe')],
-        [turma('EF3A-M'), turma('EF3B-M'), turma('EF3C-M', 'ja-vinculada')],
-      ),
-    );
-
-    await tela.copiar();
-
-    expect(api.getPlanoCopiaAno).toHaveBeenCalledWith('bruno', '2026', '2027');
-    expect(api.copiarSalasDoAno.mock.calls.map((c) => (c[3] as string[]).length)).toEqual([10, 10, 3]);
-    expect(api.copiarSalasDoAno.mock.calls[0].slice(0, 3)).toEqual(['bruno', '2026', '2027']);
-    expect(api.salvarTurmaXSala).toHaveBeenCalledTimes(2);
-    expect(api.salvarTurmaXSala).toHaveBeenCalledWith({
-      codFilial: 2,
-      codTurma: 'EF3A-M',
-      idPerlet: 300,
-      codBloco: '1',
-      codPredio: '1',
-      codSala: '1',
-    });
-    expect(tela.contarSalas()('criada')).toBe(23);
-    expect(tela.contarTurmas()('vinculada')).toBe(2);
-    expect(tela.copiada()).toBe(true);
-    expect(tela.copiando()).toBe(false);
-    // A tela está em 2026, não no ano que recebeu a cópia.
-    expect(carregar).not.toHaveBeenCalled();
-  });
-
-  it('o resumo do resultado só traz o que não é zero', async () => {
-    const tela = criar(
-      plano([sala(1), sala(2, 'ja-existe'), sala(3, 'sem-periodo')], [turma('EF3A-M'), turma('EF3B-M', 'sem-turma')]),
-    );
-
-    await tela.copiar();
-
-    expect(tela.resumoSalas().map((r) => `${r.quantidade} ${r.texto}`)).toEqual([
-      '1 copiadas',
-      '1 já iguais no destino',
-      '1 ficaram de fora',
+    expect(api.getPlanoCopiaAno).toHaveBeenCalledExactlyOnceWith('bruno', '2026', '2027');
+    expect(tela.grupos().map((g) => `${g.titulo}: ${g.linhas.map((l) => `${l.nome} (${l.selo.texto})`).join(', ')}`)).toEqual([
+      'Centro · filial 2: Sala 1 (Nova em 2027), Sala 2 (Igual)',
+      'Centro · filial 13: Sala 5 (Nova em 2027)',
     ]);
-    expect(tela.resumoTurmas().map((r) => `${r.quantidade} ${r.texto}`)).toEqual([
-      '1 colocadas nas salas',
-      '1 ficaram de fora',
+    expect(texto(fixture)).toContain('Salas por ano');
+    expect(api.copiarSalasDoAno).not.toHaveBeenCalled();
+  });
+
+  it('a tabela tem só Unidade, Andar, Sala, Tipo, Carteiras e Capacidade (além da caixa de marcar)', async () => {
+    const fixture = await criar(plano([sala(1), { ...sala(2, 'atualizar'), capacidadeNoDestino: 28 }]));
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect([...el.querySelectorAll('thead th')].map((th) => th.textContent?.trim())).toEqual([
+      '',
+      'Unidade',
+      'Andar',
+      'Sala',
+      'Tipo',
+      'Carteiras',
+      'Capacidade',
     ]);
-    expect(tela.deFora().turmasSemDestino).toBe(1);
+    const celulas = (n: number) => [...el.querySelectorAll('tr.ca-sala')[n].querySelectorAll('td')].slice(1).map((td) => td.textContent?.trim());
+    expect(celulas(0)).toEqual(['Centro', '1º andar', 'Sala 1', 'Sala de aula', '30', '33']);
+    // O que o destino tem hoje e o que vai ficar, nas duas colunas de número.
+    expect(celulas(1)).toEqual(['Centro', '1º andar', 'Sala 2', 'Sala de aula', '25 → 30', '28 → 33']);
   });
 
-  it('diz quais filiais ficaram sem período, mesmo com o nome de unidade repetido', async () => {
-    const tela = criar(plano([sala(1), sala(2, 'sem-periodo', 16), sala(3, 'sem-periodo', 13), sala(4, 'sem-periodo', 16)]));
+  it('trocar o ano relê as salas; o mesmo ano nos dois não lê nada', async () => {
+    const fixture = await criar(plano([sala(1)]));
+    const tela = fixture.componentInstance;
 
-    await tela.copiar();
-
-    expect(tela.deFora().semPeriodo).toEqual(['CASJ (filial 13)', 'CASJ (filial 16)']);
-  });
-
-  it('um lote que falha marca as salas dele e a cópia segue com o resto', async () => {
-    const toast = TestBed.inject(ToastService);
-    const aviso = vi.spyOn(toast, 'warning');
-    const tela = criar(plano(Array.from({ length: 12 }, (_, i) => sala(i + 1)), [turma('EF3A-M'), turma('EF3B-M')]));
-    api.copiarSalasDoAno.mockReturnValueOnce(throwError(() => ({ error: { message: 'RM fora do ar' } })));
-    api.salvarTurmaXSala.mockReturnValueOnce(throwError(() => ({ error: { message: 'O RM não gravou o vínculo' } })));
-
-    await tela.copiar();
-
-    expect(tela.contarSalas()('falhou')).toBe(10);
-    expect(tela.contarSalas()('criada')).toBe(2);
-    expect(tela.salas()[0].erro).toBe('RM fora do ar');
-    expect(tela.contarTurmas()('falhou')).toBe(1);
-    expect(tela.contarTurmas()('vinculada')).toBe(1);
-    expect(aviso).toHaveBeenCalled();
-  });
-
-  it('se o RM não responde ao plano, avisa e não grava nada', async () => {
-    const toast = TestBed.inject(ToastService);
-    const erro = vi.spyOn(toast, 'danger');
-    const tela = criar();
-    api.getPlanoCopiaAno.mockReturnValue(throwError(() => ({ error: { message: 'RM fora do ar' } })));
-
-    await tela.copiar();
-
-    expect(erro).toHaveBeenCalledWith('Não foi possível copiar', 'RM fora do ar');
-    expect(api.copiarSalasDoAno).not.toHaveBeenCalled();
-    expect(tela.copiando()).toBe(false);
-    expect(tela.copiada()).toBe(false);
-  });
-
-  it('sem confirmar, não grava nada e o plano fica na tela para consulta', async () => {
-    confirm.mockResolvedValue(false);
-    const tela = criar(plano([sala(1)], [turma('EF3A-M')]));
-
-    await tela.copiar();
-
-    expect(api.getPlanoCopiaAno).toHaveBeenCalled();
-    expect(api.copiarSalasDoAno).not.toHaveBeenCalled();
-    expect(api.salvarTurmaXSala).not.toHaveBeenCalled();
-    expect(tela.salas().map((s) => tela.situacao(s.estado).rotulo)).toEqual(['Vai ser copiada']);
-    expect(tela.copiada()).toBe(false);
-    expect(tela.copiando()).toBe(false);
-  });
-
-  it('antes de gravar, diz o que muda no destino; tirar turma da sala pede confirmação de risco', async () => {
-    const tela = criar(
-      plano(
-        [sala(1), sala(2, 'atualizar'), sala(3, 'ja-existe')],
-        [turma('EF3A-M', 'mover'), turma('EF3A-SM', 'liberar'), turma('EF4F-M', 'liberar'), turma('EF3C-M', 'ja-vinculada')],
-      ),
-    );
-
-    await tela.copiar();
-
-    expect(confirm).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Copiar 2026 para 2027?',
-        description:
-          'Para 2027 ficar igual a 2026: 1 sala copiada e 1 sala atualizada; 1 turma muda de sala e 2 turmas saem da sala. ' +
-          'Turmas que só existem em 2027 não são mexidas. A lista completa está na tela.',
-        danger: true,
-      }),
-    );
-  });
-
-  it('grava primeiro as turmas que saem das salas, depois as que mudam e as que entram', async () => {
-    const sucesso = vi.spyOn(TestBed.inject(ToastService), 'success');
-    const tela = criar(
-      plano([sala(1, 'atualizar')], [turma('EF3B-M'), turma('EF3A-M', 'mover'), turma('EF4F-M', 'liberar')]),
-    );
-    api.copiarSalasDoAno.mockReturnValueOnce(of([{ id: '1|2|100|1|1|1|1', situacao: 'atualizada' }]));
-
-    await tela.copiar();
-
-    expect(api.copiarSalasDoAno.mock.calls[0][3]).toEqual(['1|2|100|1|1|1|1']);
-    expect(api.salvarTurmaXSala.mock.calls.map((c) => c[0].codTurma)).toEqual(['EF4F-M', 'EF3A-M', 'EF3B-M']);
-    // Liberar é o salvar com a sala vazia.
-    expect(api.salvarTurmaXSala).toHaveBeenCalledWith({
-      codFilial: 2,
-      codTurma: 'EF4F-M',
-      idPerlet: 300,
-      codBloco: '',
-      codPredio: '',
-      codSala: '',
-    });
-    expect(tela.resumoTurmas().map((r) => `${r.quantidade} ${r.texto}`)).toEqual([
-      '1 colocadas nas salas',
-      '1 mudaram de sala',
-      '1 saíram da sala',
-    ]);
-    expect(sucesso).toHaveBeenCalledWith(
-      'Cópia concluída',
-      '2027 ficou igual a 2026: 1 sala atualizada, 1 turma colocada na sala, 1 turma mudou de sala e 1 turma saiu da sala.',
-    );
-  });
-
-  it('com o destino já igual à origem, avisa e nem pede confirmação', async () => {
-    const info = vi.spyOn(TestBed.inject(ToastService), 'info');
-    const tela = criar(plano([sala(1, 'ja-existe')], [turma('EF3A-M', 'ja-vinculada'), turma('EF3B-M', 'sem-turma')]));
-
-    await tela.copiar();
-
-    expect(confirm).not.toHaveBeenCalled();
-    expect(api.copiarSalasDoAno).not.toHaveBeenCalled();
-    expect(info).toHaveBeenCalledWith('Nada para copiar', '2027 já está igual a 2026 no que dá para copiar.');
-    expect(tela.plano()).not.toBeNull();
-  });
-
-  it('a sala que vai ser atualizada mostra o valor que o destino tinha', () => {
-    const tela = criar();
-    tela.plano.set(plano([sala(1, 'atualizar')]));
-
-    expect([tela.salas()[0].carteirasAntes, tela.salas()[0].capacidadeAntes]).toEqual([25, null]);
-  });
-
-  it('só quem pode editar copia', async () => {
-    somenteLeitura.set(true);
-    const tela = criar(plano([sala(1)]));
-
-    await tela.copiar();
-
-    expect(tela.podeCopiar()).toBe(false);
-    expect(confirm).not.toHaveBeenCalled();
-  });
-
-  it('recarrega as salas quando o destino é o ano aberto na tela', async () => {
-    const tela = criar(plano([sala(1)]));
-    tela.escolherOrigem('2025');
     tela.escolherDestino('2026');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(api.getPlanoCopiaAno).toHaveBeenCalledTimes(1);
+    expect(tela.temSalas()).toBe(false);
+    expect(texto(fixture)).toContain('Escolha dois anos diferentes');
 
-    await tela.copiar();
-
-    expect(api.copiarSalasDoAno.mock.calls[0].slice(0, 3)).toEqual(['bruno', '2025', '2026']);
-    expect(carregar).toHaveBeenCalled();
+    tela.escolherOrigem('2025');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(api.getPlanoCopiaAno).toHaveBeenLastCalledWith('bruno', '2025', '2026');
   });
 
-  it('trocar um dos anos descarta o resultado da cópia anterior', async () => {
-    const tela = criar(plano([sala(1)]));
+  it('o checkbox da filial marca só as salas dela que têm algo a copiar; o cabeçalho não tem checkbox', async () => {
+    const fixture = await criar(plano([sala(1), sala(2, 'ja-existe'), sala(3, 'atualizar')]));
+    const tela = fixture.componentInstance;
+    const filial = tela.grupos()[0];
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('thead saea-checkbox')).toBeNull();
+    expect(tela.selecionaveis()).toEqual([chave(1), chave(3)]);
+    expect(tela.textoBotao()).toBe('Copiar');
+    expect(tela.podeCopiar()).toBe(false);
+
+    tela.marcarFilial(filial, true);
+    expect(tela.textoBotao()).toBe('Copiar 2 salas');
+    expect(tela.filialMarcada(filial)).toBe(true);
+
+    tela.marcar(chave(3), false);
+    expect(tela.textoBotao()).toBe('Copiar 1 sala');
+    expect([tela.filialMarcada(filial), tela.filialEmParte(filial)]).toEqual([false, true]);
+  });
+
+  it('Copiar grava só os registros das salas marcadas e não mexe em turma', async () => {
+    const fixture = await criar(plano([sala(1), sala(2, 'atualizar'), sala(3)]));
+    const tela = fixture.componentInstance;
+
+    const sala2 = tela.grupos()[0].linhas.find((l) => l.chave === chave(2))!;
+    expect([sala2.carteiras, sala2.selo.texto]).toEqual(['25 → 30', 'Carteiras diferentes']);
+    expect(texto(fixture)).not.toContain('Turmas</th>');
+
+    tela.marcar(chave(1), true);
+    tela.marcar(chave(2), true);
     await tela.copiar();
 
-    tela.escolherDestino('2025');
+    expect(api.copiarSalasDoAno).toHaveBeenCalledExactlyOnceWith('bruno', '2026', '2027', [sala(1).id, sala(2).id]);
+    expect(api.salvarTurmaXSala).not.toHaveBeenCalled();
+    // Relê o RM depois de gravar; a seleção sai, porque nada falhou.
+    expect(api.getPlanoCopiaAno).toHaveBeenCalledTimes(2);
+    expect(tela.selecionadas().size).toBe(0);
+    expect(tela.copiando()).toBe(false);
+  });
 
-    expect(tela.plano()).toBeNull();
-    expect(tela.copiada()).toBe(false);
+  it(`grava os registros em lotes de ${SALAS_POR_LOTE}`, async () => {
+    const tela = (await criar(plano(Array.from({ length: 23 }, (_, i) => sala(i + 1))))).componentInstance;
+    tela.grupos().forEach((g) => tela.marcarFilial(g, true));
+    await tela.copiar();
+    expect(api.copiarSalasDoAno.mock.calls.map((c) => (c[3] as string[]).length)).toEqual([10, 10, 3]);
+  });
+
+  it('a sala que falhou fica marcada, com o motivo, para copiar de novo', async () => {
+    const fixture = await criar(plano([sala(1), sala(2)]));
+    const tela = fixture.componentInstance;
+    api.copiarSalasDoAno.mockReturnValue(
+      of([
+        { id: sala(1).id, situacao: 'criada' },
+        { id: sala(2).id, situacao: 'falhou', erro: 'Sem permissão no RM.' },
+      ]),
+    );
+
+    tela.grupos().forEach((g) => tela.marcarFilial(g, true));
+    await tela.copiar();
+    fixture.detectChanges();
+
+    expect([...tela.selecionadas()]).toEqual([chave(2)]);
+    const sala2 = tela.grupos()[0].linhas.find((l) => l.chave === chave(2))!;
+    expect([sala2.estado, sala2.erro]).toEqual(['falhou', 'Sem permissão no RM.']);
+    expect(texto(fixture)).toContain('Sem permissão no RM.');
+  });
+
+  it('filial sem período no destino aparece só com o motivo, sem salas para marcar', async () => {
+    const fixture = await criar(plano([sala(1), sala(7, 'sem-periodo', 16), sala(8, 'sem-periodo', 16)]));
+    const tela = fixture.componentInstance;
+
+    const filial16 = tela.grupos().find((g) => g.codFilial === 16)!;
+    expect(filial16.linhas).toEqual([]);
+    expect(filial16.motivo).toBe('Ainda não tem período letivo em 2027. Depois de criar, as salas aparecem aqui.');
+    expect(tela.selecionaveis()).toEqual([chave(1)]);
+    expect(texto(fixture)).toContain('Ainda não tem período letivo em 2027');
+  });
+
+  it('filial com mais de um período no destino aparece só com o motivo', async () => {
+    const tela = (await criar(plano([sala(1, 'periodo-ambiguo', 7)]))).componentInstance;
+
+    const [filial7] = tela.grupos();
+    expect(filial7.linhas).toEqual([]);
+    expect(filial7.motivo).toBe('Tem mais de um período letivo em 2027: não dá para saber em qual gravar.');
+  });
+
+  it('a filial escolhida deixa só as salas dela na tela, e Copiar grava só as dela', async () => {
+    const fixture = await criar(plano([sala(1), sala(2), sala(5, 'copiar', 13), sala(6, 'ja-existe', 13)]));
+    const tela = fixture.componentInstance;
+
+    expect(tela.filialOptions().map((o) => o.label)).toEqual(['Todas as filiais', 'Centro · filial 2', 'Centro · filial 13']);
+    expect(texto(fixture)).toContain('Filial');
+
+    tela.grupos().forEach((g) => tela.marcarFilial(g, true));
+    expect(tela.textoBotao()).toBe('Copiar 3 salas');
+
+    // Trocar a filial tira as marcadas: o Copiar é só do que está na tela.
+    tela.escolherFilial('13');
+    fixture.detectChanges();
+    expect(tela.grupos().map((g) => g.codFilial)).toEqual([13]);
+    expect(tela.selecionadas().size).toBe(0);
+    expect(texto(fixture)).not.toContain('Sala 1');
+    expect(api.getPlanoCopiaAno).toHaveBeenCalledTimes(1);
+
+    tela.marcarFilial(tela.grupos()[0], true);
+    expect(tela.textoBotao()).toBe('Copiar 1 sala');
+    await tela.copiar();
+    expect(api.copiarSalasDoAno).toHaveBeenCalledExactlyOnceWith('bruno', '2026', '2027', [sala(5, 'copiar', 13).id]);
+    // Relido o plano, a filial continua a mesma.
+    expect(tela.filial()).toBe('13');
+
+    tela.escolherFilial('');
+    expect(tela.grupos().map((g) => g.codFilial)).toEqual([2, 13]);
+  });
+
+  it('trocar os anos não muda a filial; num ano sem salas dela, a lista fica vazia com o aviso', async () => {
+    const fixture = await criar(plano([sala(1), sala(5, 'copiar', 13)]));
+    const tela = fixture.componentInstance;
+    tela.escolherFilial('13');
+
+    // 2025 → 2026 só tem a filial 2: a 13 continua escolhida, com o nome, e a lista avisa.
+    api.getPlanoCopiaAno.mockReturnValue(of(plano([sala(1), sala(3)])));
+    tela.escolherOrigem('2025');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(tela.filial()).toBe('13');
+    expect(tela.grupos()).toEqual([]);
+    expect(tela.filialOptions().map((o) => o.label)).toEqual(['Todas as filiais', 'Centro · filial 2', 'Centro · filial 13']);
+    expect(texto(fixture)).toContain('Nenhuma sala da Centro · filial 13 em 2025');
+
+    // De volta a 2026 → 2027: a 13 está lá de novo, sem precisar escolher outra vez.
+    api.getPlanoCopiaAno.mockReturnValue(of(plano([sala(1), sala(5, 'copiar', 13)])));
+    tela.escolherOrigem('2026');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(tela.filial()).toBe('13');
+    expect(tela.grupos().map((g) => g.codFilial)).toEqual([13]);
+  });
+
+  it('o campo Filial fica sempre na tela: com uma filial só e, sem lista, desativado', async () => {
+    const fixture = await criar(plano([sala(1), sala(2)]));
+    const campo = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>('.ca-filial-escolha select');
+    expect(campo()).not.toBeNull();
+    expect(fixture.componentInstance.filialOptions().map((o) => o.label)).toEqual(['Todas as filiais', 'Centro · filial 2']);
+    expect(campo()!.disabled).toBe(false);
+
+    // Mesmo ano nos dois: não há lista, o campo continua lá, desativado.
+    fixture.componentInstance.escolherDestino('2026');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(campo()).not.toBeNull();
+    expect(campo()!.disabled).toBe(true);
+  });
+
+  it('quem é só leitura vê as salas, mas não marca nem copia', async () => {
+    somenteLeitura.set(true);
+    const fixture = await criar(plano([sala(1)]));
+    const tela = fixture.componentInstance;
+
+    expect(tela.temSalas()).toBe(true);
+    expect(tela.selecionaveis()).toEqual([]);
+    expect(texto(fixture)).toContain('Só quem pode editar consegue copiar.');
+    tela.marcar(chave(1), true);
+    await tela.copiar();
+    expect(api.copiarSalasDoAno).not.toHaveBeenCalled();
+  });
+
+  it('recarrega as salas do app quando a tela está no ano que recebeu a cópia', async () => {
+    anoLetivo.set('2027');
+    const fixture = await criar(plano([sala(1)]));
+    const tela = fixture.componentInstance;
+    tela.escolherOrigem('2026');
+    tela.escolherDestino('2027');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    tela.grupos().forEach((g) => tela.marcarFilial(g, true));
+    await tela.copiar();
+    expect(carregar).toHaveBeenCalledTimes(1);
   });
 });

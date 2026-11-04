@@ -1,9 +1,11 @@
 <div class="ocup-page">
   <div class="ocup-filters">
-    <app-select label="Ano letivo" [ngModel]="ano()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" />
-    <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="unidade.set($event)" [options]="unidadeOptions()" />
+    <app-select label="Ano letivo" [ngModel]="ano()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" [carregando]="carregando()" />
+    <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="selecionarUnidade($event)" [options]="unidadeOptions()" />
 
     @if (showExtraFiltros()) {
+      <!-- A Evolução é por unidade: lá a filial não vale. -->
+      <app-select label="Filial" [ngModel]="filial()" (ngModelChange)="filial.set($event)" [options]="filialOptions()" />
       <app-select label="Turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)" [options]="turnoOptions" />
       <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="segmento.set($event)" [options]="segmentoOptions()" />
       <app-select label="Agrupar por" [ngModel]="agrupar()" (ngModelChange)="agrupar.set($event)" [options]="agruparOptions" />
@@ -21,7 +23,8 @@
     </div>
   </div>
 
-  <app-card>
+  <app-card class="saea-carregavel">
+    <app-carregando [ativo]="trocandoAno()" [texto]="'Carregando ' + ano() + '...'" />
     @if (!hasData()) {
       <app-empty-state icon="bar_chart" title="Sem dados para os filtros selecionados" />
     } @else {

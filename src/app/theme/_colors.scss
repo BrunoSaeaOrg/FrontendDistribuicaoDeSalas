@@ -139,3 +139,58 @@ $dark-external: #c98cf0;
   --elev-2: 0 2px 10px rgba(0, 0, 0, 0.55);
   --elev-3: 0 10px 28px rgba(0, 0, 0, 0.6);
 }
+
+// Layout "Barra lateral", paleta Névoa (escolhida em 2026-11-03): os cinzas puxam para o
+// azul-petróleo da marca e o item ativo do menu vira uma aba na cor da página. Vale só dentro de
+// .saea-shell--lateral (material-theme.scss): o Clássico continua com as cores de cima. Ainda não
+// está no handoff do design system. O menu tem tokens próprios (--saea-menu-*), lidos pelo
+// side-panel.
+@mixin barra-lateral-light {
+  --saea-primary-strong: #1f7d93;
+  --saea-primary-fill: #1f7d93;
+  --saea-surface: #f9fbfc;
+  --saea-surface-sunken: #f1f6f8;
+  --saea-bg: #e3edf0;
+  --saea-chip-bg: #e2ecef;
+  --saea-border: #d4e2e7;
+  --saea-ink: #17303a;
+  --saea-ink-soft: #506a74;
+  --saea-ink-faint: #8aa2ab;
+  --saea-menu-bg: #e3edf0;
+  --saea-menu-ink: #17303a;
+  --saea-menu-icone: #5d7882;
+  --saea-menu-hover: color-mix(in srgb, #f9fbfc 55%, transparent);
+  --saea-menu-ativo-bg: #f9fbfc;
+  --saea-menu-ativo-ink: #17303a;
+  --saea-menu-ativo-icone: #1f7d93;
+  --saea-menu-ativo-sombra: 0 1px 2px rgba(23, 48, 58, 0.08), 0 2px 8px rgba(23, 48, 58, 0.07);
+  // A folha da página projeta sombra no menu, que fica atrás (canto interno da curva).
+  --saea-menu-sombra: inset 0 12px 16px -12px rgba(23, 48, 58, 0.12), inset -12px 0 16px -12px rgba(23, 48, 58, 0.12);
+}
+
+// No escuro da Névoa o primário é petróleo, não o marinho do Clássico: marinho sobre estes cinzas
+// esverdeados some. O "strong" segue ciano, que é cor de texto.
+@mixin barra-lateral-dark {
+  --saea-primary: #2a8aa0;
+  --saea-primary-strong: #7fdcee;
+  --saea-primary-fill: #2a8aa0;
+  --saea-primary-gradient: linear-gradient(135deg, #35a0b8 0%, #2a8aa0 100%);
+  --saea-chrome: #14212a;
+  --saea-surface: #14212a;
+  --saea-surface-sunken: #101b22;
+  --saea-bg: #0d171d;
+  --saea-chip-bg: #1b2b35;
+  --saea-border: #243742;
+  --saea-ink: #e2eef2;
+  --saea-ink-soft: #9cb4bd;
+  --saea-ink-faint: #627c87;
+  --saea-menu-bg: #0d171d;
+  --saea-menu-ink: #e2eef2;
+  --saea-menu-icone: #8fa9b3;
+  --saea-menu-hover: color-mix(in srgb, #14212a 70%, transparent);
+  --saea-menu-ativo-bg: #14212a;
+  --saea-menu-ativo-ink: #e2eef2;
+  --saea-menu-ativo-icone: #7fdcee;
+  --saea-menu-ativo-sombra: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --saea-menu-sombra: inset 0 12px 16px -12px rgba(0, 0, 0, 0.45), inset -12px 0 16px -12px rgba(0, 0, 0, 0.45);
+}
