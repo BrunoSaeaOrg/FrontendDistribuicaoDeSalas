@@ -63,7 +63,16 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
       imports: [CopiarAnoComponent],
       providers: [
         { provide: OcupacaoApiService, useValue: api },
-        { provide: SalasService, useValue: { anoLetivo, anosLetivos: signal(['2025', '2026', '2027']), carregar } },
+        {
+          provide: SalasService,
+          useValue: {
+            anoLetivo,
+            anosLetivos: signal(['2025', '2026', '2027']),
+            carregar,
+            filiais: signal(new Map()),
+            nomeDaFilial: (c: string | number) => `Unidade ${c}`,
+          },
+        },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
         { provide: UiModeService, useValue: { readOnlyMode: somenteLeitura } },
       ],
@@ -77,8 +86,8 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
     expect([tela.anoOrigem(), tela.anoDestino()]).toEqual(['2026', '2027']);
     expect(api.getPlanoCopiaAno).toHaveBeenCalledExactlyOnceWith('bruno', '2026', '2027');
     expect(tela.grupos().map((g) => `${g.titulo}: ${g.linhas.map((l) => `${l.nome} (${l.selo.texto})`).join(', ')}`)).toEqual([
-      'Centro · filial 2: Sala 1 (Nova em 2027), Sala 2 (Igual)',
-      'Centro · filial 13: Sala 5 (Nova em 2027)',
+      'Centro 1: Sala 1 (Nova em 2027), Sala 2 (Igual)',
+      'Centro 2: Sala 5 (Nova em 2027)',
     ]);
     expect(texto(fixture)).toContain('Salas por ano');
     expect(api.copiarSalasDoAno).not.toHaveBeenCalled();
@@ -98,9 +107,9 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
       'Capacidade',
     ]);
     const celulas = (n: number) => [...el.querySelectorAll('tr.ca-sala')[n].querySelectorAll('td')].slice(1).map((td) => td.textContent?.trim());
-    expect(celulas(0)).toEqual(['Centro · filial 2', '1º andar', 'Sala 1', 'Sala de aula', '30', '33']);
+    expect(celulas(0)).toEqual(['Centro', '1º andar', 'Sala 1', 'Sala de aula', '30', '33']);
     // O que o destino tem hoje e o que vai ficar, nas duas colunas de número.
-    expect(celulas(1)).toEqual(['Centro · filial 2', '1º andar', 'Sala 2', 'Sala de aula', '25 → 30', '28 → 33']);
+    expect(celulas(1)).toEqual(['Centro', '1º andar', 'Sala 2', 'Sala de aula', '25 → 30', '28 → 33']);
   });
 
   it('trocar o ano relê as salas; o mesmo ano nos dois não lê nada', async () => {
@@ -209,7 +218,7 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
     const fixture = await criar(plano([sala(1), sala(2), sala(5, 'copiar', 13), sala(6, 'ja-existe', 13)]));
     const tela = fixture.componentInstance;
 
-    expect(tela.unidadeOptions().map((o) => o.label)).toEqual(['Todas as unidades', 'Centro · filial 2', 'Centro · filial 13']);
+    expect(tela.unidadeOptions().map((o) => o.label)).toEqual(['Centro 1', 'Centro 2']);
     expect(texto(fixture)).toContain('Unidade');
     expect((fixture.nativeElement as HTMLElement).querySelector('app-select[label="Filial"]')).toBeNull();
 
@@ -217,7 +226,7 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
     expect(tela.textoBotao()).toBe('Copiar 3 salas');
 
     // Trocar a unidade tira as marcadas: o Copiar é só do que está na tela.
-    tela.escolherUnidade('13');
+    tela.escolherUnidades(['13']);
     fixture.detectChanges();
     expect(tela.grupos().map((g) => g.codFilial)).toEqual([13]);
     expect(tela.selecionadas().size).toBe(0);
@@ -229,16 +238,35 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
     await tela.copiar();
     expect(api.copiarSalasDoAno).toHaveBeenCalledExactlyOnceWith('bruno', '2026', '2027', [sala(5, 'copiar', 13).id]);
     // Relido o plano, a unidade continua a mesma.
-    expect(tela.unidade()).toBe('13');
+    expect(tela.unidades()).toEqual(['13']);
 
-    tela.escolherUnidade('');
+    tela.escolherUnidades([]);
     expect(tela.grupos().map((g) => g.codFilial)).toEqual([2, 13]);
+  });
+
+  it('com várias unidades marcadas, a lista mostra só elas e o aviso fala das unidades marcadas', async () => {
+    const fixture = await criar(plano([sala(1), sala(5, 'copiar', 13), { ...sala(9, 'copiar', 6), unidade: 'Sul' }]));
+    const tela = fixture.componentInstance;
+    expect(tela.unidadeOptions().map((o) => o.label)).toEqual(['Centro 1', 'Centro 2', 'Sul']);
+
+    tela.escolherUnidades(['13', '6']);
+    expect(tela.grupos().map((g) => g.titulo)).toEqual(['Centro 2', 'Sul']);
+
+    // Um ano sem nenhuma das duas: o aviso não diz um nome só.
+    api.getPlanoCopiaAno.mockReturnValue(of(plano([sala(1)])));
+    tela.escolherOrigem('2025');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(texto(fixture)).toContain('Nenhuma sala das unidades marcadas em 2025');
+    // A filial 2 continua "Centro 1": o número não muda num ano com menos filiais.
+    expect(tela.unidadeOptions().map((o) => o.label)).toEqual(['Centro 1', 'Centro 2', 'Sul']);
   });
 
   it('trocar os anos não muda a unidade; num ano sem salas dela, a lista fica vazia com o aviso', async () => {
     const fixture = await criar(plano([sala(1), sala(5, 'copiar', 13)]));
     const tela = fixture.componentInstance;
-    tela.escolherUnidade('13');
+    tela.escolherUnidades(['13']);
 
     // 2025 → 2026 só tem a filial 2: a 13 continua escolhida, com o nome, e a lista avisa.
     api.getPlanoCopiaAno.mockReturnValue(of(plano([sala(1), sala(3)])));
@@ -246,25 +274,25 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(tela.unidade()).toBe('13');
+    expect(tela.unidades()).toEqual(['13']);
     expect(tela.grupos()).toEqual([]);
-    expect(tela.unidadeOptions().map((o) => o.label)).toEqual(['Todas as unidades', 'Centro · filial 2', 'Centro · filial 13']);
-    expect(texto(fixture)).toContain('Nenhuma sala da Centro · filial 13 em 2025');
+    expect(tela.unidadeOptions().map((o) => o.label)).toEqual(['Centro 1', 'Centro 2']);
+    expect(texto(fixture)).toContain('Nenhuma sala da Centro 2 em 2025');
 
     // De volta a 2026 → 2027: a 13 está lá de novo, sem precisar escolher outra vez.
     api.getPlanoCopiaAno.mockReturnValue(of(plano([sala(1), sala(5, 'copiar', 13)])));
     tela.escolherOrigem('2026');
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(tela.unidade()).toBe('13');
+    expect(tela.unidades()).toEqual(['13']);
     expect(tela.grupos().map((g) => g.codFilial)).toEqual([13]);
   });
 
   it('o campo Unidade fica sempre na tela: com uma unidade só e, sem lista, desativado', async () => {
     const fixture = await criar(plano([sala(1), sala(2)]));
-    const campo = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>('.ca-unidade-escolha select');
+    const campo = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.ca-unidade-escolha button.ms-gatilho');
     expect(campo()).not.toBeNull();
-    expect(fixture.componentInstance.unidadeOptions().map((o) => o.label)).toEqual(['Todas as unidades', 'Centro · filial 2']);
+    expect(fixture.componentInstance.unidadeOptions().map((o) => o.label)).toEqual(['Centro']);
     expect(campo()!.disabled).toBe(false);
 
     // Mesmo ano nos dois: não há lista, o campo continua lá, desativado.

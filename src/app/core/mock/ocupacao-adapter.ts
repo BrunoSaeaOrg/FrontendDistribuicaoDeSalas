@@ -20,25 +20,78 @@ function semAcentos(texto: string | null | undefined): string {
 }
 
 /**
- * OC_SAL_SALAS expoe o nome da unidade em FILIAL, enquanto OC_SAL_TURMASXSALAS e
- * OC_SAL_TURMAS usam UNIDADE. Aceita os dois e cai para o codigo da filial se faltarem.
+ * O nome da unidade como vem do RM. OC_SAL_SALAS expoe o nome em FILIAL, enquanto
+ * OC_SAL_TURMASXSALAS e OC_SAL_TURMAS usam UNIDADE; aceita os dois. '' = sem nome.
  */
-function nomeUnidade(dto: { UNIDADE?: string; FILIAL?: string; CODFILIAL: number }): string {
-  return dto.UNIDADE?.trim() || dto.FILIAL?.trim() || `Filial ${dto.CODFILIAL}`;
+export function nomeDoRm(dto: { UNIDADE?: string; FILIAL?: string }): string {
+  return dto.UNIDADE?.trim() || dto.FILIAL?.trim() || '';
 }
 
 /**
- * Cada filial é uma unidade: a CASJ, com as filiais 2, 13 e 16, vira três unidades ("CASJ · filial
- * 2", "CASJ · filial 13" e "CASJ · filial 16"). O id é o CODFILIAL, que as três consultas trazem
- * igual (o nome pode vir escrito diferente em FILIAL e em UNIDADE).
+ * Cada filial é uma unidade. O id é o CODFILIAL, que as três consultas trazem igual (o nome pode
+ * vir escrito diferente em FILIAL e em UNIDADE).
  */
 function unidadeId(dto: { CODFILIAL: number }): string {
   return String(dto.CODFILIAL);
 }
 
-function nomeDaUnidade(dto: { UNIDADE?: string; FILIAL?: string; CODFILIAL: number }): string {
-  const nome = dto.UNIDADE?.trim() || dto.FILIAL?.trim();
-  return nome ? `${nome} · filial ${dto.CODFILIAL}` : `Filial ${dto.CODFILIAL}`;
+/** Em ordem de nome, com o número em ordem de número ("CASJ 2" antes de "CASJ 10"). */
+export const COMPARADOR_UNIDADE = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
+
+/**
+ * O nome de cada filial na tela, sem a palavra "filial": quando o RM dá o mesmo nome a mais de uma
+ * (a CASJ tem as filiais 2, 13 e 16), elas viram "CASJ 1", "CASJ 2" e "CASJ 3", na ordem do
+ * CODFILIAL; nome único fica como está ("Liceu"). Sem nome no RM, "Unidade N" (N = CODFILIAL).
+ *
+ * Recebe CODFILIAL → nome do RM de todas as filiais conhecidas, não só as do ano em tela: assim a
+ * filial 13 continua "CASJ 2" num ano em que só ela e a 16 têm salas.
+ */
+export function nomesDasUnidades(filiais: ReadonlyMap<number, string>): Map<number, string> {
+  // "CASJ" e "Casj" são o mesmo nome.
+  const porNome = new Map<string, { codFilial: number; nome: string }[]>();
+  filiais.forEach((nome, codFilial) => {
+    const limpo = nome.trim();
+    if (!limpo) return;
+    const chave = semAcentos(limpo).toLocaleLowerCase('pt-BR');
+    porNome.set(chave, [...(porNome.get(chave) ?? []), { codFilial, nome: limpo }]);
+  });
+  const nomes = new Map<number, string>();
+  porNome.forEach((grupo) => {
+    const ordem = [...grupo].sort((a, b) => a.codFilial - b.codFilial);
+    // A grafia é a da menor filial, para não depender da ordem em que as respostas chegam.
+    const nome = ordem[0].nome;
+    ordem.forEach(({ codFilial }, i) => nomes.set(codFilial, ordem.length > 1 ? `${nome} ${i + 1}` : nome));
+  });
+  filiais.forEach((_, codFilial) => {
+    if (!nomes.has(codFilial)) nomes.set(codFilial, `Unidade ${codFilial}`);
+  });
+  return nomes;
+}
+
+/**
+ * CODFILIAL → nome do RM de cada filial que aparece nas respostas. Vale o nome da primeira lista
+ * que o traz: as salas vêm antes das turmas, como antes (a unidade era nomeada pela sala).
+ */
+export function filiaisDasRespostas(
+  ...listas: ReadonlyArray<{ CODFILIAL: number; UNIDADE?: string; FILIAL?: string }>[]
+): Map<number, string> {
+  const filiais = new Map<number, string>();
+  listas.flat().forEach((dto) => {
+    if (!filiais.get(dto.CODFILIAL)) filiais.set(dto.CODFILIAL, nomeDoRm(dto));
+  });
+  return filiais;
+}
+
+/** Junta as filiais já conhecidas com as novas; nome vazio não apaga um que já se conhecia. */
+export function juntarFiliais(
+  conhecidas: ReadonlyMap<number, string>,
+  novas: ReadonlyMap<number, string>,
+): Map<number, string> {
+  const juntas = new Map(conhecidas);
+  novas.forEach((nome, codFilial) => {
+    if (nome || !juntas.has(codFilial)) juntas.set(codFilial, nome);
+  });
+  return juntas;
 }
 
 function salaId(dto: ApiSalaDto): string {
@@ -65,20 +118,16 @@ function chaveSubturma(codTurma: string, idPerlet: number): string {
   return `${codTurma}|${idPerlet}`;
 }
 
-/** As unidades (uma por filial) em ordem de nome e de filial, cada uma com a sua cor. */
-function unidadesDasSalas(salasDto: ApiSalaDto[]): Unidade[] {
-  const porFilial = new Map<number, ApiSalaDto>();
-  salasDto.forEach((dto) => {
-    if (!porFilial.has(dto.CODFILIAL)) porFilial.set(dto.CODFILIAL, dto);
-  });
-  const comparador = new Intl.Collator('pt-BR', { sensitivity: 'base' });
-  return [...porFilial.values()]
-    .sort((a, b) => comparador.compare(nomeUnidade(a), nomeUnidade(b)) || a.CODFILIAL - b.CODFILIAL)
-    .map((dto, i) => ({
-      id: unidadeId(dto),
-      nome: nomeDaUnidade(dto),
+/** As unidades (uma por filial com sala) em ordem de nome ("CASJ 1", "CASJ 2"...), cada uma com a sua cor. */
+function unidadesDasSalas(salasDto: ApiSalaDto[], nomes: ReadonlyMap<number, string>): Unidade[] {
+  return [...new Set(salasDto.map((dto) => dto.CODFILIAL))]
+    .map((codFilial) => ({ codFilial, nome: nomes.get(codFilial) ?? `Unidade ${codFilial}` }))
+    .sort((a, b) => COMPARADOR_UNIDADE.compare(a.nome, b.nome) || a.codFilial - b.codFilial)
+    .map(({ codFilial, nome }, i) => ({
+      id: String(codFilial),
+      nome,
       cor: CORES_UNIDADE[i % CORES_UNIDADE.length],
-      codFilial: dto.CODFILIAL,
+      codFilial,
     }));
 }
 
@@ -113,10 +162,15 @@ function chaveTurma(dto: { CODTURMA: string; IDPERLET: number; TURNO?: string })
   return `${dto.CODTURMA}|${dto.IDPERLET}|${dto.TURNO}`;
 }
 
+/**
+ * `filiaisConhecidas` (CODFILIAL → nome do RM) são as filiais de outras cargas (outros anos), para
+ * a numeração "CASJ 1", "CASJ 2" não mudar de um ano para outro; as das respostas entram junto.
+ */
 export function fundirSalasEApi(
   salasDto: ApiSalaDto[],
   turmasXSalasDto: ApiTurmaXSalaDto[],
   turmasDto: ApiTurmaDto[] = [],
+  filiaisConhecidas: ReadonlyMap<number, string> = new Map(),
 ): { unidades: Unidade[]; salas: Sala[]; turmasLivres: TurmaLivre[] } {
   // As salas do ano são as de API.OC.SAL.PERIO, só das filiais com período letivo aberto. Sala,
   // unidade e turma livre de fora delas não aparecem: um ano ainda sem período (ex.: o próximo)
@@ -233,5 +287,10 @@ export function fundirSalasEApi(
     })
     .filter((t): t is TurmaLivre => t !== null);
 
-  return { unidades: unidadesDasSalas(salasDto), salas: Array.from(salasPorId.values()), turmasLivres };
+  const filiais = juntarFiliais(filiaisConhecidas, filiaisDasRespostas(salasDto, turmasXSalasDto, turmasDto));
+  return {
+    unidades: unidadesDasSalas(salasDto, nomesDasUnidades(filiais)),
+    salas: Array.from(salasPorId.values()),
+    turmasLivres,
+  };
 }

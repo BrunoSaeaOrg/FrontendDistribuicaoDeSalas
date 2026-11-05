@@ -468,6 +468,54 @@
   font-size: var(--fs-xs);
   color: var(--saea-ink-soft);
 }
+/* Enquanto se arrasta uma carteira: o porquê de a sala não receber, ou que vai pedir justificativa. */
+.planta-outra-aviso {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+.planta-outra-aviso--danger {
+  color: var(--saea-danger);
+}
+.planta-outra-aviso--warning {
+  color: var(--saea-warning);
+}
+.planta-outra-aviso-icon {
+  font-size: 16px;
+}
+/* A sala que está recebendo as carteiras da transferência em andamento. */
+.planta-outra-row.planta-outra-row--recebendo,
+:host-context(.saea-shell--lateral) .planta-outra-row.planta-outra-row--recebendo {
+  background: var(--saea-chip-bg);
+  border-style: solid;
+  border-color: var(--saea-primary);
+  border-radius: var(--radius-md);
+}
+.planta-outra-aviso--recebendo {
+  color: var(--saea-primary-strong);
+}
+.planta-outra-spinner {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--saea-border);
+  border-top-color: var(--saea-primary);
+  border-radius: 50%;
+  animation: planta-girar 0.8s linear infinite;
+}
+@keyframes planta-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .planta-outra-spinner {
+    animation-duration: 2.4s;
+  }
+}
 
 .planta-outra-actions {
   display: flex;
@@ -692,6 +740,75 @@
 .transfer-summary-line span:last-child {
   font-weight: 600;
   color: var(--saea-ink);
+}
+/* A justificativa é um texto: fica embaixo do rótulo e quebra linha. */
+.transfer-summary-line--texto {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+.transfer-summary-line--texto span:last-child {
+  font-weight: 400;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* ===================== Campo da justificativa (passar do limite da regra) ===================== */
+
+.just-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  font-family: var(--font-body);
+}
+.just-label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--saea-ink);
+}
+.just-obrigatorio {
+  margin-left: 2px;
+  color: var(--saea-danger);
+}
+/* Só para leitor de tela: quem vê tem o "*". */
+.just-so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* O mesmo desenho do app-input, em várias linhas. */
+.just-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 88px;
+  resize: vertical;
+  font-size: var(--fs-md, var(--fs-sm));
+  font-family: var(--font-body);
+  line-height: 1.4;
+  color: var(--saea-ink);
+  background: var(--saea-surface);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3) var(--sp-4);
+  outline: none;
+  transition:
+    border-color var(--dur-short) var(--ease-out),
+    box-shadow var(--dur-short) var(--ease-out);
+}
+.just-textarea:focus {
+  border-color: var(--saea-primary);
+  box-shadow: 0 0 0 3px rgba(46, 156, 181, 0.15);
+}
+.just-helper {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
 }
 
 .transfer-success {

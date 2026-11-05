@@ -1,5 +1,5 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { catchError, concatMap, EMPTY, from, map } from 'rxjs';
+import { catchError, concatMap, EMPTY, from, map, of } from 'rxjs';
 import { REGRAS_PADRAO, RegrasOcupacao } from '../models';
 import { ApiRegraDto } from '../models/ocupacao-api.model';
 import { OcupacaoApiService } from './ocupacao-api.service';
@@ -19,11 +19,31 @@ function deApi(regra: ApiRegraDto): RegrasOcupacao {
   };
 }
 
+/** Unidade em que as regras do formulário são gravadas: a filial e o nome dela na tela ("CASJ 1"). */
+export interface DestinoDasRegras {
+  codFilial: number;
+  nome: string;
+}
+
+/** "CASJ 1", "CASJ 1 e CASJ 2", "CASJ 1, CASJ 2 e Liceu". */
+export function listaDeNomes(nomes: readonly string[]): string {
+  return nomes.length <= 1 ? (nomes[0] ?? '') : `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}`;
+}
+
+/**
+ * Observação gravada ao restaurar os padrões: o padrão deixa exceder, e com isso o RM exige
+ * observação. Diz de onde veio a regra, com a data.
+ */
+export function obsDosPadroes(hoje = new Date()): string {
+  return `Padrões do sistema restaurados em ${hoje.toLocaleDateString('pt-BR')}.`;
+}
+
 /**
  * Regras de ocupação. São duas coisas:
  * - as regras de cada filial (`regrasDaFilial`), que Painel, Planta e Solicitações usam: carregadas
  *   uma vez por filial quando as salas chegam (`carregarFiliais`) e atualizadas ao salvar;
- * - o formulário da tela Regras (`regras`, `obs`), da unidade escolhida nela.
+ * - o formulário da tela Regras (`regras`, `obs`): abre com as da primeira unidade marcada nela e
+ *   é gravado em todas as marcadas.
  */
 @Injectable({ providedIn: 'root' })
 export class RegrasService {
@@ -87,15 +107,10 @@ export class RegrasService {
       next: (regras) => {
         this._carregando.set(false);
         const regra = regraDaFilial(regras, codFilial);
-        if (!regra) {
-          this._regras.set({ ...REGRAS_PADRAO });
-          this._obs.set('');
-          this.guardarDaFilial(codFilial, REGRAS_PADRAO);
-          return;
-        }
-        this._regras.set(deApi(regra));
-        this._obs.set(regra.OBS ?? '');
-        this.guardarDaFilial(codFilial, deApi(regra));
+        const salvas = regra ? deApi(regra) : { ...REGRAS_PADRAO };
+        this._regras.set({ ...salvas });
+        this._obs.set(regra?.OBS ?? '');
+        this.guardarDaFilial(codFilial, salvas);
       },
       error: () => {
         this._carregando.set(false);
@@ -125,48 +140,88 @@ export class RegrasService {
     this._regras.update((r) => ({ ...r, permitirExcesso: !r.permitirExcesso }));
   }
 
-  restaurarPadroes(): void {
+  /**
+   * Restaura os padrões do sistema (1,5 m², 90%, pode exceder) e já grava em cada unidade marcada,
+   * uma de cada vez, com a observação dos padrões (o RM exige observação quando pode exceder).
+   */
+  restaurarPadroes(destinos: readonly DestinoDasRegras[]): void {
+    if (destinos.length === 0 || this._salvando()) return;
     this._regras.set({ ...REGRAS_PADRAO });
-    this._obs.set('');
+    this._obs.set(obsDosPadroes());
+    this.salvar(destinos, 'Padrões restaurados');
   }
 
-  salvar(codFilial: number): void {
+  /**
+   * Grava o formulário em cada unidade marcada, uma de cada vez (sem rajada no RM). Uma unidade que
+   * falhar não impede as outras; o aviso no fim diz quais foram e quais não.
+   */
+  salvar(destinos: readonly DestinoDasRegras[], tituloDoSucesso = 'Regras salvas'): void {
+    if (destinos.length === 0) return;
     const regras = this._regras();
     if (this.faltaObs()) {
       this.toast.warning('Falta a observação', 'Com "Permitir exceder" ligado, diga por que as salas podem passar do limite.');
       return;
     }
     this._salvando.set(true);
+    const obs = this._obs();
+    const salvas: string[] = [];
+    const falhas: string[] = [];
+    let semConexao = false;
 
-    this.ocupacaoApi
-      .salvarRegras({
-        codFilial,
-        areaPorPessoa: regras.areaPorAluno,
-        percMaxUtil: regras.pctMaximoUtilizacao,
-        permExceder: regras.permitirExcesso,
-        obs: this._obs(),
-      })
+    from(destinos)
+      .pipe(
+        concatMap((destino) =>
+          this.ocupacaoApi
+            .salvarRegras({
+              codFilial: destino.codFilial,
+              areaPorPessoa: regras.areaPorAluno,
+              percMaxUtil: regras.pctMaximoUtilizacao,
+              permExceder: regras.permitirExcesso,
+              obs,
+            })
+            .pipe(
+              map((gravado) => ({ destino, gravado, falhou: false })),
+              catchError((err: { status?: number }) => {
+                if (!err?.status) semConexao = true;
+                return of({ destino, gravado: null, falhou: true });
+              }),
+            ),
+        ),
+      )
       .subscribe({
         // O back responde 200 com o registro gravado (não há CodRetorno; antes a tela esperava
         // CodRetorno === 1 e dizia "Não foi possível salvar" mesmo com o RM gravando).
-        next: (gravado) => {
-          this._salvando.set(false);
+        next: ({ destino, gravado, falhou }) => {
+          if (falhou) {
+            falhas.push(destino.nome);
+            return;
+          }
           // A tela fica com o que o RM gravou de fato (foi assim que o 1,5 virando 15 apareceria).
-          this._regras.update((r) => ({
-            areaPorAluno: typeof gravado?.AREAPORPESSOA === 'number' ? gravado.AREAPORPESSOA : r.areaPorAluno,
-            pctMaximoUtilizacao: typeof gravado?.PERCMAXUTIL === 'number' ? gravado.PERCMAXUTIL : r.pctMaximoUtilizacao,
-            permitirExcesso: gravado?.PERMEXCEDER != null ? gravado.PERMEXCEDER === 1 : r.permitirExcesso,
-          }));
+          const final: RegrasOcupacao = {
+            areaPorAluno: typeof gravado?.AREAPORPESSOA === 'number' ? gravado.AREAPORPESSOA : regras.areaPorAluno,
+            pctMaximoUtilizacao: typeof gravado?.PERCMAXUTIL === 'number' ? gravado.PERCMAXUTIL : regras.pctMaximoUtilizacao,
+            permitirExcesso: gravado?.PERMEXCEDER != null ? gravado.PERMEXCEDER === 1 : regras.permitirExcesso,
+          };
+          this._regras.set(final);
           // As outras telas passam a usar as regras novas da filial na hora.
-          this.guardarDaFilial(codFilial, this._regras());
-          this.toast.success('Regras salvas', `Aplicadas à filial ${codFilial}.`);
+          this.guardarDaFilial(destino.codFilial, final);
+          salvas.push(destino.nome);
         },
-        error: (err: { status?: number }) => {
+        complete: () => {
           this._salvando.set(false);
-          this.toast.danger(
-            'Falha ao salvar regras',
-            err?.status ? 'O RM não gravou as regras. Tente de novo.' : 'Não foi possível contatar o servidor.',
-          );
+          if (falhas.length === 0) {
+            this.toast.success(tituloDoSucesso, `Aplicadas em ${listaDeNomes(salvas)}.`);
+          } else if (salvas.length > 0) {
+            this.toast.warning(
+              'Regras salvas em parte',
+              `Aplicadas em ${listaDeNomes(salvas)}. O RM não gravou em ${listaDeNomes(falhas)}: tente de novo.`,
+            );
+          } else {
+            this.toast.danger(
+              'Falha ao salvar regras',
+              semConexao ? 'Não foi possível contatar o servidor.' : 'O RM não gravou as regras. Tente de novo.',
+            );
+          }
         },
       });
   }

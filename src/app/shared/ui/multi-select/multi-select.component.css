@@ -2,6 +2,36 @@
   display: block;
 }
 
+/* Rótulo e ajuda iguais aos do app-select (.saea-field), para o campo ficar alinhado aos outros. */
+.ms-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-family: var(--font-body);
+}
+.ms-label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--saea-ink);
+}
+.ms-helper {
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+.ms-obrigatorio {
+  margin-left: 2px;
+  color: var(--saea-danger);
+}
+/* Só para leitor de tela: quem vê tem o "*". */
+.ms-so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /*
  * O campo tem o mesmo desenho do app-select, para ficar igual aos outros campos. As fichas
  * projetadas e o botão dividem a linha; o respiro do campo (--_respiro) sai do padding do botão,
@@ -40,6 +70,10 @@
   background: var(--saea-surface-sunken);
   cursor: not-allowed;
 }
+/* Desativado, o texto fica apagado, como no app-select. */
+.ms-campo--desabilitado .ms-gatilho {
+  color: var(--saea-ink-faint);
+}
 
 .ms-gatilho {
   position: relative;
@@ -77,6 +111,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* No tamanho normal, a mesma altura de linha do <select> do app-select: os campos ficam iguais lado a lado. */
+.ms-campo:not(.ms-campo--sm) .ms-gatilho-texto {
+  line-height: normal;
 }
 
 .ms-seta {
@@ -127,6 +165,13 @@
 }
 .ms-opcao ::ng-deep .saea-checkbox__label:hover {
   background: var(--saea-surface-sunken);
+}
+
+/* "Todas as unidades": separada das opções por uma linha. */
+.ms-opcao--todas {
+  border-bottom: 1px solid var(--saea-border);
+  margin-bottom: var(--sp-1);
+  font-weight: 500;
 }
 
 .ms-rotulo {

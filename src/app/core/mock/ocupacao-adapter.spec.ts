@@ -1,5 +1,5 @@
 import { ApiSalaDto, ApiTurmaDto, ApiTurmaXSalaDto } from '../models/ocupacao-api.model';
-import { fundirSalasEApi } from './ocupacao-adapter';
+import { fundirSalasEApi, nomesDasUnidades } from './ocupacao-adapter';
 
 function sala(codSala: string, codFilial = 2): ApiSalaDto {
   return {
@@ -171,7 +171,7 @@ describe('fundirSalasEApi', () => {
     const r = fundirSalasEApi([sala('12')], [vinculo(outraFilial)], []);
 
     expect(r.turmasLivres).toEqual([]);
-    expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ · filial 2']);
+    expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ']);
     expect(r.salas).toHaveLength(1);
   });
 
@@ -202,17 +202,66 @@ describe('fundirSalasEApi', () => {
     const r = fundirSalasEApi([sala('12')], [], [outraFilial]);
 
     expect(r.turmasLivres).toEqual([]);
-    expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ · filial 2']);
+    expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ']);
   });
 
-  it('cada filial é uma unidade: a CASJ com as filiais 2 e 13 vira duas, com o CODFILIAL como id', () => {
+  it('cada filial é uma unidade: a CASJ com as filiais 2 e 13 vira "CASJ 1" e "CASJ 2", com o CODFILIAL como id', () => {
     const t13 = turma('EF5A-M', 'Manhã', 13);
 
     const r = fundirSalasEApi([sala('12', 13), sala('1', 2), { ...sala('3', 6), FILIAL: 'Alfa' }], [], [t13]);
 
-    expect(r.unidades.map((u) => `${u.id} ${u.nome}`)).toEqual(['6 Alfa · filial 6', '2 CASJ · filial 2', '13 CASJ · filial 13']);
+    expect(r.unidades.map((u) => `${u.id} ${u.nome}`)).toEqual(['6 Alfa', '2 CASJ 1', '13 CASJ 2']);
     expect(new Set(r.unidades.map((u) => u.cor)).size).toBe(3);
     expect(r.salas.map((s) => `${s.nome} → ${s.unidadeId}`)).toEqual(['Sala 12 → 13', 'Sala 1 → 2', 'Sala 3 → 6']);
     expect(r.turmasLivres.map((x) => x.unidadeId)).toEqual(['13']);
+  });
+
+  it('o número segue as filiais já conhecidas: num ano só com a 13, ela continua "CASJ 2"', () => {
+    const conhecidas = new Map([
+      [2, 'CASJ'],
+      [13, 'CASJ'],
+      [16, 'CASJ'],
+    ]);
+
+    const r = fundirSalasEApi([sala('12', 13)], [], [], conhecidas);
+
+    expect(r.unidades.map((u) => `${u.id} ${u.nome}`)).toEqual(['13 CASJ 2']);
+  });
+
+  it('a filial que só aparece nas turmas também conta para o número', () => {
+    const t16 = turma('EF5A-M', 'Manhã', 16);
+
+    const r = fundirSalasEApi([sala('1', 2)], [], [t16]);
+
+    expect(r.unidades.map((u) => u.nome)).toEqual(['CASJ 1']);
+  });
+});
+
+describe('nomesDasUnidades', () => {
+  it('numera na ordem do CODFILIAL só o nome que se repete, sem diferenciar maiúsculas e acentos', () => {
+    const nomes = nomesDasUnidades(
+      new Map([
+        [16, 'Casj'],
+        [3, 'São Bento'],
+        [2, 'CASJ'],
+        [13, 'CASJ'],
+        [7, 'Sao Bento'],
+        [4, 'Liceu'],
+      ]),
+    );
+
+    // A grafia é a da menor filial do grupo.
+    expect(Object.fromEntries(nomes)).toEqual({
+      2: 'CASJ 1',
+      13: 'CASJ 2',
+      16: 'CASJ 3',
+      3: 'São Bento 1',
+      7: 'São Bento 2',
+      4: 'Liceu',
+    });
+  });
+
+  it('filial sem nome no RM vira "Unidade N"', () => {
+    expect(nomesDasUnidades(new Map([[9, '  ']])).get(9)).toBe('Unidade 9');
   });
 });

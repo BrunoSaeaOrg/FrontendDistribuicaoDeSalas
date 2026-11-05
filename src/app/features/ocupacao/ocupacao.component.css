@@ -19,6 +19,9 @@
 .ocup-filters > app-select {
   min-width: 160px;
 }
+.ocup-filters > app-multi-select {
+  min-width: 200px;
+}
 
 .ocup-tabs {
   display: flex;

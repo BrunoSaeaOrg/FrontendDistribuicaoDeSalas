@@ -1,16 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { RegrasService } from '../../core/services/regras.service';
 import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
-import { Turno } from '../../core/models';
+import { Turno, unidadeNoFiltro } from '../../core/models';
 import { AlertComponent } from '../../shared/ui/alert/alert.component';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
+import { MultiSelectComponent, MultiSelectOption } from '../../shared/ui/multi-select/multi-select.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
 type DeskKind = 'aluno' | 'vaga' | 'excedente' | 'espaco' | 'bloqueado';
@@ -26,10 +28,24 @@ interface DeskSlot {
 
 const TURNOS: Turno[] = ['manha', 'tarde'];
 
+/** Tamanho do campo da justificativa no histórico das transferências (varchar 500). */
+export const TAMANHO_JUSTIFICATIVA = 500;
+
 @Component({
   selector: 'app-planta',
   standalone: true,
-  imports: [FormsModule, AlertComponent, BadgeComponent, ButtonComponent, CardComponent, CarregandoComponent, EmptyStateComponent, SelectComponent],
+  imports: [
+    FormsModule,
+    NgTemplateOutlet,
+    AlertComponent,
+    BadgeComponent,
+    ButtonComponent,
+    CardComponent,
+    CarregandoComponent,
+    EmptyStateComponent,
+    MultiSelectComponent,
+    SelectComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './planta.component.html',
   styleUrl: './planta.component.css',
@@ -42,19 +58,41 @@ export class PlantaComponent {
 
   /** Carteira vaga sendo arrastada no momento (null quando não há arraste em curso). */
   readonly arrastando = signal(false);
+
+  /**
+   * Transferência em andamento (gravando no RM e relendo as salas): véu sobre a sala, spinner na
+   * sala que recebe e nenhum arraste novo até terminar.
+   */
+  readonly transferindo = this.salasService.transferindo;
+  readonly textoTransferindo = computed(() => {
+    const t = this.transferindo();
+    if (!t) return '';
+    if (t.etapa === 'relendo') return 'Atualizando as salas...';
+    return `Transferindo ${t.quantidade} ${t.quantidade === 1 ? 'carteira' : 'carteiras'} para ${t.destinoNome}...`;
+  });
+  /** Na linha da sala que recebe, em "Outras salas". */
+  readonly textoRecebendo = computed(() => {
+    const t = this.transferindo();
+    if (!t) return '';
+    if (t.etapa === 'relendo') return 'Atualizando...';
+    return `Recebendo ${t.quantidade} ${t.quantidade === 1 ? 'carteira' : 'carteiras'}...`;
+  });
   /** Sala sobre a qual o arraste está passando (destaque de zona de drop). */
   readonly dropAlvoId = signal<string | null>(null);
 
-  /** Unidade = filial do RM ("CASJ · filial 2"). */
-  readonly unidadeId = signal(
-    this.route.snapshot.queryParamMap.get('unidade') || this.salasService.unidades()[0]?.id || '',
+  /**
+   * Unidades marcadas (cada uma é uma filial do RM, ex.: "CASJ 1"); nenhuma = todas. Vindo do
+   * Painel ("Ver planta"), abre com a unidade da sala.
+   */
+  readonly unidades = signal<string[]>(
+    this.route.snapshot.queryParamMap.get('unidade') ? [this.route.snapshot.queryParamMap.get('unidade')!] : [],
   );
   readonly salaId = signal(this.route.snapshot.queryParamMap.get('sala') || '');
   readonly turno = signal<Turno>('manha');
   readonly segmento = signal('todas');
   readonly serie = signal('todas');
 
-  readonly unidadeOptions = computed<SelectOption[]>(() =>
+  readonly unidadeOptions = computed<MultiSelectOption[]>(() =>
     this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
   );
   /** Ano letivo das turmas: os anos vêm do RM, e trocar recarrega as turmas daquele ano. */
@@ -93,22 +131,29 @@ export class PlantaComponent {
     );
   };
 
-  /** As salas da unidade que atendem ao segmento e à série. */
-  readonly salasDaUnidade = computed(() => {
-    let list = this.salasService.salasDaUnidade(this.unidadeId());
+  /** As salas das unidades marcadas que atendem ao segmento e à série. */
+  readonly salasDoFiltro = computed(() => {
+    const unidades = this.unidades();
+    let list = this.salasService.salas().filter((s) => unidadeNoFiltro(unidades, s.unidadeId));
     if (this.segmento() !== 'todas' || this.serie() !== 'todas') {
       list = list.filter((s) => this.matchesFiltro(s.id));
     }
     return list;
   });
 
-  readonly salaOptions = computed<SelectOption[]>(() =>
-    this.salasDaUnidade().map((s) => ({ value: s.id, label: s.nome })),
-  );
+  /** Com salas de mais de uma unidade na lista, o nome leva a unidade: "Sala 1" existe em várias. */
+  readonly salaOptions = computed<SelectOption[]>(() => {
+    const salas = this.salasDoFiltro();
+    const variasUnidades = new Set(salas.map((s) => s.unidadeId)).size > 1;
+    return salas.map((s) => ({
+      value: s.id,
+      label: variasUnidades ? `${s.nome} · ${this.salasService.unidade(s.unidadeId)?.nome ?? ''}` : s.nome,
+    }));
+  });
 
   readonly sala = computed(() => {
-    const id = this.salaId() || this.salasDaUnidade()[0]?.id;
-    return this.salasService.sala(id ?? '') ?? this.salasDaUnidade()[0];
+    const id = this.salaId() || this.salasDoFiltro()[0]?.id;
+    return this.salasService.sala(id ?? '') ?? this.salasDoFiltro()[0];
   });
 
   /** Carteiras fisicas da sala (nao a capacidade normativa) — base do drag-and-drop. */
@@ -276,19 +321,34 @@ export class PlantaComponent {
     const sala = this.sala();
     if (!sala) return [];
     const turno = this.turno();
-    return this.salasDaUnidade()
-      .filter((s) => s.id !== sala.id)
-      .map((s) => ({
-        id: s.id,
-        nome: s.nome,
-        tipo: s.tipo,
-        ocupadas: this.salasService.alunosNoTurno(s, turno),
-        carteiras: s.carteiras,
-        limite: this.salasService.limiteDeUso(s),
-        /** Quantas carteiras ainda pode receber pela regra (Infinity = o limite não barra). */
-        cabem: this.salasService.carteirasQueCabem(s),
-        statusInfo: this.salasService.statusInfoCarteiras(s),
-      }));
+    // Só as da mesma unidade da sala: carteira não passa de uma unidade (filial) para outra.
+    return this.salasDoFiltro()
+      .filter((s) => s.id !== sala.id && s.unidadeId === sala.unidadeId)
+      .map((s) => {
+        const cabem = this.salasService.carteirasQueCabem(s);
+        const pedeJustificativa = this.salasService.precisaJustificativa(s, 1);
+        return {
+          id: s.id,
+          nome: s.nome,
+          tipo: s.tipo,
+          ocupadas: this.salasService.alunosNoTurno(s, turno),
+          carteiras: s.carteiras,
+          limite: this.salasService.limiteDeUso(s),
+          /** Quantas carteiras ainda pode receber pela regra (Infinity = o limite não barra). */
+          cabem,
+          /**
+           * O que a sala mostra enquanto uma carteira é arrastada: por que não recebe (sem "Permitir
+           * exceder") ou que soltar ali vai pedir justificativa.
+           */
+          avisoNoArraste:
+            cabem < 1
+              ? { tone: 'danger' as const, text: `No ${this.salasService.descricaoDoLimite(s)}: não recebe mais carteiras` }
+              : pedeJustificativa
+                ? { tone: 'warning' as const, text: `Passa do ${this.salasService.descricaoDoLimite(s)}: pede justificativa` }
+                : null,
+          statusInfo: this.salasService.statusInfoCarteiras(s),
+        };
+      });
   });
 
   /** Carteiras vagas na sala atual, no turno selecionado — teto de quantidade transferível. */
@@ -335,7 +395,10 @@ export class PlantaComponent {
     const depois = destino.carteiras + this.transferQuantidade();
     if (this.salasService.podeExcederLimite(destino)) {
       return depois > limite
-        ? { tone: 'warning', text: `${destino.nome} fica com ${depois} carteiras, acima do ${regra}. As regras de ocupação permitem exceder.` }
+        ? {
+            tone: 'warning',
+            text: `${destino.nome} fica com ${depois} carteiras, acima do ${regra}. As regras de ocupação permitem exceder, com justificativa.`,
+          }
         : null;
     }
     const cabem = this.cabemNoDestino();
@@ -358,7 +421,62 @@ export class PlantaComponent {
     };
   });
 
+  // ---------- justificativa: o destino passa do limite e a filial permite exceder ----------
+  readonly tamanhoJustificativa = TAMANHO_JUSTIFICATIVA;
+  /** O texto da justificativa (do modal "Transferir carteiras" ou do que abre ao soltar uma carteira). */
+  readonly justificativa = signal('');
+  readonly justificativaOk = computed(() => this.justificativa().trim().length > 0);
+
+  /** No modal "Transferir carteiras": o destino escolhido passa do limite com a quantidade escolhida. */
+  readonly transferPrecisaJustificativa = computed(() => {
+    const destino = this.transferDestino();
+    return !!destino && this.salasService.precisaJustificativa(destino, this.transferQuantidade());
+  });
+
+  /** Carteira solta numa sala que passa do limite (e pode exceder): a transferência espera a justificativa. */
+  readonly pedidoJustificativa = signal<{ origemId: string; destinoId: string } | null>(null);
+
+  readonly pedidoJustificativaInfo = computed(() => {
+    const pedido = this.pedidoJustificativa();
+    const origem = pedido ? this.salasService.sala(pedido.origemId) : undefined;
+    const destino = pedido ? this.salasService.sala(pedido.destinoId) : undefined;
+    if (!origem || !destino) return null;
+    return {
+      origemNome: origem.nome,
+      destinoNome: destino.nome,
+      depois: destino.carteiras + 1,
+      regra: this.salasService.descricaoDoLimite(destino),
+    };
+  });
+
+  private readonly campoJustificativa = viewChild<ElementRef<HTMLTextAreaElement>>('campoJustificativa');
+
+  constructor() {
+    // Ao soltar a carteira, o modal da justificativa abre com o cursor no campo.
+    effect(() => {
+      const campo = this.campoJustificativa();
+      if (campo && this.pedidoJustificativa()) campo.nativeElement.focus();
+    });
+  }
+
+  /** Fecha sem transferir; com a transferência já em andamento, espera ela terminar. */
+  cancelarJustificativa(): void {
+    if (this.transferindo()) return;
+    this.pedidoJustificativa.set(null);
+  }
+
+  /** Grava com a justificativa; o modal fica aberto, com o botão carregando, até a tela ter os números novos. */
+  confirmarJustificativa(): void {
+    const pedido = this.pedidoJustificativa();
+    const origem = pedido ? this.salasService.sala(pedido.origemId) : undefined;
+    const destino = pedido ? this.salasService.sala(pedido.destinoId) : undefined;
+    if (!origem || !destino || !this.justificativaOk()) return;
+    // Deu certo ou não, fecha no fim: o aviso diz o que houve, e repetir poderia mover duas vezes.
+    this.salasService.transferirCarteira(origem, destino, 1, this.justificativa(), () => this.pedidoJustificativa.set(null));
+  }
+
   abrirTransferModal(): void {
+    this.justificativa.set('');
     this.transferStep.set(1);
     // Começa pela primeira sala que ainda pode receber carteira.
     const outras = this.outrasSalas();
@@ -386,9 +504,15 @@ export class PlantaComponent {
     this.transferQuantidade.update((q) => Math.min(max, q + 1));
   }
 
-  /** Dá para seguir: há destino e ele recebe ao menos a quantidade escolhida. */
+  /**
+   * Dá para seguir: há destino, ele recebe ao menos a quantidade escolhida e, se passar do limite
+   * (com "Permitir exceder"), a justificativa está escrita.
+   */
   readonly podeAvancarTransfer = computed(
-    () => !!this.transferDestinoId() && this.transferQuantidade() <= this.transferMaximo(),
+    () =>
+      !!this.transferDestinoId() &&
+      this.transferQuantidade() <= this.transferMaximo() &&
+      (!this.transferPrecisaJustificativa() || this.justificativaOk()),
   );
 
   transferAvancar(): void {
@@ -404,12 +528,19 @@ export class PlantaComponent {
     const origem = this.sala();
     const destino = this.transferDestino();
     if (!origem || !destino) return;
-    if (this.salasService.transferirCarteira(origem, destino, this.transferQuantidade())) this.transferStep.set(3);
+    const justificativa = this.transferPrecisaJustificativa() ? this.justificativa() : '';
+    // O botão fica em "Transferindo..." até gravar e reler as salas; só então mostra o "Concluído".
+    this.salasService.transferirCarteira(origem, destino, this.transferQuantidade(), justificativa, (ok) => {
+      if (ok) this.transferStep.set(3);
+    });
   }
 
-  onUnidadeChange(uid: string): void {
-    this.unidadeId.set(uid);
-    this.salaId.set(this.salasDaUnidade()[0]?.id ?? '');
+  /** A sala na tela fica se ainda estiver nas unidades marcadas; se não, vai para a primeira delas. */
+  selecionarUnidades(unidades: string[]): void {
+    this.unidades.set(unidades);
+    const salas = this.salasDoFiltro();
+    const atual = this.sala();
+    if (!atual || !salas.some((s) => s.id === atual.id)) this.salaId.set(salas[0]?.id ?? '');
   }
 
   onSalaChange(id: string): void {
@@ -424,7 +555,7 @@ export class PlantaComponent {
   }
 
   onDeskDragStart(desk: DeskSlot, event: DragEvent): void {
-    if (desk.kind !== 'vaga' || !this.uiMode.editorMode()) {
+    if (desk.kind !== 'vaga' || !this.uiMode.editorMode() || this.transferindo()) {
       event.preventDefault();
       return;
     }
@@ -458,7 +589,13 @@ export class PlantaComponent {
     const destino = this.salasService.sala(destinoId);
     this.arrastando.set(false);
     this.dropAlvoId.set(null);
-    if (!origem || !destino) return;
+    if (!origem || !destino || this.transferindo()) return;
+    // Passa do limite e a filial permite exceder: só transfere depois da justificativa.
+    if (this.salasService.precisaJustificativa(destino, 1)) {
+      this.justificativa.set('');
+      this.pedidoJustificativa.set({ origemId: origem.id, destinoId: destino.id });
+      return;
+    }
     this.salasService.transferirCarteira(origem, destino, 1);
   }
 }

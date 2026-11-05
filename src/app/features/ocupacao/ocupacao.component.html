@@ -1,7 +1,15 @@
 <div class="ocup-page">
   <div class="ocup-filters">
     <app-select label="Ano letivo" [ngModel]="ano()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" [carregando]="carregando()" />
-    <app-select label="Unidade" [ngModel]="unidade()" (ngModelChange)="selecionarUnidade($event)" [options]="unidadeOptions()" />
+    <app-multi-select
+      label="Unidade"
+      todas="Todas as unidades"
+      placeholder="Todas as unidades"
+      [nenhumaEhTodas]="true"
+      [options]="unidadeOptions()"
+      [selected]="unidades()"
+      (selectedChange)="selecionarUnidades($event)"
+    />
 
     @if (showExtraFiltros()) {
       <app-select label="Turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)" [options]="turnoOptions" />
@@ -56,7 +64,7 @@
 
       @if (vis() === 'evolucao') {
         <div class="ocup-evol">
-          <div class="ocup-evol-title">{{ unidadeEvolucao()?.nome }} — evolução mensal em {{ ano() }}</div>
+          <div class="ocup-evol-title">{{ tituloEvolucao() }} — evolução mensal em {{ ano() }}</div>
 
           <svg
             class="ocup-evol-svg"

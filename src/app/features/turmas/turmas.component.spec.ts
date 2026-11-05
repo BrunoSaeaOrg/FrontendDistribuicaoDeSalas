@@ -54,24 +54,27 @@ describe('TurmasComponent: filtro de unidade', () => {
   const salas = (tela: TurmasComponent) => tela.rows().map((r) => r.nome);
   const rotulos = (tela: TurmasComponent) => tela.unidadeOptions().map((o) => o.label);
 
-  it('cada filial é uma unidade no campo Unidade, e não há mais campo Filial', () => {
+  it('cada filial é uma unidade no campo Unidade, sem a palavra "filial", e não há mais campo Filial', () => {
     const fixture = criar();
     const tela = fixture.componentInstance;
     const el = fixture.nativeElement as HTMLElement;
 
-    expect(rotulos(tela)).toEqual(['Todas as unidades', 'CASJ · filial 2', 'CASJ · filial 13', 'Sul · filial 6']);
+    expect(rotulos(tela)).toEqual(['CASJ 1', 'CASJ 2', 'Sul']);
     expect(el.querySelector('app-select[label="Filial"]')).toBeNull();
+    expect(el.querySelector('app-multi-select[label="Unidade"]')).not.toBeNull();
     expect(salas(tela)).toEqual(['Sala 17', 'Sala 5', 'Sala 1']);
   });
 
-  it('escolher uma unidade deixa só as salas daquela filial', () => {
+  it('as unidades marcadas deixam só as salas delas; nenhuma marcada mostra todas', () => {
     const tela = criar().componentInstance;
 
-    tela.selecionarUnidade('13');
+    tela.selecionarUnidades(['13']);
     expect(salas(tela)).toEqual(['Sala 5']);
-    tela.selecionarUnidade('2');
+    tela.selecionarUnidades(['2']);
     expect(salas(tela)).toEqual(['Sala 17']);
-    tela.selecionarUnidade('todas');
+    tela.selecionarUnidades(['2', '6']);
+    expect(salas(tela)).toEqual(['Sala 17', 'Sala 1']);
+    tela.selecionarUnidades([]);
     expect(salas(tela)).toEqual(['Sala 17', 'Sala 5', 'Sala 1']);
   });
 });

@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SalasService } from '../../core/services/salas.service';
-import { Turno } from '../../core/models';
+import { Turno, unidadeNoFiltro } from '../../core/models';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
+import { MultiSelectComponent, MultiSelectOption } from '../../shared/ui/multi-select/multi-select.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
 type OcupVis = 'tabela' | 'evolucao' | 'colunas';
@@ -39,7 +40,7 @@ const TURNOS: Turno[] = ['manha', 'tarde'];
 @Component({
   selector: 'app-ocupacao',
   standalone: true,
-  imports: [FormsModule, CardComponent, CarregandoComponent, EmptyStateComponent, SelectComponent],
+  imports: [FormsModule, CardComponent, CarregandoComponent, EmptyStateComponent, MultiSelectComponent, SelectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './ocupacao.component.html',
   styleUrl: './ocupacao.component.css',
@@ -52,8 +53,8 @@ export class OcupacaoComponent {
   /** O ano escolhido ainda está vindo do RM: spinner no campo do ano e véu sobre o conteúdo. */
   readonly carregando = this.salasService.loading;
   readonly trocandoAno = this.salasService.trocandoAno;
-  /** Unidade = filial do RM ("CASJ · filial 2"); 'todas' = todas. */
-  readonly unidade = signal('todas');
+  /** Unidades marcadas (cada uma é uma filial do RM, ex.: "CASJ 1"); nenhuma marcada = todas. */
+  readonly unidades = signal<string[]>([]);
   readonly turno = signal('todas');
   readonly segmento = signal('todas');
   readonly agrupar = signal<Agrupador>('unidade');
@@ -68,13 +69,12 @@ export class OcupacaoComponent {
     this.salasService.selecionarAno(ano);
   }
 
-  readonly unidadeOptions = computed<SelectOption[]>(() => {
-    const base = this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome }));
-    return this.vis() === 'evolucao' ? base : [{ value: 'todas', label: 'Todas as unidades' }, ...base];
-  });
+  readonly unidadeOptions = computed<MultiSelectOption[]>(() =>
+    this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
+  );
 
-  selecionarUnidade(unidade: string): void {
-    this.unidade.set(unidade);
+  selecionarUnidades(unidades: string[]): void {
+    this.unidades.set(unidades);
   }
 
   readonly turnoOptions: SelectOption[] = [
@@ -139,7 +139,8 @@ export class OcupacaoComponent {
 
   readonly grupos = computed<Grupo[]>(() => {
     let entradas = this.entradas();
-    if (this.unidade() !== 'todas') entradas = entradas.filter((e) => e.unidadeId === this.unidade());
+    const unidades = this.unidades();
+    entradas = entradas.filter((e) => unidadeNoFiltro(unidades, e.unidadeId));
     if (this.turno() !== 'todas') entradas = entradas.filter((e) => e.turno === this.turno());
     if (this.segmento() !== 'todas') entradas = entradas.filter((e) => e.segmento === this.segmento());
 
@@ -154,7 +155,7 @@ export class OcupacaoComponent {
         case 'serie':
           return { key: e.serie, label: e.serie, color: null };
         default:
-          // Pela unidade: a mesma turma em duas unidades (ex.: CASJ · filial 2 e 13) não é a mesma turma.
+          // Pela unidade: a mesma turma em duas unidades (ex.: CASJ 1 e CASJ 2) não é a mesma turma.
           return { key: `${e.unidadeId}|${e.turma}`, label: `${e.turma} (${e.unidadeNome})`, color: null };
       }
     };
@@ -214,9 +215,18 @@ export class OcupacaoComponent {
   });
 
   // --- Evolução mensal ---
-  readonly unidadeEvolucao = computed(
-    () => this.salasService.unidade(this.unidade()) ?? this.salasService.unidades()[0],
-  );
+  /** A evolução soma as unidades marcadas (nenhuma marcada = todas). */
+  readonly unidadesEvolucao = computed(() => {
+    const marcadas = this.unidades();
+    return this.salasService.unidades().filter((u) => unidadeNoFiltro(marcadas, u.id));
+  });
+
+  readonly tituloEvolucao = computed(() => {
+    const todas = this.salasService.unidades();
+    const marcadas = this.unidadesEvolucao();
+    if (marcadas.length > 1 && marcadas.length === todas.length) return 'Todas as unidades';
+    return marcadas.map((u) => u.nome).join(', ');
+  });
 
   private hashStr(str: string): number {
     let h = 0;
@@ -237,11 +247,11 @@ export class OcupacaoComponent {
 
   readonly evolSeries = computed(() => {
     const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const unidade = this.unidadeEvolucao();
-    if (!unidade) return [];
-    const salasUnidade = this.salasService.salasDaUnidade(unidade.id);
+    const unidades = this.unidadesEvolucao();
+    if (unidades.length === 0) return [];
+    const salasUnidade = unidades.flatMap((u) => this.salasService.salasDaUnidade(u.id));
     const capBase = salasUnidade.reduce((a, s) => a + this.salasService.capacidade(s), 0);
-    const rng = this.mulberry32(this.hashStr(unidade.id + '|' + this.ano()));
+    const rng = this.mulberry32(this.hashStr(unidades.map((u) => u.id).join(',') + '|' + this.ano()));
     const boostMonth = 6 + Math.floor(rng() * 3);
     const boostAmount = Math.round(capBase * (0.06 + rng() * 0.06));
     const alunosBase = Math.round(capBase * (0.76 + rng() * 0.08));
@@ -297,9 +307,5 @@ export class OcupacaoComponent {
 
   onVisChange(v: OcupVis): void {
     this.vis.set(v);
-    if (v === 'evolucao' && this.unidade() === 'todas') {
-      const first = this.salasService.unidades()[0];
-      if (first) this.selecionarUnidade(first.id);
-    }
   }
 }

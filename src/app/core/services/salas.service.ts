@@ -3,7 +3,7 @@ import { catchError, concatMap, finalize, firstValueFrom, forkJoin, from, map, o
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { linhasDeAlunos, logAlunosPorSala } from '../debug/log-alunos-por-sala';
-import { fundirSalasEApi } from '../mock/ocupacao-adapter';
+import { filiaisDasRespostas, fundirSalasEApi, juntarFiliais, nomesDasUnidades } from '../mock/ocupacao-adapter';
 import {
   Sala,
   StatusInfo,
@@ -54,6 +54,16 @@ export interface Gravacao {
   total?: number;
 }
 
+/** Transferência de carteiras em andamento (tela Planta). */
+export interface TransferenciaEmAndamento {
+  origemId: string;
+  destinoId: string;
+  destinoNome: string;
+  quantidade: number;
+  /** `gravando`: o RM está mudando as carteiras; `relendo`: gravou e a tela está buscando os números novos. */
+  etapa: 'gravando' | 'relendo';
+}
+
 /**
  * Texto da falha de gravação: o backend devolve a causa (ex.: "O RM não gravou o vínculo: ...") em
  * `message`; erro de validação do ASP.NET vem como ProblemDetails, com o texto em `title`.
@@ -81,6 +91,11 @@ export class SalasService {
    * a tela mostra o spinner nela. null quando nada está gravando.
    */
   private readonly _gravando = signal<Gravacao | null>(null);
+  /**
+   * Transferência de carteiras em andamento: gravando no RM e, depois, relendo as salas para a tela
+   * mostrar os números novos. null quando nenhuma está em andamento (uma de cada vez).
+   */
+  private readonly _transferindo = signal<TransferenciaEmAndamento | null>(null);
   private readonly _anosLetivos = signal<string[]>([anoCorrente()]);
   private readonly _anoLetivo = signal(anoCorrente());
   /** Usuario cuja carga ja foi disparada, evita refetch a cada reavaliacao do effect. */
@@ -89,8 +104,14 @@ export class SalasService {
   private carga = 0;
   /** Ano dos dados que estão na tela (o da última carga que chegou); null antes da primeira. */
   private readonly _anoCarregado = signal<string | null>(null);
+  /** CODFILIAL → nome do RM de cada filial já vista nas cargas desta sessão (de qualquer ano). */
+  private readonly _filiais = signal<ReadonlyMap<number, string>>(new Map());
 
   readonly unidades = this._unidades.asReadonly();
+  /** As filiais já vistas, com o nome do RM (para numerar "CASJ 1", "CASJ 2" fora das salas do ano). */
+  readonly filiais = this._filiais.asReadonly();
+  /** O nome de tela de cada filial já vista ("CASJ 2"), o mesmo das unidades. */
+  readonly nomesDasFiliais = computed(() => nomesDasUnidades(this._filiais()));
   readonly salas = this._salas.asReadonly();
   readonly turmasLivres = this._turmasLivres.asReadonly();
   readonly loading = this._loading.asReadonly();
@@ -104,6 +125,8 @@ export class SalasService {
   readonly gravando = this._gravando.asReadonly();
   /** Alguma gravação em andamento: trava vincular/liberar nas outras células também. */
   readonly salvando = computed(() => this._gravando() !== null);
+  /** A transferência de carteiras em andamento (a Planta mostra o carregando e trava outro arraste). */
+  readonly transferindo = this._transferindo.asReadonly();
 
   /** Anos letivos do usuário (OC_SAL_ANOS → API.OC.SAL.ANO no RM), do mais antigo ao mais novo. */
   readonly anosLetivos = this._anosLetivos.asReadonly();
@@ -161,6 +184,7 @@ export class SalasService {
       if (!usuario) {
         // Logout: descarta os dados para o proximo login nao herdar o estado anterior.
         this.usuarioCarregado = null;
+        this._filiais.set(new Map());
         this._unidades.set([]);
         this._salas.set([]);
         this._turmasLivres.set([]);
@@ -177,10 +201,16 @@ export class SalasService {
     });
   }
 
-  /** Recarrega salas, vinculos e turmas livres do usuario autenticado, no ano letivo em uso. */
-  carregar(): void {
+  /**
+   * Recarrega salas, vinculos e turmas livres do usuario autenticado, no ano letivo em uso.
+   * `aoTerminar` roda quando a carga acaba, com ou sem erro (ex.: tirar o carregando da transferência).
+   */
+  carregar(aoTerminar?: () => void): void {
     const codUsuario = this.authService.currentUser()?.username ?? '';
-    if (!codUsuario) return;
+    if (!codUsuario) {
+      aoTerminar?.();
+      return;
+    }
     const ano = this._anoLetivo();
     const carga = ++this.carga;
     this._loading.set(true);
@@ -191,25 +221,36 @@ export class SalasService {
       this.ocupacaoApi.getSalasDoAno(codUsuario, ano),
       this.ocupacaoApi.getTurmasXSalas(codUsuario, ano),
       this.ocupacaoApi.getTurmas(codUsuario, ano),
-    ]).subscribe({
-      next: ([salasDto, turmasXSalasDto, turmasDto]) => {
-        if (carga !== this.carga) return;
-        const { unidades, salas, turmasLivres } = fundirSalasEApi(salasDto, turmasXSalasDto, turmasDto);
-        this._unidades.set(unidades);
-        // As regras de ocupação são por filial (= unidade): só lê as que ainda não vieram.
-        this.regrasService.carregarFiliais(unidades.map((u) => u.codFilial));
-        this._salas.set(salas);
-        this._turmasLivres.set(turmasLivres);
-        this._anoCarregado.set(ano);
-        this._loading.set(false);
-      },
-      error: (err) => {
-        if (carga !== this.carga) return;
-        this._error.set('Não foi possível carregar as salas.');
-        this._loading.set(false);
-        this.toast.danger('Falha ao carregar salas','Não foi possível contatar o servidor.');
-      },
-    });
+    ])
+      .pipe(finalize(() => aoTerminar?.()))
+      .subscribe({
+        next: ([salasDto, turmasXSalasDto, turmasDto]) => {
+          if (carga !== this.carga) return;
+          const { unidades, salas, turmasLivres } = fundirSalasEApi(
+            salasDto,
+            turmasXSalasDto,
+            turmasDto,
+            this._filiais(),
+          );
+          // As filiais deste ano entram nas já vistas: "CASJ 2" continua "CASJ 2" nos outros anos.
+          this._filiais.update((conhecidas) =>
+            juntarFiliais(conhecidas, filiaisDasRespostas(salasDto, turmasXSalasDto, turmasDto)),
+          );
+          this._unidades.set(unidades);
+          // As regras de ocupação são por filial (= unidade): só lê as que ainda não vieram.
+          this.regrasService.carregarFiliais(unidades.map((u) => u.codFilial));
+          this._salas.set(salas);
+          this._turmasLivres.set(turmasLivres);
+          this._anoCarregado.set(ano);
+          this._loading.set(false);
+        },
+        error: (err) => {
+          if (carga !== this.carga) return;
+          this._error.set('Não foi possível carregar as salas.');
+          this._loading.set(false);
+          this.toast.danger('Falha ao carregar salas','Não foi possível contatar o servidor.');
+        },
+      });
   }
 
   /** Troca o ano letivo e recarrega as salas, os vínculos e as turmas daquele ano. */
@@ -272,6 +313,11 @@ export class SalasService {
 
   unidade(id: string): Unidade | undefined {
     return this._unidades().find((u) => u.id === id);
+  }
+
+  /** "CASJ 2"; uma filial que ainda não apareceu em nenhuma carga fica "Unidade N". */
+  nomeDaFilial(codFilial: number | string): string {
+    return this.nomesDasFiliais().get(Number(codFilial)) ?? `Unidade ${codFilial}`;
   }
 
   sala(id: string): Sala | undefined {
@@ -346,6 +392,23 @@ export class SalasService {
     const limite = this.limiteDeUso(sala);
     if (limite === null || this.podeExcederLimite(sala)) return Infinity;
     return Math.max(0, limite - sala.carteiras);
+  }
+
+  /**
+   * Receber `quantidade` carteiras deixa a sala acima do limite, mas a filial permite exceder: a
+   * transferência só vai com justificativa (que fica no histórico).
+   */
+  precisaJustificativa(destino: Sala, quantidade: number): boolean {
+    const limite = this.limiteDeUso(destino);
+    return (
+      limite !== null && this.podeExcederLimite(destino) && destino.carteiras + quantidade > limite
+    );
+  }
+
+  /** "limite de 15 (50% da capacidade de 30)": a regra do destino, para avisos e o modal da justificativa. */
+  descricaoDoLimite(sala: Sala): string {
+    const pct = this.regrasService.regrasDaFilial(sala.codFilial).pctMaximoUtilizacao;
+    return `limite de ${this.limiteDeUso(sala)} (${pct}% da capacidade de ${this.capacidade(sala)})`;
   }
 
   /** Turmas vinculadas à sala no turno (pode ser mais de uma); vazio = sala livre. */
@@ -512,11 +575,21 @@ export class SalasService {
   /**
    * Move `quantidade` carteira(s) vaga(s) de uma sala para outra (drag-and-drop da tela Planta), no
    * período letivo do ano em uso. Não manda nada (e devolve false) se o destino passaria do limite
-   * da regra de ocupação e a filial não permite exceder.
+   * da regra de ocupação e a filial não permite exceder, se permite mas falta a justificativa, ou se
+   * outra transferência ainda está em andamento.
+   *
+   * Enquanto grava e relê as salas, `transferindo()` fica preenchido (a tela mostra o carregando);
+   * `aoTerminar(ok)` roda no fim, já com os números novos na tela.
    */
-  transferirCarteira(origem: Sala, destino: Sala, quantidade = 1): boolean {
+  transferirCarteira(
+    origem: Sala,
+    destino: Sala,
+    quantidade = 1,
+    justificativa = '',
+    aoTerminar?: (ok: boolean) => void,
+  ): boolean {
     const codUsuario = this.authService.currentUser()?.username ?? '';
-    if (!codUsuario) return false;
+    if (!codUsuario || this._transferindo()) return false;
     if (quantidade > this.carteirasQueCabem(destino)) {
       const limite = this.limiteDeUso(destino);
       const pct = this.regrasService.regrasDaFilial(destino.codFilial).pctMaximoUtilizacao;
@@ -526,6 +599,30 @@ export class SalasService {
       );
       return false;
     }
+    const motivo = justificativa.trim();
+    if (!motivo && this.precisaJustificativa(destino, quantidade)) {
+      this.toast.warning(
+        'Falta a justificativa',
+        `${destino.nome} fica acima do ${this.descricaoDoLimite(destino)}: diga por que pode exceder.`,
+      );
+      return false;
+    }
+    const emAndamento = {
+      origemId: origem.id,
+      destinoId: destino.id,
+      destinoNome: destino.nome,
+      quantidade,
+    };
+    this._transferindo.set({ ...emAndamento, etapa: 'gravando' });
+    /** Relê as salas (as carteiras mudam no RM) e só então tira o carregando. */
+    const relerEConcluir = (ok: boolean, depois: () => void) => {
+      this._transferindo.set({ ...emAndamento, etapa: 'relendo' });
+      this.carregar(() => {
+        this._transferindo.set(null);
+        depois();
+        aoTerminar?.(ok);
+      });
+    };
     this.ocupacaoApi
       .transferirCarteira({
         codUsuario,
@@ -543,21 +640,30 @@ export class SalasService {
         },
         quantidade,
         ano: this._anoLetivo(),
+        justificativa: motivo || undefined,
       })
       .subscribe({
         next: (res) => {
           if (res.sucesso === 1) {
-            this.toast.success('Carteira transferida', `${origem.nome} → ${destino.nome}.`);
-            this.carregar();
+            const titulo =
+              quantidade === 1 ? 'Carteira transferida' : `${quantidade} carteiras transferidas`;
+            relerEConcluir(true, () =>
+              this.toast.success(titulo, `${origem.nome} → ${destino.nome}.`),
+            );
           } else {
+            this._transferindo.set(null);
             this.toast.danger('Não foi possível transferir', 'tente novamente');
+            aoTerminar?.(false);
           }
         },
         error: (err) => {
-          const mensagem = err?.error?.message ?? 'Não foi possível contatar o servidor.';
-          this.toast.danger('Falha ao transferir carteira', mensagem);
-          // A falha pode vir depois de as carteiras já terem mudado (no histórico): a tela relê o RM.
-          this.carregar();
+          // O erro aparece na hora; a falha pode vir depois de as carteiras já terem mudado (no
+          // histórico), então a tela relê o RM antes de tirar o carregando.
+          this.toast.danger(
+            'Falha ao transferir carteira',
+            err?.error?.message ?? 'Não foi possível contatar o servidor.',
+          );
+          relerEConcluir(false, () => {});
         },
       });
     return true;

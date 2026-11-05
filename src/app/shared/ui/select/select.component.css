@@ -38,6 +38,7 @@
 }
 .saea-select-control:disabled {
   background: var(--saea-surface-sunken);
+  color: var(--saea-ink-faint);
   cursor: not-allowed;
 }
 .saea-select-control--error {

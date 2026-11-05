@@ -32,6 +32,7 @@
 }
 .saea-field-control:disabled {
   background: var(--saea-surface-sunken);
+  color: var(--saea-ink-faint);
   cursor: not-allowed;
 }
 .saea-field-control--error {

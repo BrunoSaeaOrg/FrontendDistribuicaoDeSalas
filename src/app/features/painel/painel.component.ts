@@ -1,13 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { nomeDoAndar, Turno } from '../../core/models';
+import { nomeDoAndar, Turno, unidadeNoFiltro } from '../../core/models';
 import { SalasService } from '../../core/services/salas.service';
 import { BadgeTone } from '../../shared/ui/badge/badge.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
+import { MultiSelectComponent, MultiSelectOption } from '../../shared/ui/multi-select/multi-select.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
 interface TurnoChip {
@@ -54,7 +55,15 @@ interface PainelRow {
 @Component({
   selector: 'app-painel',
   standalone: true,
-  imports: [FormsModule, CardComponent, CarregandoComponent, EmptyStateComponent, InputComponent, SelectComponent],
+  imports: [
+    FormsModule,
+    CardComponent,
+    CarregandoComponent,
+    EmptyStateComponent,
+    InputComponent,
+    MultiSelectComponent,
+    SelectComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './painel.component.html',
   styleUrl: './painel.component.css',
@@ -63,8 +72,8 @@ export class PainelComponent {
   private readonly salasService = inject(SalasService);
   private readonly router = inject(Router);
 
-  /** Unidade = filial do RM ("CASJ · filial 2"); 'todas' = todas. */
-  readonly unidade = signal('todas');
+  /** Unidades marcadas (cada uma é uma filial do RM, ex.: "CASJ 1"); nenhuma = todas. */
+  readonly unidades = signal<string[]>([]);
   readonly turno = signal('todas');
   readonly status = signal('todas');
   readonly busca = signal('');
@@ -87,14 +96,13 @@ export class PainelComponent {
     this.salasService.selecionarAno(ano);
   }
 
-  readonly unidadeOptions = computed<SelectOption[]>(() => [
-    { value: 'todas', label: 'Todas as unidades' },
-    ...this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
-  ]);
+  readonly unidadeOptions = computed<MultiSelectOption[]>(() =>
+    this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
+  );
 
   /** Pelo campo ou pelos chips de unidade. */
-  selecionarUnidade(unidade: string): void {
-    this.unidade.set(unidade);
+  selecionarUnidades(unidades: string[]): void {
+    this.unidades.set(unidades);
   }
   readonly turnoOptions: SelectOption[] = [
     { value: 'todas', label: 'Todos os turnos' },
@@ -178,12 +186,12 @@ export class PainelComponent {
 
   readonly rows = computed(() => {
     let rows = this.allRows();
-    const unidade = this.unidade();
+    const unidades = this.unidades();
     const turno = this.turno();
     const status = this.status();
     const busca = this.busca().trim().toLowerCase();
 
-    if (unidade !== 'todas') rows = rows.filter((r) => r.unidadeId === unidade);
+    rows = rows.filter((r) => unidadeNoFiltro(unidades, r.unidadeId));
     if (turno !== 'todas') {
       rows = rows.filter((r) => {
         const chip = r.turnoChips.find((c) => c.turno === turno);
@@ -199,8 +207,10 @@ export class PainelComponent {
     return rows;
   });
 
+  /** O chip marca ou desmarca a unidade no campo, como o checkbox dela. */
   toggleUnidade(id: string): void {
-    this.selecionarUnidade(this.unidade() === id ? 'todas' : id);
+    const atual = this.unidades();
+    this.selecionarUnidades(atual.includes(id) ? atual.filter((u) => u !== id) : [...atual, id]);
   }
 
   verPlanta(row: PainelRow): void {

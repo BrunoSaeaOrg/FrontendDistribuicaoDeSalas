@@ -1,6 +1,15 @@
 <div class="planta-page">
   <div class="planta-filters">
-    <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" [carregando]="carregando()" />
+    <app-multi-select
+      label="Unidade"
+      todas="Todas as unidades"
+      placeholder="Todas as unidades"
+      [nenhumaEhTodas]="true"
+      [options]="unidadeOptions()"
+      [selected]="unidades()"
+      (selectedChange)="selecionarUnidades($event)"
+    />
+    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" [carregando]="carregando()" />
     <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="onSegmentoChange($event)" [options]="segmentoOptions()" />
     <app-select label="Série" [ngModel]="serie()" (ngModelChange)="onSerieChange($event)" [options]="serieOptions()" />
     <app-select label="Sala" [ngModel]="sala()?.id ?? ''" (ngModelChange)="onSalaChange($event)" [options]="salaOptions()" />
@@ -24,7 +33,9 @@
   } @else {
     <div class="planta-grid saea-carregavel">
       <app-carregando [ativo]="trocandoAno()" [texto]="'Carregando ' + anoLetivo() + '...'" />
-      <app-card class="saea-card-fill">
+      <app-card class="saea-card-fill saea-carregavel">
+        <!-- Transferindo carteiras: cobre a sala até o RM gravar e a tela reler os números. -->
+        <app-carregando [ativo]="!!transferindo()" [texto]="textoTransferindo()" />
         <div class="planta-head">
           <div>
             <div class="planta-nome">{{ sala()!.nome }}</div>
@@ -67,7 +78,7 @@
           </div>
 
           @if (podeTransferir()) {
-            <app-button variant="secondary" size="sm" (clicked)="abrirTransferModal()">
+            <app-button variant="secondary" size="sm" [disabled]="!!transferindo()" (clicked)="abrirTransferModal()">
               <span class="material-icons planta-transfer-btn-icon">swap_horiz</span>
               Transferir carteiras
             </app-button>
@@ -105,9 +116,9 @@
                 <div
                   class="planta-desk planta-desk--{{ desk.kind }}"
                   [class.planta-desk--acima]="desk.acimaDoLimite"
-                  [class.planta-desk--draggable]="desk.kind === 'vaga' && uiMode.editorMode()"
+                  [class.planta-desk--draggable]="desk.kind === 'vaga' && uiMode.editorMode() && !transferindo()"
                   [title]="desk.kind === 'vaga' && uiMode.editorMode() ? 'Arraste para mover esta carteira para outra sala' : desk.tooltip"
-                  [draggable]="desk.kind === 'vaga' && uiMode.editorMode()"
+                  [draggable]="desk.kind === 'vaga' && uiMode.editorMode() && !transferindo()"
                   (dragstart)="onDeskDragStart(desk, $event)"
                   (dragend)="onDeskDragEnd()"
                 >
@@ -127,7 +138,7 @@
               [class.planta-outra-row--dropzone]="arrastando()"
               [class.planta-outra-row--droptarget]="dropAlvoId() === room.id"
               [class.planta-outra-row--cheia]="arrastando() && room.cabem < 1"
-              [attr.title]="arrastando() && room.cabem < 1 ? room.nome + ' está no limite da regra de ocupação' : null"
+              [class.planta-outra-row--recebendo]="transferindo()?.destinoId === room.id"
               (dragover)="onOutraSalaDragOver(room.id, $event)"
               (dragleave)="onOutraSalaDragLeave(room.id)"
               (drop)="onOutraSalaDrop(room.id, $event)"
@@ -140,6 +151,24 @@
                     · limite {{ room.limite }}
                   }
                 </div>
+                <!-- Arrastando uma carteira: o porquê de a sala não receber, ou que vai pedir justificativa. -->
+                @if (arrastando() && room.avisoNoArraste; as aviso) {
+                  <div
+                    class="planta-outra-aviso"
+                    [class.planta-outra-aviso--danger]="aviso.tone === 'danger'"
+                    [class.planta-outra-aviso--warning]="aviso.tone === 'warning'"
+                  >
+                    <span class="material-icons planta-outra-aviso-icon" aria-hidden="true">{{ aviso.tone === 'danger' ? 'block' : 'edit_note' }}</span>
+                    {{ aviso.text }}
+                  </div>
+                }
+                <!-- A sala que está recebendo as carteiras da transferência em andamento. -->
+                @if (transferindo()?.destinoId === room.id) {
+                  <div class="planta-outra-aviso planta-outra-aviso--recebendo" role="status">
+                    <span class="planta-outra-spinner" aria-hidden="true"></span>
+                    {{ textoRecebendo() }}
+                  </div>
+                }
               </div>
               <div class="planta-outra-actions">
                 <app-badge [tone]="room.statusInfo.tone">{{ room.statusInfo.label }}</app-badge>
@@ -212,6 +241,9 @@
           @if (transferAvisoLimite(); as aviso) {
             <app-alert [tone]="aviso.tone">{{ aviso.text }}</app-alert>
           }
+          @if (transferPrecisaJustificativa()) {
+            <ng-container *ngTemplateOutlet="campoJustificativaTpl" />
+          }
         }
 
         @if (transferStep() === 2 && transferPreview(); as prev) {
@@ -246,6 +278,12 @@
               <span>Destino</span>
               <span>{{ prev.destinoNome }}</span>
             </div>
+            @if (transferPrecisaJustificativa()) {
+              <div class="transfer-summary-line transfer-summary-line--texto">
+                <span>Justificativa</span>
+                <span>{{ justificativa().trim() }}</span>
+              </div>
+            }
           </div>
         }
 
@@ -264,8 +302,11 @@
           <app-button variant="primary" [disabled]="!podeAvancarTransfer()" (clicked)="transferAvancar()">Continuar</app-button>
         }
         @if (transferStep() === 2) {
-          <app-button variant="ghost" (clicked)="transferVoltar()">Voltar</app-button>
-          <app-button variant="primary" (clicked)="transferConfirmar()">Confirmar transferência</app-button>
+          <app-button variant="ghost" [disabled]="!!transferindo()" (clicked)="transferVoltar()">Voltar</app-button>
+          <!-- Fica em "Transferindo..." até o RM gravar e a tela reler as salas. -->
+          <app-button variant="primary" [loading]="!!transferindo()" loadingText="Transferindo..." (clicked)="transferConfirmar()">
+            Confirmar transferência
+          </app-button>
         }
         @if (transferStep() === 3) {
           <app-button variant="primary" (clicked)="fecharTransferModal()">Concluir</app-button>
@@ -273,4 +314,73 @@
       </div>
     </div>
   }
+
+  <!-- Carteira solta numa sala que passa do limite, com "Permitir exceder": a transferência espera a justificativa. -->
+  @if (pedidoJustificativaInfo(); as info) {
+    <div class="transfer-scrim" (click)="cancelarJustificativa()"></div>
+    <div
+      class="transfer-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="planta-just-titulo"
+      (keydown.escape)="cancelarJustificativa()"
+    >
+      <div class="transfer-head">
+        <button type="button" class="transfer-close" aria-label="Fechar" [disabled]="!!transferindo()" (click)="cancelarJustificativa()">
+          <span class="material-icons">close</span>
+        </button>
+        <div class="transfer-head-title" id="planta-just-titulo">Justificar o excesso</div>
+        <div class="transfer-head-step">1 carteira · {{ info.origemNome }} → {{ info.destinoNome }}</div>
+      </div>
+
+      <div class="transfer-body">
+        <app-alert tone="warning">
+          {{ info.destinoNome }} fica com {{ info.depois }} carteiras, acima do {{ info.regra }}. As regras de ocupação
+          permitem exceder, com justificativa.
+        </app-alert>
+        <ng-container *ngTemplateOutlet="campoJustificativaTpl" />
+      </div>
+
+      <div class="transfer-foot">
+        <app-button variant="ghost" [disabled]="!!transferindo()" (clicked)="cancelarJustificativa()">Cancelar</app-button>
+        <!-- Fica em "Transferindo..." até o RM gravar e a tela reler as salas; aí o modal fecha. -->
+        <app-button
+          variant="primary"
+          [disabled]="!justificativaOk()"
+          [loading]="!!transferindo()"
+          loadingText="Transferindo..."
+          (clicked)="confirmarJustificativa()"
+        >Transferir</app-button>
+      </div>
+    </div>
+  }
+
+  <!-- O campo da justificativa: o mesmo no modal "Transferir carteiras" e no que abre ao soltar uma carteira. -->
+  <ng-template #campoJustificativaTpl>
+    <div class="just-field">
+      <label class="just-label" for="planta-justificativa">
+        Justificativa
+        <span class="just-obrigatorio" aria-hidden="true">*</span>
+        <span class="just-so-leitor">(obrigatória)</span>
+      </label>
+      <textarea
+        #campoJustificativa
+        id="planta-justificativa"
+        class="just-textarea"
+        rows="3"
+        required
+        aria-required="true"
+        aria-describedby="planta-justificativa-ajuda"
+        placeholder="Por que esta sala pode passar do limite?"
+        [maxLength]="tamanhoJustificativa"
+        [readOnly]="!!transferindo()"
+        [ngModel]="justificativa()"
+        (ngModelChange)="justificativa.set($event)"
+      ></textarea>
+      <div class="just-helper" id="planta-justificativa-ajuda">
+        <span>Fica registrada no histórico da transferência.</span>
+        <span>{{ justificativa().length }}/{{ tamanhoJustificativa }}</span>
+      </div>
+    </div>
+  </ng-template>
 </div>

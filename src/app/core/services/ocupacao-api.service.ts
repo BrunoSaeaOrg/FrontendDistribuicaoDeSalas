@@ -132,13 +132,17 @@ export class OcupacaoApiService {
     });
   }
 
-  /** As carteiras mudam no período letivo de `ano` (PRJ4087040), e a transferência vai para o histórico. */
+  /**
+   * As carteiras mudam no período letivo de `ano` (PRJ4087040), e a transferência vai para o histórico
+   * (PRJ4987648), com a justificativa quando o destino passa do limite da regra de ocupação.
+   */
   transferirCarteira(request: {
     codUsuario: string;
     origem: { codFilial: number; codBloco: string; codPredio: string; codSala: string };
     destino: { codFilial: number; codBloco: string; codPredio: string; codSala: string };
     quantidade: number;
     ano: string;
+    justificativa?: string;
   }): Observable<{ sucesso: number }> {
     return this.http.post<{ sucesso: number }>(`${this.baseUrl}/OC_SAL_CARTEIRA_TRANSFERIR`, {
       CODUSUARIO: request.codUsuario,
@@ -152,6 +156,7 @@ export class OcupacaoApiService {
       CODSALADESTINO: request.destino.codSala,
       QUANTIDADE: request.quantidade,
       ANO: request.ano,
+      ...(request.justificativa ? { JUSTIFICATIVA: request.justificativa } : {}),
     });
   }
 

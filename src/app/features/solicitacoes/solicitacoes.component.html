@@ -8,7 +8,15 @@
     <div class="sol-lado">
       <!-- A unidade vale para o formulário (as salas) e para a fila. -->
       <div class="sol-filtros">
-        <app-select label="Unidade" [ngModel]="unidadeId()" (ngModelChange)="onUnidadeChange($event)" [options]="unidadeOptions()" />
+        <app-multi-select
+          label="Unidade"
+          todas="Todas as unidades"
+          placeholder="Todas as unidades"
+          [nenhumaEhTodas]="true"
+          [options]="unidadeOptions()"
+          [selected]="unidades()"
+          (selectedChange)="selecionarUnidades($event)"
+        />
       </div>
 
       @if (uiMode.editorMode()) {

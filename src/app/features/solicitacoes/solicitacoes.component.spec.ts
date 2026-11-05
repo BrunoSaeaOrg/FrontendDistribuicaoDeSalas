@@ -40,7 +40,7 @@ const pedido = (codSolicitacao: number, codFilial: number, codSala: string, stat
   dataDecisao: null,
 });
 
-// Cada filial é uma unidade: CASJ · filial 2, 13 e 16 (a 16 sem pedidos) e Sul · filial 6.
+// Cada filial é uma unidade: a CASJ (filiais 2, 13 e 16; a 16 sem pedidos) vira CASJ 1, 2 e 3; a Sul (filial 6) fica Sul.
 const SALAS = [sala(2, 'CASJ', '17'), sala(13, 'CASJ', '5'), sala(16, 'CASJ', '40'), sala(6, 'Sul', '1')];
 const PEDIDOS = [pedido(1, 2, '17', 'P'), pedido(2, 2, '17', 'A'), pedido(3, 13, '5', 'P'), pedido(4, 6, '1', 'R')];
 
@@ -78,10 +78,10 @@ describe('SolicitacoesComponent: fila por unidade', () => {
 
   it('mostra todas as solicitações, da mais nova para a mais antiga, com o status só no badge', () => {
     expect(fila()).toEqual([
-      'Sala 1 (Sul · filial 6) Recusada',
-      'Sala 5 (CASJ · filial 13) Pendente',
-      'Sala 17 (CASJ · filial 2) Aprovada',
-      'Sala 17 (CASJ · filial 2) Pendente',
+      'Sala 1 (Sul) Recusada',
+      'Sala 5 (CASJ 2) Pendente',
+      'Sala 17 (CASJ 1) Aprovada',
+      'Sala 17 (CASJ 1) Pendente',
     ]);
     expect(el().querySelectorAll('.sol-tabela tbody tr')).toHaveLength(4);
     // Sem abas nem botões de status: o status é o badge, e só o pendente pisca.
@@ -89,44 +89,43 @@ describe('SolicitacoesComponent: fila por unidade', () => {
     expect(el().querySelectorAll('.sol-badge-pulse')).toHaveLength(2);
   });
 
-  it('cada filial é uma unidade no campo Unidade, e não há mais campo Filial', () => {
-    expect(tela().unidadeOptions().map((o) => o.label)).toEqual([
-      'Todas as unidades',
-      'CASJ · filial 2',
-      'CASJ · filial 13',
-      'CASJ · filial 16',
-      'Sul · filial 6',
-    ]);
+  it('cada filial é uma unidade no campo Unidade, sem a palavra "filial", e não há mais campo Filial', () => {
+    expect(tela().unidadeOptions().map((o) => o.label)).toEqual(['CASJ 1', 'CASJ 2', 'CASJ 3', 'Sul']);
     expect(el().querySelector('app-select[label="Filial"]')).toBeNull();
+    expect(el().textContent).not.toContain('filial');
   });
 
-  it('a unidade escolhida muda a fila', () => {
-    tela().onUnidadeChange('13');
-    expect(fila()).toEqual(['Sala 5 (CASJ · filial 13) Pendente']);
+  it('as unidades marcadas mudam a fila; nenhuma marcada mostra todas', () => {
+    tela().selecionarUnidades(['13']);
+    expect(fila()).toEqual(['Sala 5 (CASJ 2) Pendente']);
 
-    tela().onUnidadeChange('2');
-    expect(fila()).toEqual(['Sala 17 (CASJ · filial 2) Aprovada', 'Sala 17 (CASJ · filial 2) Pendente']);
+    tela().selecionarUnidades(['2']);
+    expect(fila()).toEqual(['Sala 17 (CASJ 1) Aprovada', 'Sala 17 (CASJ 1) Pendente']);
 
-    tela().onUnidadeChange('todas');
+    tela().selecionarUnidades(['2', '6']);
+    expect(fila()).toEqual(['Sala 1 (Sul) Recusada', 'Sala 17 (CASJ 1) Aprovada', 'Sala 17 (CASJ 1) Pendente']);
+
+    tela().selecionarUnidades([]);
     expect(fila()).toHaveLength(4);
   });
 
   it('unidade sem solicitação: a fila vazia diz qual é', () => {
-    tela().onUnidadeChange('16');
+    tela().selecionarUnidades(['16']);
     fixture.detectChanges();
     expect(fila()).toEqual([]);
-    expect(tela().filaVazia()).toBe('Nenhuma solicitação da CASJ · filial 16');
-    expect(el().textContent).toContain('Nenhuma solicitação da CASJ · filial 16');
+    expect(tela().filaVazia()).toBe('Nenhuma solicitação da CASJ 3');
+    expect(el().textContent).toContain('Nenhuma solicitação da CASJ 3');
   });
 
   it('no formulário, as salas de várias unidades levam o nome da unidade; numa unidade só, não', () => {
     expect(tela().salaOptions().map((o) => o.label)).toEqual([
-      'Sala 17 · CASJ · filial 2',
-      'Sala 5 · CASJ · filial 13',
-      'Sala 40 · CASJ · filial 16',
-      'Sala 1 · Sul · filial 6',
+      'Sala 17 · CASJ 1',
+      'Sala 5 · CASJ 2',
+      'Sala 40 · CASJ 3',
+      'Sala 1 · Sul',
     ]);
-    tela().onUnidadeChange('13');
+    tela().selecionarUnidades(['13']);
     expect(tela().salaOptions().map((o) => o.label)).toEqual(['Sala 5']);
+    expect(tela().salaSelecionadaId()).toBe(tela().salasDaUnidade()[0].id);
   });
 });

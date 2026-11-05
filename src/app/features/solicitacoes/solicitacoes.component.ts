@@ -5,13 +5,14 @@ import { SalasService } from '../../core/services/salas.service';
 import { SolicitacoesService } from '../../core/services/solicitacoes.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
 import { AlertComponent, AlertTone } from '../../shared/ui/alert/alert.component';
-import { StatusSolicitacao } from '../../core/models';
+import { StatusSolicitacao, unidadeNoFiltro } from '../../core/models';
 import { BadgeComponent, BadgeTone } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
+import { MultiSelectComponent, MultiSelectOption } from '../../shared/ui/multi-select/multi-select.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
 /** O status de cada pedido só aparece no badge (o de pendente pisca). */
@@ -33,6 +34,7 @@ const STATUS: Record<StatusSolicitacao, { rotulo: string; tom: BadgeTone }> = {
     CarregandoComponent,
     EmptyStateComponent,
     InputComponent,
+    MultiSelectComponent,
     SelectComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,23 +52,23 @@ export class SolicitacoesComponent {
   readonly carregando = computed(() => this.solicitacoesService.loading() || this.salasService.trocandoAno());
 
   /**
-   * A unidade (uma filial do RM, "CASJ · filial 2") fica em cima do formulário, na altura da fila, e
-   * vale para as duas partes: as salas do formulário de nova solicitação e a fila. 'todas' = todas.
+   * As unidades marcadas (cada uma é uma filial do RM, ex.: "CASJ 1") ficam em cima do formulário,
+   * na altura da fila, e valem para as duas partes: as salas do formulário de nova solicitação e a
+   * fila. Nenhuma marcada = todas.
    */
-  readonly unidadeId = signal('todas');
+  readonly unidades = signal<string[]>([]);
   readonly salaId = signal('');
   readonly quantidade = signal(2);
   readonly justificativa = signal('');
 
-  readonly unidadeOptions = computed<SelectOption[]>(() => [
-    { value: 'todas', label: 'Todas as unidades' },
-    ...this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
-  ]);
+  readonly unidadeOptions = computed<MultiSelectOption[]>(() =>
+    this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
+  );
 
-  /** As salas da unidade escolhida (sem unidade, as de todas). */
+  /** As salas das unidades marcadas (sem nenhuma, as de todas). */
   readonly salasDaUnidade = computed(() => {
-    const unidade = this.unidadeId();
-    return unidade === 'todas' ? this.salasService.salas() : this.salasService.salasDaUnidade(unidade);
+    const unidades = this.unidades();
+    return this.salasService.salas().filter((s) => unidadeNoFiltro(unidades, s.unidadeId));
   });
 
   /** Com salas de mais de uma unidade na lista, o nome leva a unidade: "Sala 1" existe em várias. */
@@ -166,11 +168,10 @@ export class SolicitacoesComponent {
     };
   });
 
-  /** As solicitações da unidade escolhida. */
+  /** As solicitações das unidades marcadas. */
   private readonly solicitacoesDoFiltro = computed(() => {
-    const unidade = this.unidadeId();
-    const todas = this.solicitacoesService.solicitacoes();
-    return unidade === 'todas' ? todas : todas.filter((s) => s.unidadeId === unidade);
+    const unidades = this.unidades();
+    return this.solicitacoesService.solicitacoes().filter((s) => unidadeNoFiltro(unidades, s.unidadeId));
   });
 
   /** A fila, da mais nova para a mais antiga (o código cresce a cada pedido). */
@@ -181,7 +182,7 @@ export class SolicitacoesComponent {
         const unidade = this.salasService.unidade(s.unidadeId);
         return {
           solicitacao: s,
-          unidadeNome: unidade?.nome ?? `Filial ${s.codFilial}`,
+          unidadeNome: unidade?.nome ?? this.salasService.nomeDaFilial(s.codFilial),
           unidadeCor: unidade?.cor ?? 'transparent',
           statusLabel: STATUS[s.status].rotulo,
           statusTone: STATUS[s.status].tom,
@@ -190,20 +191,25 @@ export class SolicitacoesComponent {
       }),
   );
 
-  /** Fila vazia: o texto diz de qual unidade. */
+  /** Fila vazia: com uma unidade marcada, o texto diz qual. */
   readonly filaVazia = computed(() => {
-    const unidade = this.unidadeId();
-    return unidade === 'todas' ? 'Nenhuma solicitação' : `Nenhuma solicitação da ${this.nomeDaUnidade(unidade)}`;
+    const unidades = this.unidades();
+    if (unidades.length === 1) return `Nenhuma solicitação da ${this.nomeDaUnidade(unidades[0])}`;
+    return unidades.length > 1 && unidades.length < this.salasService.unidades().length
+      ? 'Nenhuma solicitação nas unidades marcadas'
+      : 'Nenhuma solicitação';
   });
 
-  onUnidadeChange(uid: string): void {
-    this.unidadeId.set(uid);
-    this.salaId.set(this.salasDaUnidade()[0]?.id ?? '');
+  /** A sala do formulário fica se ainda for de uma das unidades marcadas; se não, vai para a primeira. */
+  selecionarUnidades(unidades: string[]): void {
+    this.unidades.set(unidades);
+    const salas = this.salasDaUnidade();
+    if (!salas.some((s) => s.id === this.salaSelecionadaId())) this.salaId.set(salas[0]?.id ?? '');
   }
 
-  /** "CASJ · filial 2"; a unidade sem sala no ano em tela fica pelo número da filial. */
+  /** "CASJ 1"; a unidade sem sala no ano em tela vem das filiais já vistas. */
   private nomeDaUnidade(unidadeId: string): string {
-    return this.salasService.unidade(unidadeId)?.nome ?? `Filial ${unidadeId}`;
+    return this.salasService.unidade(unidadeId)?.nome ?? this.salasService.nomeDaFilial(unidadeId);
   }
 
   submit(): void {

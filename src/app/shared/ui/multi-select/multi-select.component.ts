@@ -39,6 +39,9 @@ let nextId = 0;
  *
  * O conteúdo projetado entra no campo, antes do botão, como destinatários num campo de e-mail
  * (ex.: as turmas já vinculadas, em fichas). Clicar no vazio do campo também abre a lista.
+ *
+ * Com `todas` (ex.: "Todas as unidades"), a primeira linha marca ou desmarca todas as opções, e o
+ * botão mostra os nomes das marcadas (até duas; depois, "N selecionadas").
  */
 @Component({
   selector: 'app-multi-select',
@@ -46,26 +49,42 @@ let nextId = 0;
   imports: [SaeaCheckboxComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div
-      #campo
-      class="ms-campo"
-      [class.ms-campo--sm]="size() === 'sm'"
-      [class.ms-campo--desabilitado]="disabled()"
-      (pointerdown)="estavaAberta = aberta()"
-      (click)="aoClicarNoCampo($event)"
-    >
-      <ng-content />
-      <button
-        #gatilho
-        type="button"
-        class="ms-gatilho"
-        [class.ms-gatilho--marcado]="contagem() && selected().length > 0"
-        [disabled]="disabled()"
-        [attr.popovertarget]="listaId"
+    <div class="ms-field">
+      @if (label()) {
+        <label class="ms-label" [for]="botaoId">
+          {{ label() }}
+          @if (obrigatorio()) {
+            <span class="ms-obrigatorio" aria-hidden="true">*</span>
+            <span class="ms-so-leitor">(obrigatório)</span>
+          }
+        </label>
+      }
+      <div
+        #campo
+        class="ms-campo"
+        [class.ms-campo--sm]="size() === 'sm'"
+        [class.ms-campo--desabilitado]="disabled()"
+        (pointerdown)="estavaAberta = aberta()"
+        (click)="aoClicarNoCampo($event)"
       >
-        <span class="ms-gatilho-texto">{{ resumo() }}</span>
-        <span class="ms-seta" aria-hidden="true">▾</span>
-      </button>
+        <ng-content />
+        <button
+          #gatilho
+          type="button"
+          class="ms-gatilho"
+          [id]="botaoId"
+          [class.ms-gatilho--marcado]="resumoMarcado()"
+          [disabled]="disabled()"
+          [attr.popovertarget]="listaId"
+          [attr.title]="dicaDoBotao()"
+        >
+          <span class="ms-gatilho-texto">{{ resumo() }}</span>
+          <span class="ms-seta" aria-hidden="true">▾</span>
+        </button>
+      </div>
+      @if (helper()) {
+        <div class="ms-helper">{{ helper() }}</div>
+      }
     </div>
     <div
       #lista
@@ -84,6 +103,16 @@ let nextId = 0;
     >
       <!-- Só monta as opções aberta: numa tabela são centenas de seletores com dezenas de opções. -->
       @if (aberta()) {
+        @if (todas() && options().length > 1) {
+          <saea-checkbox
+            class="ms-opcao ms-opcao--todas"
+            [checked]="todasMarcadas()"
+            [indeterminate]="algumasMarcadas()"
+            (checkedChange)="marcarTodas($event)"
+          >
+            <span class="ms-rotulo">{{ todas() }}</span>
+          </saea-checkbox>
+        }
         @for (grupo of grupos(); track grupo.nome) {
           @if (grupo.nome) {
             <div class="ms-grupo">{{ grupo.nome }}</div>
@@ -108,13 +137,27 @@ let nextId = 0;
 })
 export class MultiSelectComponent {
   readonly listaId = `app-multi-select-${nextId++}`;
+  readonly botaoId = `${this.listaId}-botao`;
   readonly options = input<MultiSelectOption[]>([]);
   readonly placeholder = input('Selecione...');
   readonly disabled = input(false);
+  /** Rótulo em cima do campo, como o do app-select. */
+  readonly label = input('');
+  /** Texto de ajuda embaixo do campo, como o do app-select. */
+  readonly helper = input('');
+  /** Campo obrigatório: "*" depois do rótulo (e "(obrigatório)" para leitor de tela). */
+  readonly obrigatorio = input(false);
   /** `sm`: mais baixo, para linha de tabela (mesmo critério do `size` do app-button). */
   readonly size = input<'sm' | 'md'>('md');
   /** "N selecionadas" no botão. Desligue quando as marcadas já aparecem em fichas no campo. */
   readonly contagem = input(true);
+  /** Rótulo da linha que marca todas (ex.: "Todas as unidades"); '' = sem essa linha. */
+  readonly todas = input('');
+  /**
+   * Nenhuma marcada vale como todas (campo de filtro): o botão mostra o texto de `todas` em vez do
+   * placeholder.
+   */
+  readonly nenhumaEhTodas = input(false);
   /** Valores marcados, na ordem em que foram marcados. */
   readonly selected = model<string[]>([]);
 
@@ -128,11 +171,48 @@ export class MultiSelectComponent {
 
   readonly marcadas = computed(() => new Set(this.selected()));
 
+  /** As opções marcadas, na ordem da lista (não na ordem em que foram marcadas). */
+  private readonly opcoesMarcadas = computed(() => {
+    const marcadas = this.marcadas();
+    return this.options().filter((o) => marcadas.has(o.value));
+  });
+
+  /** Todas as opções estão marcadas (com uma opção só, marcá-la já é "todas"). */
+  readonly todasMarcadas = computed(() => {
+    const opcoes = this.options();
+    return opcoes.length > 0 && this.opcoesMarcadas().length === opcoes.length;
+  });
+  readonly algumasMarcadas = computed(() => this.opcoesMarcadas().length > 0 && !this.todasMarcadas());
+
   readonly resumo = computed(() => {
     const n = this.selected().length;
-    if (n === 0 || !this.contagem()) return this.placeholder();
+    if (!this.contagem()) return this.placeholder();
+    if (this.todas()) {
+      if (n === 0) return this.nenhumaEhTodas() ? this.todas() : this.placeholder();
+      if (this.todasMarcadas() && this.options().length > 1) return this.todas();
+      const nomes = this.opcoesMarcadas().map((o) => o.label);
+      if (nomes.length > 0 && nomes.length <= 2) return nomes.join(', ');
+    }
+    if (n === 0) return this.placeholder();
     return n === 1 ? '1 selecionada' : `${n} selecionadas`;
   });
+
+  /** O texto do botão é um valor (não o placeholder cinza). */
+  readonly resumoMarcado = computed(
+    () => this.contagem() && (this.selected().length > 0 || (!!this.todas() && this.nenhumaEhTodas())),
+  );
+
+  /** Passando o mouse, os nomes de todas as marcadas (o botão corta ou resume em "N selecionadas"). */
+  readonly dicaDoBotao = computed(() => {
+    const nomes = this.opcoesMarcadas().map((o) => o.label);
+    return this.contagem() && nomes.length > 0 ? nomes.join('\n') : null;
+  });
+
+  /** A linha "Todas": marcada, marca todas as opções; desmarcada, nenhuma. */
+  marcarTodas(marcado: boolean): void {
+    this.selected.set(marcado ? this.options().map((o) => o.value) : []);
+    afterNextRender(() => this.posicionar(), { injector: this.injector });
+  }
 
   readonly grupos = computed(() => {
     const grupos = new Map<string, MultiSelectOption[]>();

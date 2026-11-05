@@ -9,7 +9,7 @@ import {
 } from '@sistemas-saea/saea-design-system';
 import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
-import { nomeDoAndar, Turno, TurmaVinculada } from '../../core/models';
+import { nomeDoAndar, Turno, TurmaVinculada, unidadeNoFiltro } from '../../core/models';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
@@ -157,8 +157,8 @@ export class TurmasComponent {
   private readonly confirmDialog = inject(ConfirmDialogService);
   readonly uiMode = inject(UiModeService);
 
-  /** Unidade = filial do RM ("CASJ · filial 2"); 'todas' = todas. */
-  readonly unidade = signal('todas');
+  /** Unidades marcadas (cada uma é uma filial do RM, ex.: "CASJ 1"); nenhuma = todas. */
+  readonly unidades = signal<string[]>([]);
   /** Parte do nome da sala. */
   readonly buscaSala = signal('');
   readonly segmento = signal('todas');
@@ -191,13 +191,12 @@ export class TurmasComponent {
   /** Ordenação pelo cabeçalho; null = a ordem em que as salas vêm do RM. */
   readonly ordem = signal<{ coluna: ColunaOrdem; direcao: 'asc' | 'desc' } | null>(null);
 
-  readonly unidadeOptions = computed<SelectOption[]>(() => [
-    { value: 'todas', label: 'Todas as unidades' },
-    ...this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
-  ]);
+  readonly unidadeOptions = computed<MultiSelectOption[]>(() =>
+    this.salasService.unidades().map((u) => ({ value: u.id, label: u.nome })),
+  );
 
-  selecionarUnidade(unidade: string): void {
-    this.unidade.set(unidade);
+  selecionarUnidades(unidades: string[]): void {
+    this.unidades.set(unidades);
   }
 
   readonly segmentoOptions = computed<SelectOption[]>(() => [
@@ -227,7 +226,7 @@ export class TurmasComponent {
   }
 
   readonly rows = computed<TurmaRow[]>(() => {
-    const unidade = this.unidade();
+    const unidades = this.unidades();
     const busca = this.buscaSala().trim().toLowerCase();
     const segmento = this.segmento();
     const serie = this.serie();
@@ -235,7 +234,7 @@ export class TurmasComponent {
     const selecao = this.selecao();
     const abertas = this.listasAbertas();
     let list = this.salasService.salas();
-    if (unidade !== 'todas') list = list.filter((s) => s.unidadeId === unidade);
+    list = list.filter((s) => unidadeNoFiltro(unidades, s.unidadeId));
     if (busca) list = list.filter((s) => s.nome.toLowerCase().includes(busca));
     // Segmento e série são das turmas: fica a sala que tem, em algum turno, uma turma que atende os dois.
     if (segmento !== 'todas' || serie !== 'todas') {

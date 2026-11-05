@@ -8,20 +8,30 @@
       <!-- As unidades do seletor vêm das salas: sem elas a lista fica vazia. -->
       <app-carregando [ativo]="regrasService.carregando() || salasService.trocandoAno()" texto="Carregando as regras..." />
       <div class="regras-form">
-        <app-select
+        <!--
+          A Unidade é obrigatória: os outros campos e os botões só ligam depois de marcar uma.
+          Várias unidades marcadas: o formulário abre com as regras da primeira e grava em todas.
+          Quem é só leitura também escolhe a unidade, para ver as regras dela.
+        -->
+        <app-multi-select
           label="Unidade"
+          todas="Todas as unidades"
+          placeholder="Selecione a unidade..."
+          [obrigatorio]="true"
           [options]="unidadeOptions()"
-          [ngModel]="codFilial()"
-          (ngModelChange)="codFilial.set($event)"
-          [disabled]="uiMode.readOnlyMode()"
-          helper="As regras são gravadas na unidade selecionada."
+          [selected]="filiais()"
+          (selectedChange)="filiais.set($event)"
+          [helper]="ajudaDaUnidade()"
         />
+        @if (regrasDiferentes()) {
+          <app-alert tone="warning">As unidades marcadas estão com regras diferentes. Ao salvar, todas ficam com as regras abaixo.</app-alert>
+        }
         <app-input
           label="Área por pessoa (m²)"
           type="number"
           [ngModel]="regrasService.regras().areaPorAluno"
           (ngModelChange)="onAreaChange($event)"
-          [disabled]="uiMode.readOnlyMode()"
+          [disabled]="camposDesativados()"
           helper="Norma de evacuação do Corpo de Bombeiros: capacidade = área da sala ÷ 1,5 m²."
         />
         <app-input
@@ -29,13 +39,13 @@
           type="number"
           [ngModel]="regrasService.regras().pctMaximoUtilizacao"
           (ngModelChange)="onPctChange($event)"
-          [disabled]="uiMode.readOnlyMode()"
+          [disabled]="camposDesativados()"
           helper="Acima deste percentual da capacidade, a sala é marcada como 'Quase lotada'."
         />
         <app-switch
           label="Permitir exceder a capacidade calculada com justificativa"
           [checked]="regrasService.regras().permitirExcesso"
-          [disabled]="uiMode.readOnlyMode()"
+          [disabled]="camposDesativados()"
           (checkedChange)="regrasService.setPermitirExcesso($event)"
         />
         <!-- Com "Permitir exceder" ligado, a observação é obrigatória: é o porquê de as salas poderem passar do limite. -->
@@ -43,16 +53,23 @@
           [label]="regrasService.regras().permitirExcesso ? 'Observações (obrigatória)' : 'Observações'"
           [ngModel]="regrasService.obs()"
           (ngModelChange)="regrasService.setObs($event)"
-          [disabled]="uiMode.readOnlyMode()"
+          [disabled]="camposDesativados()"
           [placeholder]="regrasService.regras().permitirExcesso ? 'Por que as salas podem passar do limite?' : 'Motivo da alteração (opcional)'"
-          [error]="regrasService.faltaObs() && uiMode.editorMode() ? 'Obrigatória quando é permitido exceder o limite.' : ''"
+          [error]="regrasService.faltaObs() && !camposDesativados() ? 'Obrigatória quando é permitido exceder o limite.' : ''"
         />
         @if (uiMode.editorMode()) {
           <div class="regras-actions">
             <app-button [disabled]="!podeSalvar()" (clicked)="salvar()">
-              {{ regrasService.salvando() ? 'Salvando...' : 'Salvar regras' }}
+              {{ regrasService.salvando() && !restaurando() ? 'Salvando...' : 'Salvar regras' }}
             </app-button>
-            <app-button variant="ghost" (clicked)="restaurarPadroes()">Restaurar padrões</app-button>
+            <!-- Põe os padrões do sistema e já grava em todas as unidades marcadas (depois de confirmar). -->
+            <app-button
+              variant="ghost"
+              [disabled]="!podeRestaurar()"
+              [loading]="restaurando()"
+              loadingText="Restaurando..."
+              (clicked)="restaurarPadroes()"
+            >Restaurar padrões</app-button>
           </div>
         }
       </div>

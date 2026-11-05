@@ -12,12 +12,15 @@
     <div class="ca-barra">
       <div class="ca-escolhas">
         <!-- Sempre na tela: sem lista ainda (lendo pela 1ª vez, anos inválidos), fica desativado. -->
-        <app-select
+        <app-multi-select
           class="ca-unidade-escolha"
           label="Unidade"
-          [ngModel]="unidade()"
-          (ngModelChange)="escolherUnidade($event)"
+          todas="Todas as unidades"
+          placeholder="Todas as unidades"
+          [nenhumaEhTodas]="true"
           [options]="unidadeOptions()"
+          [selected]="unidades()"
+          (selectedChange)="escolherUnidades($event)"
           [disabled]="copiando() || !plano()"
         />
         <div class="ca-anos">
@@ -47,11 +50,11 @@
           <app-button action variant="secondary" (clicked)="tentarDeNovo()">Tentar de novo</app-button>
         </app-empty-state>
       } @else if (plano() && grupos().length === 0) {
-        @if (nomeDaUnidade()) {
+        @if (daUnidade()) {
           <app-empty-state
             icon="meeting_room"
-            [title]="'Nenhuma sala da ' + nomeDaUnidade() + ' em ' + anoOrigem()"
-            description="Escolha outra unidade ou outro ano."
+            [title]="'Nenhuma sala ' + daUnidade() + ' em ' + anoOrigem()"
+            description="Marque outras unidades ou escolha outro ano."
           />
         } @else {
           <app-empty-state icon="meeting_room" [title]="'Nenhuma sala em ' + anoOrigem()" description="Não há salas para copiar nesse ano." />
