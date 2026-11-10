@@ -54,7 +54,7 @@ export const routes: Routes = [
   },
   // Endereço antigo da tela (Copiar ano letivo).
   { path: 'copiar-ano', redirectTo: 'salas-por-ano', pathMatch: 'full' },
-  // Protótipo com dados fictícios (ver o componente). Desligado no environment, a rota não existe
+  // Em construção (dados reais; o back só grava no TTESTE). Desligado no environment, a rota não existe
   // e o endereço cai no '**' (Painel).
   ...(environment.telaVincularAlunos
     ? [

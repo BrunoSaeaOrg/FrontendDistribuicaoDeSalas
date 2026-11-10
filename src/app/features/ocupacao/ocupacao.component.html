@@ -1,6 +1,16 @@
 <div class="ocup-page">
   <div class="ocup-filters">
-    <app-select label="Ano letivo" [ngModel]="ano()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" [carregando]="carregando()" />
+    @if (vis() === 'anos') {
+      <app-multi-select
+        label="Anos letivos"
+        placeholder="Escolha os anos"
+        [options]="anosOptions()"
+        [selected]="anosComparados()"
+        (selectedChange)="selecionarAnosComparados($event)"
+      />
+    } @else {
+      <app-select label="Ano letivo" [ngModel]="ano()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" [carregando]="carregando()" />
+    }
     <app-multi-select
       label="Unidade"
       todas="Todas as unidades"
@@ -10,124 +20,342 @@
       [selected]="unidades()"
       (selectedChange)="selecionarUnidades($event)"
     />
+    <app-select label="Turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)" [options]="turnoOptions" />
+    <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="segmento.set($event)" [options]="segmentoOptions()" />
+    <app-select label="Agrupar por" [ngModel]="agrupar()" (ngModelChange)="agrupar.set($event)" [options]="agruparOptions" />
 
-    @if (showExtraFiltros()) {
-      <app-select label="Turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)" [options]="turnoOptions" />
-      <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="segmento.set($event)" [options]="segmentoOptions()" />
-      <app-select label="Agrupar por" [ngModel]="agrupar()" (ngModelChange)="agrupar.set($event)" [options]="agruparOptions" />
-    }
-
-    <div class="ocup-tabs">
+    <div class="ocup-tabs" role="tablist" aria-label="Visualização">
       @for (tab of visTabs; track tab.value) {
         <button
           type="button"
+          role="tab"
           class="ocup-tab"
           [class.ocup-tab--active]="vis() === tab.value"
+          [attr.aria-selected]="vis() === tab.value"
           (click)="onVisChange(tab.value)"
-        >{{ tab.label }}</button>
+        >
+          <span class="material-icons" aria-hidden="true">{{ tab.icone }}</span>{{ tab.label }}
+        </button>
       }
     </div>
   </div>
 
   <app-card class="saea-carregavel">
-    <app-carregando [ativo]="trocandoAno()" [texto]="'Carregando ' + ano() + '...'" />
-    @if (!hasData()) {
+    <app-carregando [ativo]="trocandoAno() && vis() !== 'anos'" [texto]="'Carregando ' + ano() + '...'" />
+
+    @if (vis() === 'anos') {
+      <!-- ============================== Comparar anos ============================== -->
+      @if (anosComparados().length === 0) {
+        <app-empty-state icon="compare_arrows" title="Escolha os anos" description="Marque no campo Anos letivos quais anos comparar." />
+      } @else {
+        @let cmp = comparacao();
+        <div class="ocup-resumo ocup-resumo--anos">
+          @for (c of cmp.colunas; track c.ano; let i = $index) {
+            <div class="ocup-stat" [class.ocup-stat--atual]="c.ano === ano()">
+              <span class="ocup-stat-rotulo">
+                {{ c.ano }}
+                @if (c.ano === ano()) {
+                  <span class="ocup-tag">em uso</span>
+                }
+              </span>
+              @switch (c.estado) {
+                @case ('carregando') {
+                  <span class="ocup-stat-sub ocup-lendo"><span class="ocup-spinner" aria-hidden="true"></span>Lendo do RM...</span>
+                }
+                @case ('erro') {
+                  <span class="ocup-stat-sub">Não foi possível ler este ano.</span>
+                  <button type="button" class="ocup-link" (click)="tentarDeNovo(c.ano)">Tentar de novo</button>
+                }
+                @default {
+                  @if (c.resumo && c.resumo.grupos > 0) {
+                    <span class="ocup-stat-valor">{{ pct(c.resumo.ocupacao) }}</span>
+                    <span class="ocup-meter f-{{ c.resumo.faixa }}" aria-hidden="true">
+                      <span class="ocup-meter-fill" [style.width.%]="c.resumo.ocupacao * 100"></span>
+                      <span class="ocup-meter-limite" [style.left.%]="c.resumo.limiteRel * 100"></span>
+                    </span>
+                    <span class="ocup-stat-sub">{{ num(c.resumo.alunos) }} alunos · {{ num(c.resumo.capacidade) }} lugares</span>
+                    @if (variacaoDoAno(i); as v) {
+                      <span class="ocup-variacao"><span class="material-icons" aria-hidden="true">{{ v.icone }}</span>{{ v.texto }} sobre {{ v.sobre }}</span>
+                    }
+                  } @else {
+                    <span class="ocup-stat-sub">Sem turmas nas salas.</span>
+                  }
+                }
+              }
+            </div>
+          }
+        </div>
+
+        <ng-container *ngTemplateOutlet="legenda" />
+
+        @if (cmp.linhas.length > 0) {
+          <div class="ocup-table-wrap">
+            <table class="ocup-table ocup-table--anos">
+              <thead>
+                <tr>
+                  <th>{{ agruparLabel() }}</th>
+                  @for (c of cmp.colunas; track c.ano) {
+                    <th>{{ c.ano }}</th>
+                  }
+                  <th class="num">
+                    Variação
+                    @if (cmp.de) {
+                      <span class="ocup-th-sub">{{ cmp.de }} → {{ cmp.para }}</span>
+                    }
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (l of cmp.linhas; track l.key) {
+                  <tr>
+                    <td class="ocup-cell-strong">{{ l.label }}</td>
+                    @for (g of l.celulas; track $index; let ci = $index) {
+                      <td>
+                        @if (g) {
+                          <div class="ocup-cel-ocup" [title]="num(g.alunos) + ' alunos em ' + num(g.capacidade) + ' lugares · ' + faixas[g.faixa].rotulo">
+                            <span class="ocup-meter f-{{ g.faixa }}" aria-hidden="true">
+                              <span class="ocup-meter-fill" [style.width.%]="g.ocupacao * 100"></span>
+                              <span class="ocup-meter-limite" [style.left.%]="g.limiteRel * 100"></span>
+                            </span>
+                            <span class="ocup-cel-pct">{{ pct(g.ocupacao) }}</span>
+                            @if (g.faixa !== 'disponivel') {
+                              <span class="material-icons ocup-ic f-{{ g.faixa }}" role="img" [attr.aria-label]="faixas[g.faixa].rotulo">{{ faixas[g.faixa].icone }}</span>
+                            }
+                          </div>
+                          <span class="ocup-sub">{{ num(g.alunos) }} / {{ num(g.capacidade) }}</span>
+                        } @else if (cmp.colunas[ci].estado === 'carregando') {
+                          <span class="ocup-vazio" aria-label="Carregando">…</span>
+                        } @else {
+                          <span class="ocup-vazio" aria-label="Sem turmas">—</span>
+                        }
+                      </td>
+                    }
+                    <td class="num">
+                      @if (l.variacao; as v) {
+                        <span class="ocup-variacao"><span class="material-icons" aria-hidden="true">{{ v.icone }}</span>{{ v.texto }}</span>
+                      } @else {
+                        <span class="ocup-vazio">—</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>Total</td>
+                  @for (c of cmp.colunas; track c.ano) {
+                    <td>
+                      @if (c.resumo && c.resumo.grupos > 0) {
+                        <span class="ocup-cel-pct">{{ pct(c.resumo.ocupacao) }}</span>
+                      } @else {
+                        <span class="ocup-vazio">—</span>
+                      }
+                    </td>
+                  }
+                  <td class="num">
+                    @if (cmp.total; as v) {
+                      <span class="ocup-variacao"><span class="material-icons" aria-hidden="true">{{ v.icone }}</span>{{ v.texto }}</span>
+                    }
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        } @else if (!cmp.carregando) {
+          <app-empty-state icon="bar_chart" title="Sem dados para os filtros selecionados" description="Nenhum dos anos escolhidos tem turmas nas salas com esses filtros." />
+        }
+      }
+    } @else if (!hasData()) {
       <app-empty-state icon="bar_chart" title="Sem dados para os filtros selecionados" />
     } @else {
+      <!-- ============================== Resumo ============================== -->
+      @let r = resumo();
+      <div class="ocup-resumo">
+        <div class="ocup-stat ocup-stat--atual">
+          <span class="ocup-stat-rotulo">Ocupação geral</span>
+          <span class="ocup-stat-valor">{{ pct(r.ocupacao) }}</span>
+          <span class="ocup-meter f-{{ r.faixa }}" aria-hidden="true">
+            <span class="ocup-meter-fill" [style.width.%]="r.ocupacao * 100"></span>
+            <span class="ocup-meter-limite" [style.left.%]="r.limiteRel * 100"></span>
+          </span>
+          <span class="ocup-faixa"><span class="material-icons ocup-ic f-{{ r.faixa }}" aria-hidden="true">{{ faixas[r.faixa].icone }}</span>{{ faixas[r.faixa].rotulo }}</span>
+        </div>
+        <div class="ocup-stat">
+          <span class="ocup-stat-rotulo">Alunos</span>
+          <span class="ocup-stat-valor">{{ num(r.alunos) }}</span>
+          <span class="ocup-stat-sub">nas turmas com sala</span>
+        </div>
+        <div class="ocup-stat">
+          <span class="ocup-stat-rotulo">Capacidade</span>
+          <span class="ocup-stat-valor">{{ num(r.capacidade) }}</span>
+          <span class="ocup-stat-sub">lugares, limite da regra {{ num(limiteEmLugares(r)) }}</span>
+        </div>
+        <div class="ocup-stat">
+          <span class="ocup-stat-rotulo">Precisam de atenção</span>
+          <span class="ocup-stat-valor">{{ r.excedidos + r.quase }}<span class="ocup-stat-de"> de {{ r.grupos }}</span></span>
+          <span class="ocup-stat-sub">{{ r.excedidos }} {{ r.excedidos === 1 ? 'excedida' : 'excedidas' }} · {{ r.quase }} quase {{ r.quase === 1 ? 'lotada' : 'lotadas' }}</span>
+        </div>
+      </div>
+
+      <ng-container *ngTemplateOutlet="legenda" />
 
       @if (vis() === 'tabela') {
+        <!-- ============================== Tabela ============================== -->
         <div class="ocup-table-wrap">
           <table class="ocup-table">
             <thead>
               <tr>
-                <th>{{ agruparLabel() }}</th>
-                <th>Alunos</th>
-                <th>Capacidade</th>
-                <th>Ocupação</th>
+                <th [attr.aria-sort]="ariaSort('label')"><ng-container *ngTemplateOutlet="cabecalho; context: { coluna: 'label', texto: agruparLabel() }" /></th>
+                <th class="num" [attr.aria-sort]="ariaSort('alunos')"><ng-container *ngTemplateOutlet="cabecalho; context: { coluna: 'alunos', texto: 'Alunos' }" /></th>
+                <th class="num" [attr.aria-sort]="ariaSort('capacidade')"><ng-container *ngTemplateOutlet="cabecalho; context: { coluna: 'capacidade', texto: 'Capacidade' }" /></th>
+                <th class="num" [attr.aria-sort]="ariaSort('limite')"><ng-container *ngTemplateOutlet="cabecalho; context: { coluna: 'limite', texto: 'Limite da regra' }" /></th>
+                <th class="num" [attr.aria-sort]="ariaSort('vagas')"><ng-container *ngTemplateOutlet="cabecalho; context: { coluna: 'vagas', texto: 'Vagas' }" /></th>
+                <th [attr.aria-sort]="ariaSort('ocupacao')"><ng-container *ngTemplateOutlet="cabecalho; context: { coluna: 'ocupacao', texto: 'Ocupação' }" /></th>
+                <th>Situação</th>
               </tr>
             </thead>
             <tbody>
               @for (g of grupos(); track g.key) {
                 <tr>
-                  <td class="ocup-cell-strong">
-                    <span class="ocup-inline"><span class="ocup-dot" [style.background]="g.color"></span>{{ g.label }}</span>
+                  <td class="ocup-cell-strong">{{ g.label }}</td>
+                  <td class="num">{{ num(g.alunos) }}</td>
+                  <td class="num">{{ num(g.capacidade) }}</td>
+                  <td class="num">{{ num(limiteEmLugares(g)) }} <span class="ocup-sub">({{ pct(g.limiteRel) }})</span></td>
+                  <td class="num">{{ textoVagas(g) }}</td>
+                  <td>
+                    <div class="ocup-cel-ocup">
+                      <span class="ocup-meter f-{{ g.faixa }}" aria-hidden="true">
+                        <span class="ocup-meter-fill" [style.width.%]="g.ocupacao * 100"></span>
+                        <span class="ocup-meter-limite" [style.left.%]="g.limiteRel * 100"></span>
+                      </span>
+                      <span class="ocup-cel-pct">{{ pct(g.ocupacao) }}</span>
+                    </div>
                   </td>
-                  <td>{{ g.alunos }}</td>
-                  <td>{{ g.capacidade }}</td>
-                  <td [style.color]="g.alunosColor" class="ocup-cell-strong">{{ g.pct }}%</td>
+                  <td>
+                    <span class="ocup-faixa"><span class="material-icons ocup-ic f-{{ g.faixa }}" aria-hidden="true">{{ faixas[g.faixa].icone }}</span>{{ faixas[g.faixa].rotulo }}</span>
+                  </td>
                 </tr>
               }
             </tbody>
+            <tfoot>
+              <tr>
+                <td>Total</td>
+                <td class="num">{{ num(r.alunos) }}</td>
+                <td class="num">{{ num(r.capacidade) }}</td>
+                <td class="num">{{ num(limiteEmLugares(r)) }}</td>
+                <td class="num">{{ textoVagas(r) }}</td>
+                <td><span class="ocup-cel-pct">{{ pct(r.ocupacao) }}</span></td>
+                <td></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       }
 
-      @if (vis() === 'evolucao') {
-        <div class="ocup-evol">
-          <div class="ocup-evol-title">{{ tituloEvolucao() }} — evolução mensal em {{ ano() }}</div>
-
-          <svg
-            class="ocup-evol-svg"
-            [attr.viewBox]="'0 0 ' + evolChartW + ' 120'"
-            (mousemove)="onEvolMouseMove($event, evolChartW, evolColW(), evolPadL)"
-            (mouseleave)="onEvolMouseLeave()"
-          >
-            <line x1="46" y1="20" x2="744" y2="20" stroke="var(--saea-border)" stroke-width="1" />
-            <line x1="46" y1="60" x2="744" y2="60" stroke="var(--saea-border)" stroke-width="1" />
-            <line x1="46" y1="100" x2="744" y2="100" stroke="var(--saea-border)" stroke-width="1" />
-            @if (evolHovered(); as h) {
-              <line
-                [attr.x1]="evolPointX(evolHoverIdx()!)" y1="10"
-                [attr.x2]="evolPointX(evolHoverIdx()!)" y2="110"
-                stroke="var(--saea-ink-soft)" stroke-width="1" stroke-dasharray="3,3"
-              />
+      @if (vis() === 'grafico') {
+        <!-- ============================== Gráfico ============================== -->
+        <div class="ocup-graf-area" #areaGrafico (pointerleave)="esconderDica()">
+          <div class="ocup-graf-linha ocup-graf-eixo" aria-hidden="true">
+            <span class="ocup-graf-rotulo"></span>
+            <span class="ocup-graf-plot">
+              @for (m of marcas(); track m) {
+                <span class="ocup-graf-tick" [class.ocup-graf-tick--cap]="m === 1" [style.left.%]="posicao(m)">{{ m === 1 ? 'Capacidade' : m * 100 + '%' }}</span>
+              }
+            </span>
+            <span class="ocup-graf-valor"></span>
+          </div>
+          <ul class="ocup-graf-lista" [attr.aria-label]="'Ocupação por ' + agruparLabel().toLowerCase()">
+            @for (g of grupos(); track g.key) {
+              <li
+                class="ocup-graf-linha"
+                tabindex="0"
+                [attr.aria-label]="descricao(g)"
+                (pointermove)="mostrarDica($event, g)"
+                (focus)="mostrarDicaNoFoco($event, g)"
+                (blur)="esconderDica()"
+              >
+                <span class="ocup-graf-rotulo" aria-hidden="true">
+                  <span class="ocup-graf-rotulo-texto">{{ g.label }}</span>
+                </span>
+                <span class="ocup-graf-plot" aria-hidden="true">
+                  @for (m of marcas(); track m) {
+                    <span class="ocup-graf-grade" [class.ocup-graf-grade--cap]="m === 1" [style.left.%]="posicao(m)"></span>
+                  }
+                  <span class="ocup-graf-trilho" [style.width.%]="posicao(1)"></span>
+                  <span class="ocup-graf-barra f-{{ g.faixa }}" [style.width.%]="posicao(g.ocupacao)"></span>
+                  <span class="ocup-graf-limite" [style.left.%]="posicao(g.limiteRel)"></span>
+                </span>
+                <span class="ocup-graf-valor" aria-hidden="true">
+                  {{ pct(g.ocupacao) }}
+                  @if (g.faixa !== 'disponivel') {
+                    <span class="material-icons ocup-ic f-{{ g.faixa }}">{{ faixas[g.faixa].icone }}</span>
+                  }
+                </span>
+              </li>
             }
-            @for (p of evolSeries(); track p.mes; let i = $index) {
-              <circle
-                [attr.cx]="evolPointX(i)"
-                [attr.cy]="20 + (1 - p.alunos / (evolMaxAlunos())) * 80"
-                [attr.r]="p.excede ? 5 : 3.5"
-                [attr.fill]="p.excede ? 'var(--saea-danger)' : 'var(--saea-primary)'"
-                stroke="#fff" stroke-width="1.5"
-              />
-              <text [attr.x]="evolPointX(i)" y="118" text-anchor="middle" font-size="11" fill="var(--saea-ink-soft)">{{ p.mes }}</text>
-            }
-          </svg>
+          </ul>
 
-          @if (evolHovered(); as h) {
-            <div class="ocup-evol-tooltip">
-              <div class="ocup-evol-tooltip-title">{{ h.mes }}/{{ ano() }}</div>
-              <div class="ocup-evol-tooltip-row"><span class="ocup-dot" style="background:var(--saea-primary)"></span>Alunos <b>{{ h.alunos }}</b></div>
-              <div class="ocup-evol-tooltip-row"><span class="ocup-dot" style="background:var(--saea-ink-faint)"></span>Capacidade <b>{{ h.capacidade }}</b></div>
-              <div class="ocup-evol-tooltip-row"><span class="ocup-dot" style="background:var(--saea-warning)"></span>Ocupação <b>{{ h.pct }}%</b></div>
-              <div class="ocup-evol-tooltip-row"><span class="ocup-dot" style="background:var(--saea-danger)"></span>Acima da capacidade <b style="color:var(--saea-danger)">{{ h.excedentePct }}%</b></div>
+          @if (dica(); as d) {
+            <div class="ocup-dica" role="tooltip" [style.left.px]="d.x" [style.top.px]="d.y">
+              <div class="ocup-dica-titulo">{{ d.grupo.label }}</div>
+              <div class="ocup-dica-destaque">
+                <b>{{ pct(d.grupo.ocupacao) }}</b>
+                <span class="ocup-faixa"><span class="material-icons ocup-ic f-{{ d.grupo.faixa }}" aria-hidden="true">{{ faixas[d.grupo.faixa].icone }}</span>{{ faixas[d.grupo.faixa].rotulo }}</span>
+              </div>
+              <dl class="ocup-dica-linhas">
+                <div><dt>Alunos</dt><dd>{{ num(d.grupo.alunos) }}</dd></div>
+                <div><dt>Capacidade</dt><dd>{{ num(d.grupo.capacidade) }}</dd></div>
+                <div><dt>Limite da regra</dt><dd>{{ num(limiteEmLugares(d.grupo)) }} <span class="ocup-sub">({{ pct(d.grupo.limiteRel) }})</span></dd></div>
+                @if (vagas(d.grupo) >= 0) {
+                  <div><dt>Vagas</dt><dd>{{ num(vagas(d.grupo)) }}</dd></div>
+                } @else {
+                  <div><dt>Acima da capacidade</dt><dd>{{ num(-vagas(d.grupo)) }}</dd></div>
+                }
+              </dl>
             </div>
           }
         </div>
       }
-
-      @if (vis() === 'colunas') {
-        <div class="ocup-bars">
-          @for (b of barRows(); track b.key) {
-            <div class="ocup-bar-col" [title]="b.tooltip">
-              <div class="ocup-bar-stack">
-                <div class="ocup-bar-cap-label">{{ b.capacidade }}</div>
-                <div class="ocup-bar-track" [style.height.px]="b.capacidadeBarHeight">
-                  <div class="ocup-bar-fill ocup-bar-fill--pct" [style.height.px]="b.pctOfCapHeight"></div>
-                  <div class="ocup-bar-fill ocup-bar-fill--alunos" [style.height.px]="b.alunosOfCapHeight" [style.background]="b.alunosColor"></div>
-                </div>
-                <div class="ocup-bar-alunos-label" [style.color]="b.alunosColor">{{ b.alunos }} al.</div>
-                <div class="ocup-bar-pct-label">{{ b.pct }}%</div>
-              </div>
-              <div class="ocup-bar-legend">
-                <span class="ocup-dot" [style.background]="b.color"></span>
-                <span class="ocup-bar-legend-label">{{ b.label }}</span>
-              </div>
-            </div>
-          }
-        </div>
-      }
-
     }
+
+    <details class="ocup-ajuda">
+      <summary><span class="material-icons" aria-hidden="true">info</span>Como a ocupação é calculada</summary>
+      <ul>
+        <li><b>Ocupação</b> = alunos das turmas ÷ <b>capacidade cadastrada</b> das salas (MD Salas por Período Letivo).</li>
+        <li>Entram só as salas <b>com turma</b>. Sala vazia não entra na conta.</li>
+        <li>Em <b>Todos os turnos</b>, manhã e tarde somam: uma sala com turma nos dois turnos conta a capacidade duas vezes.</li>
+        <li>Sala com mais de uma turma no turno: a capacidade é dividida entre elas, na proporção dos alunos.</li>
+        <li>
+          As faixas seguem as <b>Regras de ocupação</b> de cada unidade: <b>Quase lotada</b> a partir do % máximo de utilização,
+          <b>Excedida</b> acima de 100% da capacidade.
+        </li>
+        <li>O Painel conta de outro jeito (todas as salas, só o turno mais cheio), por isso os números das duas telas podem ser diferentes.</li>
+      </ul>
+    </details>
   </app-card>
 </div>
+
+<ng-template #legenda>
+  <div class="ocup-legenda">
+    @for (f of listaFaixas; track f) {
+      <span class="ocup-legenda-item">
+        <span class="ocup-chave f-{{ f }}" aria-hidden="true"></span>
+        <span class="material-icons ocup-ic f-{{ f }}" aria-hidden="true">{{ faixas[f].icone }}</span>
+        {{ faixas[f].rotulo }}
+      </span>
+    }
+    <span class="ocup-legenda-item"><span class="ocup-chave-limite" aria-hidden="true"></span>Limite da regra</span>
+    @if (vis() === 'grafico') {
+      <span class="ocup-legenda-item"><span class="ocup-chave-cap" aria-hidden="true"></span>Capacidade (100%)</span>
+    }
+  </div>
+</ng-template>
+
+<ng-template #cabecalho let-coluna="coluna" let-texto="texto">
+  <button type="button" class="ocup-th" (click)="ordenarPor(coluna)">
+    {{ texto }}
+    <span class="material-icons ocup-th-seta" [class.ocup-th-seta--ativa]="ordem().coluna === coluna" aria-hidden="true">
+      {{ ordem().coluna === coluna ? (ordem().desc ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+    </span>
+  </button>
+</ng-template>

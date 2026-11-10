@@ -152,3 +152,48 @@ export interface ApiCopiaSalaResultadoDto {
   situacao: ApiSituacaoCopiaAno;
   erro?: string | null;
 }
+
+/**
+ * Aluno de OC_SAL_ENTUR_ALUNOS (pré-enturmação, API.OC.ENTUR.GER): um por RA, matriculado no ano
+ * na filial. codTurma é a turma da matrícula; null = ainda sem turma.
+ */
+export interface ApiAlunoEnturmacaoDto {
+  ra: string;
+  nome: string;
+  codFilial: number;
+  segmento: string;
+  codCurso: string;
+  codHabilitacao: string;
+  /** "5º Ano - Ensino Fundamental - Manhã - EF I". */
+  serie: string;
+  codTurma: string | null;
+  /** Tipo do turno da habilitação: M, V ou I. */
+  turno: string;
+  /** Entrou por processo seletivo. */
+  novo: boolean;
+  serieAnterior: string | null;
+  /** Turma do ano anterior; com duas matrículas, as duas ("EF1M-T / EF1C-M"). */
+  turmaAnterior: string | null;
+  dataMatricula: string | null;
+  obs: string | null;
+  /** A escola de onde o aluno veio. Opcional: o backend antes desta versão não manda. */
+  instituicaoOrigem?: string | null;
+}
+
+/** Movimento gravado no MD de enturmação e ainda não importado para a matrícula (OC_SAL_ENTUR_PENDENTES). */
+export interface ApiEnturmacaoPendenteDto {
+  ra: string;
+  /** Para onde o aluno vai quando a enturmação for importada. */
+  codTurma: string;
+}
+
+/**
+ * Resultado de cada aluno em OC_SAL_ENTUR_SALVAR: "pendente" = gravado no MD, falta importar;
+ * "na-matricula" = voltou para a turma da matrícula (nada a importar); "falhou", com o motivo.
+ */
+export interface ApiEnturmacaoResultadoDto {
+  ra: string;
+  codTurma: string;
+  situacao: 'pendente' | 'na-matricula' | 'falhou';
+  motivo: string | null;
+}

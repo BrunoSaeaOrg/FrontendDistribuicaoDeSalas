@@ -34,6 +34,32 @@
   color: var(--saea-ink-soft);
 }
 
+/* Barra das cargas demoradas: trilha cheia, preenchimento na cor da marca. */
+.saea-carregando-barra {
+  width: min(320px, 80%);
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--saea-chip-bg);
+}
+.saea-carregando-preenchido {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--saea-primary-strong);
+  transition: width 250ms linear;
+}
+.saea-carregando-detalhe {
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .saea-carregando-preenchido {
+    transition: none;
+  }
+}
+
 @keyframes saea-carregando-entra {
   from {
     opacity: 0;

@@ -1,132 +1,302 @@
-<div class="va-page">
-  <app-alert tone="info">
-    <strong>Protótipo com dados fictícios.</strong> Serve para mostrar a ideia ao time: mover aqui não grava nada
-    no RM, e recarregar a página desfaz tudo.
-  </app-alert>
-
-  <div class="va-colunas">
-    <!-- Esquerda: os alunos da sala, por turma, e os do ano ainda sem turma. -->
-    <app-card class="saea-card-fill" title="Alunos" [subtitle]="sala() ? qtdAlunos(totalNaSala()) + ' nas turmas da sala' : ''">
-      <div class="va-filtros">
-        <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions" />
-        <app-select
-          label="Sala"
-          [ngModel]="salaId()"
-          (ngModelChange)="selecionarSala($event)"
-          [options]="salaOptions()"
-          [disabled]="!anoLetivo()"
-        />
-      </div>
-
-      @if (!sala()) {
-        <app-empty-state
-          icon="meeting_room"
-          title="Escolha o ano letivo e a sala"
-          description="Os alunos das turmas da sala aparecem aqui, por turma, junto dos que ainda estão sem turma."
-        />
-      } @else {
-        <div class="va-barra">
-          <span class="va-contagem">{{ qtdSelecionados() }} {{ qtdSelecionados() === 1 ? 'marcado' : 'marcados' }}</span>
-          @if (qtdSelecionados() > 0) {
-            <app-button variant="ghost" size="sm" (clicked)="desmarcarTodos()">Desmarcar todos</app-button>
-          }
-        </div>
-
-        <div class="va-lista saea-scroll">
-          @for (grupo of grupos(); track grupo.id) {
-            <section class="va-grupo" [attr.aria-label]="grupo.titulo">
-              <div class="va-grupo-cabecalho">
-                <saea-checkbox
-                  [checked]="todosDoGrupo(grupo)"
-                  [indeterminate]="algunsDoGrupo(grupo)"
-                  [disabled]="grupo.alunos.length === 0"
-                  (checkedChange)="alternarGrupo(grupo, $event)"
-                >
-                  {{ grupo.titulo }}
-                </saea-checkbox>
-                <span class="va-grupo-qtd">{{ qtdAlunos(grupo.alunos.length) }}</span>
-              </div>
-
-              @if (grupo.alunos.length === 0) {
-                <p class="va-grupo-vazio">Nenhum aluno.</p>
-              } @else {
-                <ul class="va-alunos" role="list">
-                  @for (aluno of grupo.alunos; track aluno.id) {
-                    <li
-                      class="va-aluno"
-                      [class.va-aluno--marcado]="selecionados().has(aluno.id)"
-                      draggable="true"
-                      (dragstart)="aoComecarArraste(aluno, $event)"
-                      (dragend)="aoTerminarArraste()"
-                    >
-                      <!-- A linha inteira é o rótulo do checkbox: clicar em qualquer ponto marca o aluno. -->
-                      <saea-checkbox class="va-aluno-check" [checked]="selecionados().has(aluno.id)" (checkedChange)="alternarAluno(aluno.id, $event)">
-                        <saea-avatar [name]="aluno.nome" [size]="32" />
-                        <span class="va-aluno-texto">
-                          <span class="va-aluno-nome">{{ aluno.nome }}</span>
-                          <span class="va-aluno-matricula">Matrícula {{ aluno.matricula }}</span>
-                        </span>
-                      </saea-checkbox>
-                      @if (recemMovidos().has(aluno.id)) {
-                        <span class="va-movido">movido</span>
-                      }
-                      <span class="material-icons va-alca" aria-hidden="true">drag_indicator</span>
-                    </li>
-                  }
-                </ul>
-              }
-            </section>
-          }
-        </div>
-
-        <p class="va-dica">
-          <span class="material-icons" aria-hidden="true">pan_tool_alt</span>
-          Marque vários e use o botão ao lado, ou arraste um aluno (ou os marcados) até a turma.
-        </p>
-      }
-    </app-card>
-
-    <!-- Direita: as turmas da sala, que recebem os alunos. -->
-    <app-card
-      class="saea-card-fill"
-      title="Turmas da sala"
-      [subtitle]="sala() ? sala()!.nome + ' · ' + sala()!.carteiras + ' carteiras' : ''"
-    >
-      @if (!sala()) {
-        <app-empty-state icon="groups" title="Escolha a sala" description="As turmas da sala aparecem aqui, para receber os alunos." />
-      } @else {
-        <div class="va-turmas saea-scroll">
-          @for (turma of turmasDaSala(); track turma.id) {
-            <div
-              class="va-turma"
-              [class.va-turma--escolhida]="destinoId() === turma.id"
-              [class.va-turma--alvo-possivel]="arrastando()"
-              [class.va-turma--alvo]="alvoDoArraste() === turma.id"
-              (dragover)="aoArrastarSobre(turma.id, $event)"
-              (dragleave)="aoSairDoAlvo(turma.id, $event)"
-              (drop)="aoSoltar(turma.id, $event)"
-            >
-              <button type="button" class="va-turma-escolher" [attr.aria-pressed]="destinoId() === turma.id" (click)="escolherDestino(turma.id)">
-                <span class="va-turma-topo">
-                  <span class="va-turma-nome">{{ turma.nome }}</span>
-                  <span class="va-turma-meta">{{ turma.turno }} · {{ turma.segmento }}</span>
-                  @if (turma.excede) {
-                    <app-badge tone="danger">Excede carteiras</app-badge>
-                  }
-                </span>
-                <span class="va-vagas">
-                  <span class="va-vagas-trilha"><span class="va-vagas-barra" [class.va-vagas-barra--excede]="turma.excede" [style.width.%]="turma.pct"></span></span>
-                  <span class="va-vagas-texto">{{ qtdAlunos(turma.alunos.length) }} · {{ turma.carteiras }} carteiras</span>
-                </span>
-              </button>
-            </div>
-          }
-        </div>
-
-        <div class="va-acao">
-          <app-button [disabled]="qtdSelecionados() === 0 || !destino()" (clicked)="moverSelecionados()">{{ rotuloMover() }}</app-button>
-        </div>
-      }
-    </app-card>
+<div class="va-page saea-carregavel">
+  <div class="va-topo">
+    <h1>Vincular aluno à turma</h1>
+    <div class="va-filtros">
+      <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" />
+      <app-select
+        label="Unidade"
+        [ngModel]="codFilial() === null ? '' : '' + codFilial()"
+        (ngModelChange)="selecionarUnidade($event)"
+        [options]="unidadeOptions()"
+        [disabled]="carregandoSalas()"
+      />
+      <app-select
+        label="Série"
+        [ngModel]="serie()"
+        (ngModelChange)="selecionarSerie($event)"
+        [options]="serieOptions()"
+        [disabled]="estadoAlunos()?.estado !== 'pronto'"
+      />
+    </div>
   </div>
+
+  @if (codFilial() === null) {
+    <div class="va-vazio">
+      <app-empty-state
+        icon="groups"
+        title="Escolha a unidade e a série"
+        description="As turmas da série aparecem lado a lado, com as fotos dos alunos, para você mover de uma para outra."
+      />
+    </div>
+  } @else if (estadoAlunos()?.estado === 'erro') {
+    <div class="va-erro">
+      <app-alert tone="danger">Não foi possível ler os alunos da unidade no RM.</app-alert>
+      <app-button variant="secondary" size="sm" (clicked)="tentarDeNovo()">Tentar de novo</app-button>
+    </div>
+  } @else if (estadoAlunos()?.estado === 'pronto' && !serie()) {
+    <div class="va-vazio">
+      <app-empty-state icon="school" title="Escolha a série" description="A lista de séries mostra quantos alunos cada uma tem na unidade." />
+    </div>
+  } @else if (estadoAlunos()?.estado === 'pronto') {
+    <div class="va-lados">
+      @if (origem(); as p) {
+        <ng-container *ngTemplateOutlet="painel; context: { p: p }" />
+      }
+      <div class="va-meio">
+        <button
+          type="button"
+          class="va-inverter"
+          [class.va-inverter--troca]="podeTrocar()"
+          [disabled]="!podeTrocar()"
+          (click)="trocar()"
+          [attr.aria-label]="podeTrocar() ? 'Trocar os alunos marcados' : 'Marque alunos dos dois lados para trocar'"
+          [title]="podeTrocar() ? 'Trocar os alunos marcados' : 'Marque alunos dos dois lados para trocar'"
+        >
+          <span class="material-icons" aria-hidden="true">swap_horiz</span>
+        </button>
+        <button
+          type="button"
+          class="va-mover va-mover--principal"
+          [disabled]="qtdMarcadosOrigem() === 0"
+          (click)="moverMarcados('origem')"
+        >
+          {{ qtdMarcadosOrigem() ? 'Mover ' + qtdMarcadosOrigem() : 'Marque à esquerda' }}
+          <span class="material-icons" aria-hidden="true">arrow_forward</span>
+        </button>
+        <button type="button" class="va-mover" [disabled]="qtdMarcadosDestino() === 0" (click)="moverMarcados('destino')">
+          <span class="material-icons" aria-hidden="true">arrow_back</span>
+          {{ qtdMarcadosDestino() ? 'Mover ' + qtdMarcadosDestino() : 'Marque à direita' }}
+        </button>
+        <p class="va-meio-dica">
+          @if (podeTrocar()) {
+            <span class="material-icons" aria-hidden="true">swap_horiz</span>
+            Use o ⇄ para trocar os marcados dos dois lados.
+          } @else {
+            <span class="material-icons" aria-hidden="true">pan_tool_alt</span>
+            Ou arraste as fotos de um lado para o outro.
+          }
+        </p>
+      </div>
+      @if (destino(); as p) {
+        <ng-container *ngTemplateOutlet="painel; context: { p: p }" />
+      }
+    </div>
+
+    <div class="va-acoes">
+      @if (estadoPendentes()?.estado === 'erro') {
+        <span class="va-acoes-nota">Não deu para ler os movimentos já salvos; recarregue a página antes de salvar.</span>
+      }
+      <app-button variant="secondary" size="sm" [disabled]="pendentes().length === 0 || salvando() > 0" (clicked)="desfazerTudo()">Desfazer tudo</app-button>
+      <app-button size="sm" [disabled]="!podeSalvar()" (clicked)="salvar()">
+        {{ pendentes().length > 0 ? 'Salvar (' + pendentes().length + ')' : 'Salvar' }}
+      </app-button>
+    </div>
+  }
+
+  <app-carregando [ativo]="espera().ativo" [texto]="espera().texto" [estimativaMs]="espera().estimativaMs" />
 </div>
+
+<!-- Um lado: a escolha da turma, a lotação da sala e os alunos com foto. -->
+<ng-template #painel let-p="p">
+  <section
+    class="va-painel"
+    [class.va-painel--soltavel]="arrasto() && arrasto()!.de !== p.lado"
+    [class.va-painel--alvo]="alvoDoArrasto() === p.lado"
+    [attr.aria-label]="(p.lado === 'origem' ? 'Origem: ' : 'Destino: ') + p.turma.nome"
+    (dragenter)="arrastarSobre(p.lado, $event)"
+    (dragover)="arrastarSobre(p.lado, $event)"
+    (dragleave)="sairDoArrasto(p.lado, $event)"
+    (drop)="soltar(p.lado, $event)"
+  >
+    <div class="va-painel-topo">
+      <app-select
+        class="va-painel-turma"
+        [label]="p.lado === 'origem' ? 'Origem' : 'Destino'"
+        [ngModel]="p.turma.id"
+        (ngModelChange)="escolherTurma(p.lado, $event)"
+        [options]="p.lado === 'origem' ? turmaOptionsOrigem() : turmaOptions()"
+      />
+      <app-button variant="secondary" size="sm" [disabled]="p.alunos.length === 0" (clicked)="alternarTodos(p.lado)">
+        {{ todosMarcados(p.lado) ? 'Desmarcar todos' : 'Marcar todos' }}
+      </app-button>
+    </div>
+
+    @if (p.lotacao; as l) {
+      <div class="va-lotacao" [attr.data-faixa]="l.faixa">
+        <div class="va-lotacao-texto">
+          <span class="va-lotacao-resumo">
+            <span class="va-lotacao-situacao">
+              <span class="material-icons" aria-hidden="true">{{ l.icone }}</span>
+              {{ l.rotulo }}
+            </span>
+            @if (l.rotuloVagas) {
+              <saea-badge [tone]="l.tom">{{ l.rotuloVagas }}</saea-badge>
+            }
+          </span>
+          <span class="va-lotacao-numeros">
+            @if (l.previstos !== l.alunos) {
+              com os {{ l.previstos - l.alunos }} marcados: {{ l.previstos }} de {{ l.carteiras }}
+            } @else {
+              {{ l.alunos }} de {{ l.carteiras }} carteiras
+            }
+          </span>
+        </div>
+        <div class="va-lotacao-trilha" aria-hidden="true">
+          <span class="va-lotacao-previsto" [style.width.%]="l.pctPrevisto"></span>
+          <span class="va-lotacao-agora" [class.va-lotacao-agora--neutra]="l.previstos !== l.alunos" [style.width.%]="l.pct"></span>
+        </div>
+        <span class="va-painel-sub">
+          {{ p.turma.sala.nome }} · {{ p.turma.sala.andar }}@if (l.dividemCom.length > 0) {
+            · divide a sala com {{ l.dividemCom.join(', ') }}
+          }
+        </span>
+      </div>
+    } @else {
+      <p class="va-painel-sub">
+        @if (p.lado === 'origem') {
+          {{ qtdAlunos(p.alunos.length) }} sem turma neste período
+        } @else if (p.turma.id === SEM_TURMA) {
+          {{ qtdAlunos(p.alunos.length) }} da série ainda sem turma
+        } @else {
+          {{ qtdAlunos(p.alunos.length) }} · sem sala vinculada, sem carteiras para comparar
+        }
+      </p>
+    }
+
+    @if (p.alunos.length === 0) {
+      <p class="va-painel-vazio">{{ p.lado === 'origem' ? 'Nenhum aluno sem turma neste período.' : 'Nenhum aluno nesta turma.' }}</p>
+    } @else if (p.lado === 'origem') {
+      <!--
+        Origem: um cartão por aluno. O quadrado marca; embaixo do nome ficam série, período, aluno,
+        matrícula e a observação, se houver. O resto (ano anterior, escola de origem, movimento) abre
+        clicando no nome; sem nada a mais, o clique marca o aluno.
+      -->
+      <ul class="va-lista" role="list">
+        @for (a of p.alunos; track a.id) {
+          @let extras = detalhes(a);
+          <li
+            class="va-linha"
+            [class.va-linha--marcado]="marcado(p.lado, a.id)"
+            [class.va-linha--recente]="recemMovidos().has(a.id)"
+            [class.va-linha--arrastando]="arrastando(a.id)"
+            [class.va-linha--aberta]="extras.length > 0 && detalheAberto() === a.id"
+            [draggable]="salvando() === 0"
+            (dragstart)="iniciarArrasto(p.lado, a.id, $event)"
+            (dragend)="terminarArrasto()"
+          >
+            <div class="va-linha-topo">
+              <saea-checkbox
+                class="va-linha-marca"
+                [checked]="marcado(p.lado, a.id)"
+                (checkedChange)="definirMarcado(p.lado, a.id, $event)"
+                [ariaLabel]="'Marcar ' + a.nome"
+              />
+              <button
+                type="button"
+                class="va-linha-abrir"
+                [attr.aria-expanded]="extras.length > 0 ? detalheAberto() === a.id : null"
+                [attr.aria-controls]="extras.length > 0 ? 'va-detalhe-' + a.id : null"
+                [attr.aria-pressed]="extras.length > 0 ? null : marcado(p.lado, a.id)"
+                (click)="extras.length > 0 ? alternarDetalhe(a.id) : alternarAluno(p.lado, a.id)"
+              >
+                @if (foto(a); as src) {
+                  <img class="va-cartao-foto va-linha-foto" [src]="src" alt="" />
+                } @else {
+                  <span class="va-cartao-foto va-linha-foto va-sem-foto" aria-hidden="true">{{ iniciais(a.nome) }}</span>
+                }
+                <span class="va-linha-textos">
+                  <span class="va-linha-nome">{{ a.nome }}</span>
+                  <span class="va-linha-sub">
+                    RA {{ a.id }}
+                    @if (a.turmaAnterior) {
+                      <span>· antes {{ a.turmaAnterior }}</span>
+                    }
+                  </span>
+                </span>
+                @if (falhaDe(a); as motivo) {
+                  <span class="va-cartao-veio va-cartao-veio--falhou" [title]="motivo">
+                    <span class="material-icons" aria-hidden="true">error</span>não salvou
+                  </span>
+                } @else if (veioDe(a); as origemDoAluno) {
+                  <span class="va-cartao-veio">veio do {{ origemDoAluno }}</span>
+                } @else if (gravado(a); as dica) {
+                  <span class="va-cartao-veio va-cartao-veio--gravado" [title]="dica">
+                    <span class="material-icons" aria-hidden="true">cloud_done</span>salvo
+                  </span>
+                }
+                @if (extras.length > 0) {
+                  <span class="material-icons va-linha-seta" aria-hidden="true">expand_more</span>
+                }
+              </button>
+              <dl class="va-linha-dados">
+                @for (d of resumo(a); track d.rotulo) {
+                  <div>
+                    <dt>{{ d.rotulo }}</dt>
+                    <dd>{{ d.valor }}</dd>
+                  </div>
+                }
+                @if (a.obs) {
+                  <div class="va-linha-obs">
+                    <dt>Observação</dt>
+                    <dd [title]="a.obs">{{ a.obs }}</dd>
+                  </div>
+                }
+              </dl>
+            </div>
+            @if (extras.length > 0 && detalheAberto() === a.id) {
+              <dl class="va-linha-detalhes" [id]="'va-detalhe-' + a.id">
+                @for (d of extras; track d.rotulo) {
+                  <div>
+                    <dt>{{ d.rotulo }}</dt>
+                    <dd>{{ d.valor }}</dd>
+                  </div>
+                }
+              </dl>
+            }
+          </li>
+        }
+      </ul>
+    } @else {
+      <ul class="va-grade" role="list">
+        @for (a of p.alunos; track a.id) {
+          <li [draggable]="salvando() === 0" (dragstart)="iniciarArrasto(p.lado, a.id, $event)" (dragend)="terminarArrasto()">
+            <button
+              type="button"
+              class="va-cartao"
+              [class.va-cartao--marcado]="marcado(p.lado, a.id)"
+              [class.va-cartao--recente]="recemMovidos().has(a.id)"
+              [class.va-cartao--arrastando]="arrastando(a.id)"
+              [attr.aria-pressed]="marcado(p.lado, a.id)"
+              (click)="alternarAluno(p.lado, a.id)"
+            >
+              @if (foto(a); as src) {
+                <img class="va-cartao-foto" [src]="src" alt="" />
+              } @else {
+                <span class="va-cartao-foto va-sem-foto" aria-hidden="true">{{ iniciais(a.nome) }}</span>
+              }
+              <span class="va-cartao-nome" [title]="a.nome">{{ doisNomes(a.nome) }}</span>
+              <span class="va-cartao-ra">RA {{ a.id }}</span>
+              @if (anterior(a); as deOnde) {
+                <span class="va-cartao-ra">{{ deOnde }}</span>
+              }
+              @if (falhaDe(a); as motivo) {
+                <span class="va-cartao-veio va-cartao-veio--falhou" [title]="motivo">
+                  <span class="material-icons" aria-hidden="true">error</span>não salvou
+                </span>
+              } @else if (veioDe(a); as origemDoAluno) {
+                <span class="va-cartao-veio">veio do {{ origemDoAluno }}</span>
+              } @else if (gravado(a); as dica) {
+                <span class="va-cartao-veio va-cartao-veio--gravado" [title]="dica">
+                  <span class="material-icons" aria-hidden="true">cloud_done</span>salvo
+                </span>
+              }
+              @if (marcado(p.lado, a.id)) {
+                <span class="va-cartao-check" aria-hidden="true"><span class="material-icons">check</span></span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</ng-template>

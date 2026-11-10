@@ -20,10 +20,11 @@ const NAV_ITEMS: SidePanelItem[] = [
   { icon: 'inbox', label: 'Solicitações', description: 'Pedidos de novas carteiras.', route: 'solicitacoes' },
   { icon: 'rule', label: 'Regras de ocupação', description: 'Critérios de capacidade física.', route: 'regras' },
   { icon: 'bar_chart', label: 'Mapa de Ocupação', description: 'Total por unidade, turno, segmento, série e turma.', route: 'ocupacao' },
-  { icon: 'content_copy', label: 'Salas por ano', description: 'Copiar salas e carteiras para outro ano, por unidade.', route: 'salas-por-ano' },
-  // Protótipo: some do menu (desktop e mobile) junto com a rota, pelo environment.
+  // Calendário com setas: levar as salas de um ano para o outro (o mesmo ícone do aviso dentro da tela).
+  { icon: 'event_repeat', label: 'Salas por ano', description: 'Copiar salas e carteiras para outro ano, por unidade.', route: 'salas-por-ano' },
+  // Em construção: some do menu (desktop e mobile) junto com a rota, pelo environment.
   ...(environment.telaVincularAlunos
-    ? [{ icon: 'person_add', label: 'Vincular aluno à turma', description: 'Protótipo com dados fictícios.', route: 'vincular-alunos' }]
+    ? [{ icon: 'person_add', label: 'Vincular aluno à turma', description: 'Mover alunos entre as turmas da sala.', route: 'vincular-alunos' }]
     : []),
 ];
 

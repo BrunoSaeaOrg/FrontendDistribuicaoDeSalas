@@ -1,6 +1,6 @@
 export const environment = {
   production: false,
   apiUrl: 'http://localhost:5050/api',
-  /** Protótipo "Vincular aluno à turma" (dados fictícios). false tira a tela do menu e a rota. */
-  telaVincularAlunos: false,
+  /** Tela "Vincular aluno à turma" (dados reais do RM, ainda sem gravar). false tira a tela do menu e a rota. */
+  telaVincularAlunos: true,
 };

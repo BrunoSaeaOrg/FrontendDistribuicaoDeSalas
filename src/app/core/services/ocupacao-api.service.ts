@@ -3,9 +3,12 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  ApiAlunoEnturmacaoDto,
   ApiAnoLetivoDto,
   ApiCopiaAnoPlanoDto,
   ApiCopiaSalaResultadoDto,
+  ApiEnturmacaoPendenteDto,
+  ApiEnturmacaoResultadoDto,
   ApiRegraDto,
   ApiRegraSalvaDto,
   ApiSalaDoAnoDto,
@@ -38,6 +41,56 @@ export class OcupacaoApiService {
   getAnosLetivos(codUsuario: string): Observable<ApiAnoLetivoDto[]> {
     return this.http.post<ApiAnoLetivoDto[]>(`${this.baseUrl}/OC_SAL_ANOS`, {
       CODUSUARIO: codUsuario,
+    });
+  }
+
+  /**
+   * Alunos do ano na filial, com a turma da matrícula (pré-enturmação). A primeira leitura de uma
+   * filial leva de 15 s a 1 min no RM; o back guarda o resultado por 5 minutos.
+   */
+  getAlunosEnturmacao(ano: string, codFilial: number): Observable<ApiAlunoEnturmacaoDto[]> {
+    return this.http.post<ApiAlunoEnturmacaoDto[]>(`${this.baseUrl}/OC_SAL_ENTUR_ALUNOS`, {
+      ANO: ano,
+      CODFILIAL: String(codFilial),
+    });
+  }
+
+  /**
+   * Fotos dos alunos pedidos (até 200 RAs), da mesma leitura de getAlunosEnturmacao: RA →
+   * "data:image/jpeg;base64,...". RA sem foto não vem.
+   */
+  getFotosEnturmacao(ano: string, codFilial: number, ras: readonly string[]): Observable<Record<string, string>> {
+    return this.http.post<Record<string, string>>(`${this.baseUrl}/OC_SAL_ENTUR_FOTOS`, {
+      ANO: ano,
+      CODFILIAL: String(codFilial),
+      RAS: ras,
+    });
+  }
+
+  /** Movimentos gravados no MD de enturmação que ainda não entraram na matrícula (rápido: não relê os alunos). */
+  getPendentesEnturmacao(codUsuario: string, ano: string, codFilial: number): Observable<ApiEnturmacaoPendenteDto[]> {
+    return this.http.post<ApiEnturmacaoPendenteDto[]>(`${this.baseUrl}/OC_SAL_ENTUR_PENDENTES`, {
+      CODUSUARIO: codUsuario,
+      ANO: ano,
+      CODFILIAL: String(codFilial),
+    });
+  }
+
+  /**
+   * Grava os movimentos no MD de enturmação como pendentes (até 100 por vez; o back só grava no
+   * TTESTE). Cada aluno volta com o seu resultado.
+   */
+  salvarEnturmacao(
+    codUsuario: string,
+    ano: string,
+    codFilial: number,
+    movimentos: readonly { ra: string; codTurma: string }[],
+  ): Observable<ApiEnturmacaoResultadoDto[]> {
+    return this.http.post<ApiEnturmacaoResultadoDto[]>(`${this.baseUrl}/OC_SAL_ENTUR_SALVAR`, {
+      CODUSUARIO: codUsuario,
+      ANO: ano,
+      CODFILIAL: String(codFilial),
+      MOVIMENTOS: movimentos.map((m) => ({ RA: m.ra, CODTURMA: m.codTurma })),
     });
   }
 

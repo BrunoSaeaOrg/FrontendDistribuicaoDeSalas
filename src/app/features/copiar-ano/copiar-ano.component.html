@@ -34,7 +34,7 @@
           <span class="ca-dica">Só quem pode editar consegue copiar.</span>
         } @else if (temSalas()) {
           <app-button [disabled]="!podeCopiar()" [loading]="copiando()" [loadingText]="textoProgresso()" (clicked)="copiar()">
-            <span class="material-icons" aria-hidden="true">content_copy</span> {{ textoBotao() }}
+            <span class="material-icons" aria-hidden="true">event_repeat</span> {{ textoBotao() }}
           </app-button>
         }
       </div>

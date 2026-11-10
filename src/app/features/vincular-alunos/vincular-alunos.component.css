@@ -1,3 +1,8 @@
+/*
+ * Regra de altura do app (styles.css): a tela ocupa a janela e as grades de fotos rolam por
+ * dentro. Numa janela baixa (ou com zoom), os lados não encolhem abaixo de uma altura útil: aí é a
+ * página que rola, dentro da própria tela, sem passar por baixo do rodapé.
+ */
 :host {
   display: flex;
   flex-direction: column;
@@ -5,286 +10,682 @@
   min-height: 0;
 }
 
-/* Regra de altura do projeto (styles.css): as duas colunas vão até o rodapé e rolam por dentro. */
 .va-page {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-5);
-  flex: 1;
-  min-height: 0;
-}
-.va-page > app-alert {
-  flex-shrink: 0;
-}
-
-.va-colunas {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
-  grid-template-rows: minmax(0, 1fr);
-  gap: var(--sp-5);
-}
-
-.va-filtros {
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-4);
-}
-
-.va-barra {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: var(--sp-3);
-  min-height: 32px;
-  padding-bottom: var(--sp-2);
-  border-bottom: 1px solid var(--saea-border);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
-.va-contagem {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--saea-ink-soft);
+.va-topo,
+.va-acoes,
+.va-vazio,
+.va-erro {
+  flex-shrink: 0;
 }
 
-/* Um bloco por turma da sala, e o dos sem turma por último. */
-.va-grupo + .va-grupo {
-  margin-top: var(--sp-3);
-}
-.va-grupo-cabecalho {
+/* Título e filtros numa linha só. */
+.va-topo {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-2) var(--sp-1);
-  font-size: var(--fs-xs);
+  gap: var(--sp-3) var(--sp-4);
+}
+.va-topo h1 {
+  margin: 0 0 6px;
+  font-size: var(--fs-xl);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--saea-ink-soft);
-}
-.va-grupo-qtd {
-  font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--saea-ink-faint);
-}
-.va-grupo-vazio {
-  margin: 0;
-  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-8);
-  font-size: var(--fs-xs);
-  color: var(--saea-ink-faint);
-}
-
-.va-alunos {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.va-aluno {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding-right: var(--sp-2);
-  border-radius: var(--radius-md);
-  cursor: grab;
-  transition: background var(--dur-micro) var(--ease-out);
-}
-.va-aluno:hover {
-  background: var(--saea-surface-sunken);
-}
-.va-aluno:active {
-  cursor: grabbing;
-}
-.va-aluno--marcado,
-.va-aluno--marcado:hover {
-  background: color-mix(in srgb, var(--saea-primary) 10%, transparent);
-}
-
-/* O rótulo do checkbox ocupa a linha: avatar, nome e matrícula. */
-.va-aluno-check {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-}
-.va-aluno-check ::ng-deep .saea-checkbox__label {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2);
-  cursor: inherit;
-}
-.va-aluno-texto {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.va-aluno-nome {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--fs-md);
-  font-weight: 600;
   color: var(--saea-ink);
 }
-.va-aluno-matricula {
-  font-size: var(--fs-xs);
-  color: var(--saea-ink-soft);
+.va-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: flex-end;
 }
-.va-movido {
-  flex-shrink: 0;
-  padding: 1px var(--sp-2);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--saea-primary) 14%, transparent);
-  font-size: var(--fs-2xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--saea-primary-strong);
-}
-.va-alca {
-  flex-shrink: 0;
-  font-size: 18px;
-  color: var(--saea-ink-faint);
+.va-filtros app-select {
+  min-width: 160px;
 }
 
-.va-dica {
-  flex-shrink: 0;
+.va-vazio,
+.va-erro {
+  padding: var(--sp-6) var(--sp-4);
+  border-radius: var(--radius-lg);
+  background: var(--saea-surface);
+  border: 1px solid var(--saea-border);
+}
+.va-erro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+/* Os dois lados e a coluna do meio (trocar e mover). */
+.va-lados {
+  flex: 1 0 460px;
+  min-height: 460px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 152px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+.va-meio {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: var(--sp-3);
+}
+.va-inverter {
+  align-self: center;
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--saea-border);
+  background: var(--saea-surface);
+  color: var(--saea-primary-strong);
+  cursor: pointer;
+}
+.va-inverter:hover {
+  border-color: var(--saea-primary);
+}
+/* Sem marcados dos dois lados não há o que trocar. */
+.va-inverter:disabled {
+  border-color: var(--saea-border);
+  background: var(--saea-chip-bg);
+  color: var(--saea-ink-faint);
+  cursor: default;
+}
+/* Com marcados dos dois lados, o ⇄ troca os alunos: fica com a cor do botão principal. */
+.va-inverter--troca {
+  border-color: var(--saea-primary-strong);
+  background: var(--saea-primary-strong);
+  color: #fff;
+}
+.va-inverter--troca:hover {
+  border-color: var(--saea-primary-strong);
+  background: color-mix(in srgb, var(--saea-primary-strong) 88%, #000);
+}
+.va-mover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: var(--sp-2);
-  margin: var(--sp-3) 0 0;
+  min-height: 48px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--saea-border);
+  background: var(--saea-surface);
+  color: var(--saea-primary-strong);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.va-mover--principal {
+  border-color: var(--saea-primary-strong);
+  background: var(--saea-primary-strong);
+  color: #fff;
+}
+.va-mover:disabled {
+  border-color: var(--saea-border);
+  background: var(--saea-chip-bg);
+  color: var(--saea-ink-soft);
+  cursor: default;
+}
+.va-mover .material-icons {
+  font-size: 20px;
+}
+.va-meio-dica {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
   font-size: var(--fs-xs);
+  line-height: 1.35;
+  text-align: center;
   color: var(--saea-ink-soft);
 }
-.va-dica .material-icons {
-  font-size: 16px;
-  color: var(--saea-ink-faint);
+.va-meio-dica .material-icons {
+  font-size: 18px;
+}
+/* Tela de toque não arrasta (o arraste é do mouse): lá a dica não vale. */
+@media (hover: none) {
+  .va-meio-dica {
+    display: none;
+  }
 }
 
-/* Turmas da sala: cada cartão escolhe a turma pelo botão e recebe o arraste. */
-.va-turmas {
+.va-painel {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  /* Folga para o anel de foco dentro da área rolável. */
-  padding: 2px;
-}
-
-.va-turma {
-  flex-shrink: 0;
-  border: 1px solid var(--saea-border);
-  border-radius: var(--radius-md);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  border-radius: var(--radius-lg);
   background: var(--saea-surface);
-  transition:
-    border-color var(--dur-short) var(--ease-out),
-    background var(--dur-short) var(--ease-out);
+  border: 1px solid var(--saea-border);
 }
-.va-turma--escolhida {
-  border-color: var(--saea-primary-strong);
-  background: color-mix(in srgb, var(--saea-primary) 6%, var(--saea-surface));
-}
-/* Como na Planta: tracejado em todas enquanto arrasta, e cheio na que está embaixo do cursor. */
-.va-turma--alvo-possivel {
+/* Durante o arraste, o outro lado mostra que aceita soltar; com o arraste em cima, destaca. */
+.va-painel--soltavel {
   border-style: dashed;
   border-color: var(--saea-primary);
 }
-.va-turma--alvo {
+.va-painel--alvo {
   border-style: solid;
   border-color: var(--saea-primary-strong);
-  background: var(--saea-chip-bg);
+  box-shadow: 0 0 0 1px var(--saea-primary-strong);
+  background: color-mix(in srgb, var(--saea-primary) 6%, var(--saea-surface));
 }
-
-.va-turma-escolher {
+/* A turma do lado é escolhida no próprio cabeçalho dele. */
+.va-painel-topo {
   display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  width: 100%;
-  margin: 0;
-  padding: var(--sp-3) var(--sp-4);
-  border: none;
-  border-radius: inherit;
-  background: none;
-  font: inherit;
-  text-align: left;
-  color: inherit;
-  cursor: pointer;
-}
-.va-turma-escolher:focus-visible {
-  outline: 2px solid var(--saea-primary-strong);
-  outline-offset: 2px;
-}
-
-.va-turma-topo {
-  display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--sp-2);
 }
-.va-turma-nome {
-  font-size: var(--fs-lg);
-  font-weight: 700;
-  color: var(--saea-ink);
-}
-.va-turma-meta {
+.va-painel-turma {
   flex: 1;
+  min-width: 0;
+}
+.va-painel-sub {
+  margin: 0;
   font-size: var(--fs-xs);
   color: var(--saea-ink-soft);
 }
-
-.va-vagas {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+.va-painel-vazio {
+  margin: 0;
+  padding: var(--sp-6) var(--sp-2);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
 }
-.va-vagas-trilha {
-  flex: 1;
-  height: 6px;
+
+/* Lotação da sala no turno: barra de agora e, mais clara, a prevista com os marcados. */
+.va-lotacao {
+  --faixa: var(--saea-success);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.va-lotacao[data-faixa='quase'] {
+  --faixa: var(--saea-warning);
+}
+.va-lotacao[data-faixa='excedida'] {
+  --faixa: var(--saea-danger);
+}
+.va-lotacao-trilha {
+  position: relative;
+  height: 8px;
   overflow: hidden;
   border-radius: var(--radius-pill);
   background: var(--saea-chip-bg);
 }
-.va-vagas-barra {
-  display: block;
-  height: 100%;
+.va-lotacao-previsto,
+.va-lotacao-agora {
+  position: absolute;
+  inset: 0 auto 0 0;
   border-radius: inherit;
-  background: var(--saea-primary);
   transition: width var(--dur-short) var(--ease-out);
 }
-.va-vagas-barra--excede {
-  background: var(--saea-danger);
+.va-lotacao-previsto {
+  background: var(--faixa);
+  opacity: 0.45;
 }
-.va-vagas-texto {
+.va-lotacao-agora {
+  background: var(--faixa);
+}
+.va-lotacao-agora--neutra {
+  background: var(--saea-ink-faint);
+}
+.va-lotacao-texto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+/* A situação e, ao lado, o selo com as vagas que sobram na sala. */
+.va-lotacao-resumo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.va-lotacao-situacao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-weight: 600;
+  color: var(--saea-ink);
+}
+.va-lotacao-situacao .material-icons {
+  font-size: 18px;
+  color: var(--faixa);
+}
+.va-lotacao-numeros {
+  color: var(--saea-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Os alunos: cartões com a foto redonda, como a do perfil no cabeçalho. Só esta grade rola. */
+.va-grade {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  /* Poucos alunos: os cartões ficam no topo, sem esticar. */
+  align-content: start;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 2px 4px 2px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+.va-cartao {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  padding: 8px 6px 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--saea-border);
+  background: var(--saea-surface);
+  color: var(--saea-ink);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--dur-micro) var(--ease-out), background var(--dur-micro) var(--ease-out);
+}
+.va-cartao:hover {
+  border-color: var(--saea-primary);
+}
+/* Arrastar: a mão no cartão; os que vão no arraste ficam apagados até soltar. */
+li[draggable='true'] .va-cartao {
+  cursor: grab;
+}
+li[draggable='true'] .va-cartao:active {
+  cursor: grabbing;
+}
+.va-cartao--arrastando {
+  opacity: 0.45;
+}
+.va-cartao--recente {
+  background: color-mix(in srgb, var(--saea-primary) 7%, var(--saea-surface));
+}
+.va-cartao--marcado,
+.va-cartao--marcado:hover {
+  border-color: var(--saea-primary-strong);
+  box-shadow: 0 0 0 1px var(--saea-primary-strong);
+  background: color-mix(in srgb, var(--saea-primary) 10%, var(--saea-surface));
+}
+/*
+ * A foto no estilo do avatar do perfil (user-avatar), um pouco maior: círculo com anel primário,
+ * que engrossa ao passar o mouse e escurece quando o aluno está marcado. A foto do RM é 3x4: o
+ * recorte puxa para cima, onde fica o rosto.
+ */
+.va-cartao-foto {
   flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 20%;
+  background: var(--saea-primary);
+  box-shadow: 0 0 0 2px var(--saea-primary);
+  transition: box-shadow var(--dur-short) var(--ease-out);
+}
+.va-cartao:hover .va-cartao-foto {
+  box-shadow: 0 0 0 3px var(--saea-primary);
+}
+.va-cartao--marcado .va-cartao-foto {
+  box-shadow: 0 0 0 3px var(--saea-primary-strong);
+}
+/* Sem foto: as iniciais em branco no fundo primário, como o avatar sem foto. */
+.va-sem-foto {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--saea-primary);
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+/* Primeiro e segundo nome numa linha; se não couber, reticências. O nome completo fica no title. */
+.va-cartao-nome {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: var(--fs-xs);
   font-weight: 600;
+  line-height: 1.3;
+}
+.va-cartao-ra {
+  font-size: 11px;
+  line-height: 1.3;
   color: var(--saea-ink-soft);
 }
-
-.va-acao {
-  flex-shrink: 0;
+.va-cartao-veio {
+  margin-top: 2px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--saea-primary) 14%, transparent);
+  color: var(--saea-primary-strong);
+  font-size: 11px;
+  font-weight: 600;
+}
+/* Movimento já gravado no RM, esperando a importação para a matrícula. */
+.va-cartao-veio--gravado {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: color-mix(in srgb, var(--saea-success) 14%, transparent);
+  color: var(--saea-ink);
+}
+.va-cartao-veio--gravado .material-icons {
+  font-size: 13px;
+  color: var(--saea-success);
+}
+/* A última tentativa de salvar falhou: o motivo fica na dica e no detalhe. */
+.va-cartao-veio--falhou {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: color-mix(in srgb, var(--saea-danger) 12%, transparent);
+  color: var(--saea-danger);
+}
+.va-cartao-veio--falhou .material-icons {
+  font-size: 13px;
+}
+.va-cartao-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
   display: flex;
-  justify-content: flex-end;
-  padding-top: var(--sp-4);
-  margin-top: var(--sp-2);
-  border-top: 1px solid var(--saea-border);
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  border: 2px solid #fff;
+  background: var(--saea-primary-strong);
+  color: #fff;
+}
+.va-cartao-check .material-icons {
+  font-size: 15px;
 }
 
-/* Mobile: uma coluna embaixo da outra, e a página rola. Sem arrastar no toque, o botão resolve. */
-@media (max-width: 880px) {
-  .va-colunas {
+/*
+ * Origem: um aluno por linha, com a mesma foto redonda dos cartões. O quadrado marca o aluno; o resto
+ * da linha abre os dados dele embaixo (um aberto por vez). Só a lista rola.
+ */
+.va-lista {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 2px 4px 2px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  container: va-lista / inline-size;
+}
+.va-linha {
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--saea-border);
+  background: var(--saea-surface);
+  transition: border-color var(--dur-micro) var(--ease-out), background var(--dur-micro) var(--ease-out);
+}
+.va-linha:hover {
+  border-color: var(--saea-primary);
+}
+.va-linha[draggable='true'] {
+  cursor: grab;
+}
+.va-linha[draggable='true']:active {
+  cursor: grabbing;
+}
+.va-linha--arrastando {
+  opacity: 0.45;
+}
+.va-linha--recente {
+  background: color-mix(in srgb, var(--saea-primary) 7%, var(--saea-surface));
+}
+.va-linha--marcado,
+.va-linha--marcado:hover {
+  border-color: var(--saea-primary-strong);
+  box-shadow: 0 0 0 1px var(--saea-primary-strong);
+  background: color-mix(in srgb, var(--saea-primary) 10%, var(--saea-surface));
+}
+/* O quadrado à esquerda; à direita, a foto com o nome e, embaixo, os dados do aluno. */
+.va-linha-topo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px var(--sp-2);
+  padding: 6px var(--sp-2) var(--sp-2) var(--sp-3);
+}
+.va-linha-marca {
+  flex-shrink: 0;
+}
+.va-linha-abrir {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 2px 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--saea-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.va-linha-abrir:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 2px;
+}
+.va-linha-foto {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  font-size: 0.95rem;
+}
+.va-linha:hover .va-linha-foto {
+  box-shadow: 0 0 0 3px var(--saea-primary);
+}
+.va-linha--marcado .va-linha-foto {
+  box-shadow: 0 0 0 3px var(--saea-primary-strong);
+}
+.va-linha-textos {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+/* O nome completo numa linha; se não couber, reticências (o detalhe não repete o nome). */
+.va-linha-nome {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.va-linha-sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+  color: var(--saea-ink-soft);
+}
+.va-linha-abrir .va-cartao-veio {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+.va-linha-seta {
+  flex-shrink: 0;
+  font-size: 22px;
+  color: var(--saea-ink-soft);
+  transition: transform var(--dur-short) var(--ease-out);
+}
+.va-linha--aberta .va-linha-seta {
+  transform: rotate(180deg);
+}
+/*
+ * Série, período, aluno e matrícula embaixo da foto, rótulo em cima e valor embaixo. As colunas têm
+ * a mesma largura em todos os cartões: os valores ficam alinhados de um aluno para o outro. Período,
+ * aluno e matrícula têm a largura do maior valor ("Semi-Manhã", "Veterano", "24/11/2025"); a série
+ * fica com o resto e, se não couber, quebra a linha (nada fica escondido).
+ */
+.va-linha-dados {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6.5em 4.75em 5.75em;
+  gap: 6px var(--sp-3);
+  margin: 0;
+  padding-right: var(--sp-1);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+}
+.va-linha-dados > div {
+  min-width: 0;
+}
+.va-linha-dados dt {
+  color: var(--saea-ink-soft);
+}
+.va-linha-dados dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--saea-ink);
+  font-weight: 500;
+}
+/* A observação na largura toda, num fundo próprio para ser vista; até 3 linhas, o texto inteiro na dica. */
+.va-linha-obs {
+  grid-column: 1 / -1;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-sm);
+  background: var(--saea-bg);
+}
+.va-linha-dados .va-linha-obs dd {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  white-space: pre-line;
+  font-weight: 400;
+}
+/* Os dados do aluno: rótulo à esquerda, valor à direita, alinhados com o texto da linha. */
+.va-linha-detalhes {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px var(--sp-3);
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  border-top: 1px solid var(--saea-border);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  cursor: default;
+}
+.va-linha-detalhes > div {
+  display: contents;
+}
+.va-linha-detalhes dt {
+  color: var(--saea-ink-soft);
+}
+.va-linha-detalhes dd {
+  margin: 0;
+  color: var(--saea-ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* Os botões de desfazer e salvar, sem cartão, alinhados à direita embaixo dos lados. */
+.va-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2) var(--sp-3);
+}
+.va-acoes-nota {
+  margin-right: auto;
+  font-size: var(--fs-xs);
+  color: var(--saea-danger);
+}
+
+/* Em tela estreita, os lados ficam um embaixo do outro, com os botões entre eles. */
+@media (max-width: 1100px) {
+  .va-lados {
+    flex: none;
+    min-height: 0;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: none;
   }
-  .va-filtros {
-    grid-template-columns: minmax(0, 1fr);
+  .va-meio {
+    flex-direction: row;
+    align-items: center;
   }
-  .va-lista,
-  .va-turmas {
-    max-height: 50vh;
+  .va-mover {
+    flex: 1;
+  }
+  .va-mover .material-icons {
+    transform: rotate(90deg);
+  }
+  .va-inverter {
+    transform: rotate(90deg);
+  }
+  .va-meio-dica {
+    display: none;
+  }
+  .va-grade,
+  .va-lista {
+    max-height: 480px;
+  }
+}
+
+/*
+ * Lista estreita (notebook, celular): a série fica numa linha só dela e período, aluno e matrícula vão
+ * em três colunas embaixo. Vale pela largura da lista, não da tela.
+ */
+@container va-lista (max-width: 420px) {
+  .va-linha-dados {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .va-linha-dados > div:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .va-cartao,
+  .va-linha,
+  .va-linha-seta,
+  .va-lotacao-previsto,
+  .va-lotacao-agora {
+    transition: none;
   }
 }

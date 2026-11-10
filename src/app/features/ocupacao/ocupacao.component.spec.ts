@@ -79,7 +79,7 @@ describe('OcupacaoComponent: Unidade como filtro (nenhuma marcada = todas)', () 
           },
         },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
-        { provide: RegrasService, useValue: { regrasDaFilial: () => ({ areaPorAluno: 1.5, pctMaximoUtilizacao: 90, permitirExcesso: false }), carregarFiliais: () => {} } },
+        { provide: RegrasService, useValue: { regrasDaFilial: (codFilial: number) => ({ areaPorAluno: 1.5, pctMaximoUtilizacao: codFilial === 13 ? 80 : 90, permitirExcesso: false }), carregarFiliais: () => {} } },
       ],
     });
     fixture = TestBed.createComponent(OcupacaoComponent);
@@ -105,5 +105,91 @@ describe('OcupacaoComponent: Unidade como filtro (nenhuma marcada = todas)', () 
 
     tela().selecionarUnidades([]);
     expect(tela().grupos().map((g) => g.label).sort()).toEqual(['CASJ 1', 'CASJ 2']);
+  });
+
+  it('a tabela mostra a faixa da regra de cada unidade: 20 de 30 com 90% disponível, 25 de 30 com 80% quase lotada', () => {
+    const situacao = Object.fromEntries(
+      [...el().querySelectorAll('.ocup-table tbody tr')].map((tr) => {
+        const td = tr.querySelectorAll('td');
+        const faixa = td[6].querySelector('.ocup-faixa')!;
+        return [td[0].textContent!.trim(), `${faixa.querySelector('.material-icons')!.textContent} ${faixa.lastChild!.textContent!.trim()}`];
+      }),
+    );
+    expect(situacao).toEqual({ 'CASJ 1': 'check_circle Disponível', 'CASJ 2': 'warning Quase lotada' });
+    expect(el().querySelector('.ocup-table tfoot')!.textContent).toContain('Total');
+  });
+
+  it('as abas são Tabela, Gráfico e Comparar anos (a Evolução com dados inventados saiu)', () => {
+    expect(abas().map((a) => a.lastChild!.textContent!.trim())).toEqual(['Tabela', 'Gráfico', 'Comparar anos']);
+
+    abas()[1].click();
+    fixture.detectChanges();
+    const linhas = [...el().querySelectorAll('.ocup-graf-lista li')];
+    expect(linhas.map((li) => li.getAttribute('aria-label'))).toEqual([
+      'CASJ 2: 83% de ocupação, 25 alunos em 30 lugares, Quase lotada',
+      'CASJ 1: 67% de ocupação, 20 alunos em 30 lugares, Disponível',
+    ]);
+  });
+});
+
+describe('OcupacaoComponent: Comparar anos', () => {
+  let fixture: ComponentFixture<OcupacaoComponent>;
+  const el = () => fixture.nativeElement as HTMLElement;
+  const tela = () => fixture.componentInstance;
+  const pedidos: string[] = [];
+
+  /** 2025: as mesmas salas, com menos alunos (15 e 20). */
+  const doAno = (ano: string) => {
+    const salas = SALAS.map((s) => ({ ...s, ANO: ano }));
+    const turmas = ano === '2025' ? [turma(2, 'CASJ', 'EF3A-M', 15), turma(13, 'CASJ', 'EF4A-M', 20)] : TURMAS;
+    return { salas, turmas, vinculos: [vinculo(turmas[0], salas[0]), vinculo(turmas[1], salas[1])] };
+  };
+
+  beforeEach(async () => {
+    pedidos.length = 0;
+    TestBed.configureTestingModule({
+      imports: [OcupacaoComponent],
+      providers: [
+        {
+          provide: OcupacaoApiService,
+          useValue: {
+            getSalasDoAno: (_: string, ano: string) => {
+              pedidos.push(ano);
+              return of(doAno(ano).salas);
+            },
+            getTurmasXSalas: (_: string, ano: string) => of(doAno(ano).vinculos),
+            getTurmas: (_: string, ano: string) => of(doAno(ano).turmas),
+            getAnosLetivos: () => of([{ ANO: '2025' }, { ANO: '2026' }]),
+          },
+        },
+        { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
+        { provide: RegrasService, useValue: { regrasDaFilial: () => ({ areaPorAluno: 1.5, pctMaximoUtilizacao: 90, permitirExcesso: false }), carregarFiliais: () => {} } },
+      ],
+    });
+    fixture = TestBed.createComponent(OcupacaoComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  });
+
+  it('só lê os outros anos ao abrir a aba, e mostra a variação entre eles', async () => {
+    const antes = pedidos.length;
+    tela().onVisChange('anos');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // O ano em uso (2026) já está no SalasService: só 2025 vai ao RM.
+    expect(pedidos.slice(antes)).toEqual(['2025']);
+    const cmp = tela().comparacao();
+    expect(cmp.colunas.map((c) => [c.ano, c.estado, c.resumo?.alunos])).toEqual([
+      ['2025', 'pronto', 35],
+      ['2026', 'pronto', 45],
+    ]);
+    expect(cmp.linhas.map((l) => [l.label, l.variacao?.texto])).toEqual([
+      ['CASJ 1', '+17 p.p.'],
+      ['CASJ 2', '+17 p.p.'],
+    ]);
+    expect(el().querySelector('.ocup-table--anos thead')!.textContent).toContain('2025 → 2026');
   });
 });

@@ -113,6 +113,8 @@ export class SalasService {
   /** O nome de tela de cada filial já vista ("CASJ 2"), o mesmo das unidades. */
   readonly nomesDasFiliais = computed(() => nomesDasUnidades(this._filiais()));
   readonly salas = this._salas.asReadonly();
+  /** Ano dos dados em `salas()` (o da última carga que chegou); null antes da primeira. */
+  readonly anoCarregado = this._anoCarregado.asReadonly();
   readonly turmasLivres = this._turmasLivres.asReadonly();
   readonly loading = this._loading.asReadonly();
   /**
