@@ -180,6 +180,22 @@ export interface ApiAlunoEnturmacaoDto {
   instituicaoOrigem?: string | null;
 }
 
+/**
+ * Turma do cadastro de OC_SAL_ENTUR_TURMAS (API.OC.ENTUR.TUR): o destino da tela Vincular aluno, com
+ * ou sem sala e com ou sem aluno. As subturmas (Integral, Semi) vêm como turmas próprias. codCurso,
+ * codHabilitacao e turno só vêm se a consulta tiver as colunas; sem elas, a série sai do nome.
+ */
+export interface ApiTurmaEnturmacaoDto {
+  codTurma: string;
+  /** "3º Ano A - Manhã". */
+  nome: string;
+  idPerlet: number;
+  segmento: string | null;
+  codCurso?: string | null;
+  codHabilitacao?: string | null;
+  turno?: string | null;
+}
+
 /** Movimento gravado no MD de enturmação e ainda não importado para a matrícula (OC_SAL_ENTUR_PENDENTES). */
 export interface ApiEnturmacaoPendenteDto {
   ra: string;

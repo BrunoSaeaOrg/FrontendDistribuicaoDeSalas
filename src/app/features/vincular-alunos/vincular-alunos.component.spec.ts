@@ -4,7 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Observable, of, Subject, throwError } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { Sala, TurmaLivre, TurmaVinculada, Turnos, Unidade } from '../../core/models';
-import { ApiAlunoEnturmacaoDto, ApiEnturmacaoResultadoDto } from '../../core/models/ocupacao-api.model';
+import { ApiAlunoEnturmacaoDto, ApiEnturmacaoResultadoDto, ApiTurmaEnturmacaoDto } from '../../core/models/ocupacao-api.model';
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
 import { RegrasService } from '../../core/services/regras.service';
 import { SalasService } from '../../core/services/salas.service';
@@ -69,6 +69,22 @@ const SALAS = [
 const LIVRES: TurmaLivre[] = [
   { codTurma: 'EF3D-T', idPerlet: 222, codFilial: 2, unidadeId: '2', nome: '3º Ano D - Tarde', turno: 'tarde', alunos: 0, segmento: 'Anos Iniciais' },
 ];
+/** O cadastro das turmas da unidade (API.OC.ENTUR.TUR), como o RM manda hoje: sem curso, habilitação nem turno. */
+const turmaDoCadastro = (codTurma: string, nome: string, extra: Partial<ApiTurmaEnturmacaoDto> = {}): ApiTurmaEnturmacaoDto => ({
+  codTurma,
+  nome,
+  idPerlet: 222,
+  segmento: 'Anos Iniciais',
+  ...extra,
+});
+const TURMAS = [
+  turmaDoCadastro('EF3A-M', '3º Ano A - Manhã'),
+  turmaDoCadastro('EF3A-SM', '3º Ano A - Semi-Manhã'),
+  turmaDoCadastro('EF3B-M', '3º Ano B - Manhã'),
+  turmaDoCadastro('EF3D-T', '3º Ano D - Tarde'),
+  turmaDoCadastro('EF4A-M', '4º Ano A - Manhã'),
+  turmaDoCadastro('EF4B-T', '4º Ano B - Tarde'),
+];
 const UNIDADES: Unidade[] = [
   { id: '2', nome: 'CASJ 1', cor: '', codFilial: 2 },
   { id: '13', nome: 'CASJ 2', cor: '', codFilial: 13 },
@@ -92,6 +108,7 @@ describe('VincularAlunosComponent (lado a lado)', () => {
   let fixture: ComponentFixture<VincularAlunosComponent>;
   let tela: VincularAlunosComponent;
   let getAlunos: ReturnType<typeof vi.fn>;
+  let getTurmas: ReturnType<typeof vi.fn>;
   let getFotos: ReturnType<typeof vi.fn>;
   let getPendentes: ReturnType<typeof vi.fn>;
   let salvarNoRm: ReturnType<typeof vi.fn>;
@@ -102,10 +119,14 @@ describe('VincularAlunosComponent (lado a lado)', () => {
   const anoLetivo = signal('2026');
   const anoCarregado = signal<string | null>('2026');
 
-  function montar(resposta: () => Observable<ApiAlunoEnturmacaoDto[]> = () => of(ALUNOS)): void {
+  function montar(
+    resposta: () => Observable<ApiAlunoEnturmacaoDto[]> = () => of(ALUNOS),
+    turmas: () => Observable<ApiTurmaEnturmacaoDto[]> = () => of(TURMAS),
+  ): void {
     anoLetivo.set('2026');
     anoCarregado.set('2026');
     getAlunos = vi.fn(resposta);
+    getTurmas = vi.fn(turmas);
     getFotos = vi.fn((_ano: string, _filial: number, ras: string[]) =>
       of(Object.fromEntries(ras.filter((ra) => ra !== '2').map((ra) => [ra, `data:image/jpeg;base64,${ra}`]))),
     );
@@ -124,6 +145,7 @@ describe('VincularAlunosComponent (lado a lado)', () => {
           provide: OcupacaoApiService,
           useValue: {
             getAlunosEnturmacao: getAlunos,
+            getTurmasEnturmacao: getTurmas,
             getFotosEnturmacao: getFotos,
             getPendentesEnturmacao: getPendentes,
             salvarEnturmacao: salvarNoRm,
@@ -183,6 +205,56 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(nomes('origem')).toEqual(['Ivo', 'Júlia']);
     expect(tela.origem()!.lotacao).toBeNull();
     expect(tela.descricao(tela.origem()!.alunos[0])).toBe('RA 9 · aluno novo');
+  });
+
+  it('o destino são as turmas do cadastro da unidade, com ou sem sala, também as que o Painel não mostra', () => {
+    // O cadastro tem a Integral do 3º A (sem sala e fora das salas do ano) e não tem o 3º D.
+    const cadastro = [...TURMAS.filter((t) => t.codTurma !== 'EF3D-T'), turmaDoCadastro('EF3A-I', '3º Ano A - Integral')];
+    montar(undefined, () => of(cadastro));
+    abrir();
+
+    expect(getTurmas).toHaveBeenCalledWith('2026', 2);
+    expect(tela.turmasDaSerie().map((t) => t.id)).toEqual(['EF3A-I', 'EF3A-M', 'EF3A-SM', 'EF3B-M']);
+    // A Integral não é a turma principal: o destino abre no 3º A Manhã.
+    expect(tela.destinoId()).toBe('EF3A-M');
+    // Sem sala, o turno sai do fim do código e não há lotação para mostrar.
+    const integral = tela.turmasDaSerie().find((t) => t.id === 'EF3A-I')!;
+    expect([integral.sala, integral.turno]).toEqual([null, 'Integral']);
+    tela.escolherTurma('destino', 'EF3A-I');
+    expect(tela.destino()!.lotacao).toBeNull();
+  });
+
+  it('com curso e habilitação no cadastro, a série da turma é por eles, não pelo nome', () => {
+    const cadastro = [
+      turmaDoCadastro('EF3A-M', '3º Ano A - Manhã', { codCurso: '2', codHabilitacao: '03' }),
+      turmaDoCadastro('ESP-M', 'Turma especial - Manhã', { codCurso: '02', codHabilitacao: '3' }),
+      // O nome diz 3º Ano, mas a habilitação é a do 4º.
+      turmaDoCadastro('EF3Z-M', '3º Ano Z - Manhã', { codCurso: '2', codHabilitacao: '4' }),
+    ];
+    montar(undefined, () => of(cadastro));
+    abrir();
+
+    // O 3º A Semi-Manhã e o 3º B não estão nesse cadastro, mas têm alunos da série: entram assim mesmo.
+    expect(tela.turmasDaSerie().map((t) => t.id)).toEqual(['EF3A-M', 'EF3A-SM', 'EF3B-M', 'ESP-M']);
+  });
+
+  it('sem as turmas da unidade, a série não abre e a tela diz o que falhou; "Tentar de novo" relê só as turmas', () => {
+    let falhar = true;
+    montar(undefined, () => (falhar ? throwError(() => new Error('RM fora do ar')) : of(TURMAS)));
+    tela.selecionarUnidade('2');
+    TestBed.tick();
+
+    expect(tela.erroDeLeitura()).toBe('Não foi possível ler as turmas da unidade no RM.');
+    expect(tela.prontos()).toBe(false);
+    expect(tela.serieOptions().map((o) => o.label)).toEqual(['Carregando...']);
+
+    falhar = false;
+    tela.tentarDeNovo();
+    TestBed.tick();
+
+    expect(tela.erroDeLeitura()).toBeNull();
+    expect(tela.prontos()).toBe(true);
+    expect([getAlunos.mock.calls.length, getTurmas.mock.calls.length]).toEqual([1, 2]);
   });
 
   it('a origem lista os períodos da série; cada um junta os alunos sem turma dele, pela série do RM', () => {
@@ -378,9 +450,8 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     abrir();
     const [ivo, julia] = tela.origem()!.alunos;
     expect(tela.resumo(ivo)).toEqual([
-      { rotulo: 'Série', valor: '3º Ano - Ensino Fundamental' },
-      { rotulo: 'Período', valor: 'Manhã' },
-      { rotulo: 'Aluno', valor: 'Novo' },
+      { rotulo: 'Série', valor: '3º Ano', complemento: 'Ensino Fundamental' },
+      { rotulo: 'Período', valor: 'Manhã', icone: 'wb_sunny' },
       { rotulo: 'Matrícula', valor: '24/11/2025' },
     ]);
     // Sem data da matrícula no RM, o campo fica com traço.
@@ -393,16 +464,15 @@ describe('VincularAlunosComponent (lado a lado)', () => {
       )!;
     const dadosDe = (ra: string) =>
       [...cartaoDe(ra).querySelectorAll('.va-linha-dados > div')].map((d) => `${d.querySelector('dt')?.textContent?.trim()}: ${d.querySelector('dd')?.textContent?.trim()}`);
-    expect(dadosDe('9')).toEqual([
-      'Série: 3º Ano - Ensino Fundamental',
-      'Período: Manhã',
-      'Aluno: Novo',
-      'Matrícula: 24/11/2025',
-      'Observação: Alergia a amendoim.',
-    ]);
-    expect(dadosDe('10')).toEqual(['Série: 3º Ano - Ensino Fundamental', 'Período: Manhã', 'Aluno: Novo', 'Matrícula: —']);
+    expect(dadosDe('9')).toEqual(['Série: 3º Ano · Ensino Fundamental', 'Período: Manhã', 'Matrícula: 24/11/2025']);
+    expect(dadosDe('10')).toEqual(['Série: 3º Ano · Ensino Fundamental', 'Período: Manhã', 'Matrícula: —']);
+    // A observação fica embaixo da faixa, só no cartão de quem tem.
+    expect(cartaoDe('9').querySelector('.va-linha-obs-texto')?.textContent?.trim()).toBe('Alergia a amendoim.');
+    expect(cartaoDe('10').querySelector('.va-linha-obs')).toBeNull();
+    // Novo ou veterano vai no selo ao lado do nome.
+    expect(cartaoDe('9').querySelector('.va-selo')?.textContent?.trim()).toBe('Novo');
     expect(cartaoDe('9').textContent).not.toContain('Turma');
-    // O RA continua embaixo do nome, como era; "aluno novo" não se repete, já está no campo Aluno.
+    // O RA fica embaixo da foto, sozinho, como num crachá.
     expect(cartaoDe('9').querySelector('.va-linha-sub')?.textContent?.trim()).toBe('RA 9');
 
     // O detalhe fica com o que o cartão não mostra: a escola de origem e o movimento ainda não salvo.
@@ -417,13 +487,73 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     abrir();
     fixture.detectChanges();
     const botaoDe = (ra: string) =>
-      [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('.va-linha-abrir')].find((b) =>
-        b.textContent?.includes(`RA ${ra}`),
-      )!;
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('.va-linha')]
+        .find((c) => c.querySelector('.va-linha-sub')?.textContent?.trim() === `RA ${ra}`)!
+        .querySelector<HTMLButtonElement>('.va-linha-abrir')!;
     expect(botaoDe('9').getAttribute('aria-expanded')).toBeNull();
     botaoDe('9').click();
     expect(tela.marcado('origem', '9')).toBe(true);
     expect(tela.detalheAberto()).toBeNull();
+  });
+
+  it('a foto ampliada abre e fecha no clique, com Esc e sozinha quando o aluno muda de lado', () => {
+    montar();
+    abrir();
+    const ivo = tela.origem()!.alunos.find((a) => a.id === '9')!;
+    const clique = { stopPropagation: () => undefined, currentTarget: document.createElement('button') } as unknown as Event;
+
+    tela.alternarPrevia('origem', ivo, clique);
+    expect(tela.alunoDaPrevia()?.id).toBe('9');
+    expect(tela.previaAberta('origem', '9')).toBe(true);
+    tela.alternarPrevia('origem', ivo, clique);
+    expect(tela.previa()).toBeNull();
+
+    tela.alternarPrevia('origem', ivo, clique);
+    tela.teclaNaPrevia(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(tela.previa()).toBeNull();
+
+    // Movido para o destino, o aluno sai da origem: a foto aberta lá fecha.
+    tela.alternarPrevia('origem', ivo, clique);
+    tela.definirMarcado('origem', '9', true);
+    tela.moverMarcados('origem');
+    expect(tela.alunoDaPrevia()).toBeNull();
+  });
+
+  it('a busca acha pelo nome, sem acento, ou pelo RA; "Marcar" com busca marca só os encontrados; a lista fica de A a Z e o botão inverte', () => {
+    montar();
+    abrir();
+    const visiveis = (lado: 'origem' | 'destino') => (lado === 'origem' ? tela.origem() : tela.destino())!.visiveis.map((a) => a.id);
+
+    tela.buscar('origem', 'julia');
+    expect(visiveis('origem')).toEqual(['10']);
+    tela.buscar('origem', '9');
+    expect(visiveis('origem')).toEqual(['9']);
+    tela.buscar('origem', 'ninguem');
+    expect(visiveis('origem')).toEqual([]);
+    expect(tela.origem()!.alunos.length).toBe(2);
+
+    // Com busca, marcar todos marca só os encontrados; sem ela, a lista toda volta e nem todos estão marcados.
+    tela.buscar('origem', 'ivo');
+    tela.alternarTodos('origem');
+    expect(tela.marcado('origem', '9')).toBe(true);
+    expect(tela.marcado('origem', '10')).toBe(false);
+    expect(tela.todosMarcados('origem')).toBe(true);
+    expect(tela.estadoMarcarTodos('origem')).toBe('true');
+    tela.buscar('origem', '');
+    expect(tela.todosMarcados('origem')).toBe(false);
+    expect(tela.estadoMarcarTodos('origem')).toBe('mixed');
+
+    // A lista fica sempre de A a Z: a Júlia, recém-movida, entra no lugar dela no alfabeto. O botão inverte.
+    tela.definirMarcado('origem', '9', false);
+    tela.definirMarcado('origem', '10', true);
+    tela.moverMarcados('origem');
+    expect(tela.ordemDe('destino')).toBe('az');
+    expect(visiveis('destino')).toEqual(['1', '2', '10']);
+    tela.alternarOrdem('destino');
+    expect(tela.ordemDe('destino')).toBe('za');
+    expect(visiveis('destino')).toEqual(['10', '2', '1']);
+    tela.alternarOrdem('destino');
+    expect(visiveis('destino')).toEqual(['1', '2', '10']);
   });
 
   it('pede as fotos dos dois lados uma vez só; sem foto, o cartão mostra as iniciais', () => {
@@ -534,31 +664,55 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(tela.gravado(tela.origem()!.alunos.find((a) => a.id === '1')!)).toBeNull();
   });
 
+  it('tirar da turma o aluno com movimento salvo e sem turma na matrícula desfaz o movimento no RM', () => {
+    montar();
+    gravadosNoRm.set('9', 'EF3A-M');
+    respostaDoRm = (m) => ({ ...m, situacao: m.codTurma === '' ? 'na-matricula' : 'pendente', motivo: null });
+    abrir();
+    const sucesso = vi.spyOn(TestBed.inject(ToastService), 'success');
+    expect(tela.destino()!.alunos.map((a) => a.id)).toContain('9');
+
+    tela.alternarAluno('destino', '9');
+    tela.moverMarcados('destino');
+    tela.salvar();
+
+    expect(salvarNoRm).toHaveBeenCalledWith('fulano', '2026', 2, [{ ra: '9', codTurma: '' }]);
+    expect(tela.pendentes()).toEqual([]);
+    expect(tela.origem()!.alunos.find((a) => a.id === '9')!.gravadoNoRm).toBe(false);
+    expect(sucesso).toHaveBeenCalledWith('1 movimento salvo');
+  });
+
   it('salvar grava os movimentos; os gravados saem da lista e os que falharam ficam com o motivo', () => {
     montar();
     abrir();
+    const jaNaMatricula = 'O aluno já está na turma EF3A-M na matrícula: para tirá-lo da turma, faça no RM.';
     respostaDoRm = (m) =>
-      m.ra === '10' ? { ...m, situacao: 'falhou', motivo: 'Não foi possível salvar: tempo esgotado.' } : { ...m, situacao: 'pendente', motivo: null };
+      m.ra === '10'
+        ? { ...m, situacao: 'falhou', motivo: 'Não foi possível salvar: tempo esgotado.' }
+        : m.codTurma === ''
+          ? { ...m, situacao: 'falhou', motivo: jaNaMatricula }
+          : { ...m, situacao: 'pendente', motivo: null };
     const aviso = vi.spyOn(TestBed.inject(ToastService), 'warning');
     tela.alternarAluno('origem', '9');
     tela.alternarAluno('origem', '10');
     tela.moverMarcados('origem');
-    // A Ana volta para a origem: tirar da turma não grava.
+    // A Ana volta para a origem: tirar da turma também vai para o RM, com a turma vazia.
     tela.alternarAluno('destino', '1');
     tela.moverMarcados('destino');
     expect(tela.podeSalvar()).toBe(true);
 
     tela.salvar();
 
-    // "Sem turma" não vai para o RM.
     expect(salvarNoRm).toHaveBeenCalledWith('fulano', '2026', 2, [
       { ra: '9', codTurma: 'EF3A-M' },
       { ra: '10', codTurma: 'EF3A-M' },
+      { ra: '1', codTurma: '' },
     ]);
     expect(tela.salvando()).toBe(0);
+    // A Ana já está no 3º A na matrícula: o RM recusa tirá-la, e o motivo fica nela.
     expect(tela.pendentes().map((m) => [m.aluno.id, m.falha])).toEqual([
       ['10', 'Não foi possível salvar: tempo esgotado.'],
-      ['1', 'Não dá para salvar o aluno sem turma: escolha a turma dele.'],
+      ['1', jaNaMatricula],
     ]);
     expect(aviso).toHaveBeenCalledWith('1 movimento salvo; 2 não', expect.stringContaining('tempo esgotado'));
     // Sem a lista de movimentos, o motivo fica no próprio aluno.

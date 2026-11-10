@@ -64,104 +64,114 @@
   gap: var(--sp-3);
 }
 
-/* Os dois lados e a coluna do meio (trocar e mover). */
+/* Os dois lados e, entre eles, o trilho com os botões de mover e trocar. */
 .va-lados {
   flex: 1 0 460px;
   min-height: 460px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 152px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   gap: var(--sp-3);
 }
+/*
+ * O meio: um trilho fino com três botões redondos, mover para o destino, trocar e mover para a origem.
+ * Sem marcados, ficam discretos; com marcados, o botão acende e mostra quantos são. A turma para onde
+ * vão fica na dica e no rótulo do leitor de tela.
+ */
 .va-meio {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: stretch;
+  align-items: center;
   gap: var(--sp-3);
 }
-.va-inverter {
-  align-self: center;
+/* O fio do trilho, atrás dos botões. */
+.va-meio::before {
+  content: '';
+  position: absolute;
+  top: var(--sp-6);
+  bottom: var(--sp-6);
+  left: 50%;
+  width: 1px;
+  background: var(--saea-border);
+}
+.va-trilho-botao {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
+  padding: 0;
   border-radius: var(--radius-pill);
   border: 1px solid var(--saea-border);
   background: var(--saea-surface);
-  color: var(--saea-primary-strong);
-  cursor: pointer;
-}
-.va-inverter:hover {
-  border-color: var(--saea-primary);
-}
-/* Sem marcados dos dois lados não há o que trocar. */
-.va-inverter:disabled {
-  border-color: var(--saea-border);
-  background: var(--saea-chip-bg);
   color: var(--saea-ink-faint);
   cursor: default;
+  transition:
+    background var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out),
+    box-shadow var(--dur-micro) var(--ease-out);
 }
-/* Com marcados dos dois lados, o ⇄ troca os alunos: fica com a cor do botão principal. */
-.va-inverter--troca {
-  border-color: var(--saea-primary-strong);
-  background: var(--saea-primary-strong);
+.va-trilho-botao .material-icons {
+  font-size: 22px;
+}
+.va-trilho-botao--trocar {
+  width: 40px;
+  height: 40px;
+}
+.va-trilho-botao--trocar .material-icons {
+  font-size: 19px;
+}
+/* Com marcados, o botão de mover fica com a cor do botão principal. */
+.va-trilho-botao--ativo {
+  border-color: transparent;
+  background: var(--saea-primary-gradient-deep);
   color: #fff;
+  box-shadow: var(--elev-2);
+  cursor: pointer;
 }
-.va-inverter--troca:hover {
-  border-color: var(--saea-primary-strong);
-  background: color-mix(in srgb, var(--saea-primary-strong) 88%, #000);
+.va-trilho-botao--ativo:hover {
+  box-shadow: var(--elev-3);
 }
-.va-mover {
+/* O ⇄ só acende com marcados dos dois lados, num tom mais leve que o de mover. */
+.va-trilho-botao--trocar.va-trilho-botao--ativo {
+  border-color: color-mix(in srgb, var(--saea-primary) 45%, var(--saea-surface));
+  background: color-mix(in srgb, var(--saea-primary) 14%, var(--saea-surface));
+  color: color-mix(in srgb, var(--saea-primary-strong) 75%, var(--saea-ink));
+  box-shadow: none;
+}
+.va-trilho-botao--trocar.va-trilho-botao--ativo:hover {
+  background: color-mix(in srgb, var(--saea-primary) 24%, var(--saea-surface));
+}
+.va-trilho-botao:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 3px;
+}
+/* Quantos vão, no canto do botão do lado de onde eles saem. */
+.va-trilho-numero {
+  position: absolute;
+  top: -6px;
+  right: -6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--sp-2);
-  min-height: 48px;
-  padding: 0 var(--sp-2);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--saea-border);
+  min-width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
   background: var(--saea-surface);
-  color: var(--saea-primary-strong);
-  font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-.va-mover--principal {
-  border-color: var(--saea-primary-strong);
-  background: var(--saea-primary-strong);
-  color: #fff;
-}
-.va-mover:disabled {
-  border-color: var(--saea-border);
-  background: var(--saea-chip-bg);
-  color: var(--saea-ink-soft);
-  cursor: default;
-}
-.va-mover .material-icons {
-  font-size: 20px;
-}
-.va-meio-dica {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin: 0;
+  color: var(--saea-ink);
+  box-shadow: 0 0 0 2px var(--saea-primary);
   font-size: var(--fs-xs);
-  line-height: 1.35;
-  text-align: center;
-  color: var(--saea-ink-soft);
+  font-weight: 700;
+  line-height: 1;
 }
-.va-meio-dica .material-icons {
-  font-size: 18px;
-}
-/* Tela de toque não arrasta (o arraste é do mouse): lá a dica não vale. */
-@media (hover: none) {
-  .va-meio-dica {
-    display: none;
-  }
+.va-trilho-botao--voltar .va-trilho-numero {
+  right: auto;
+  left: -6px;
 }
 
 .va-painel {
@@ -187,19 +197,104 @@
   background: color-mix(in srgb, var(--saea-primary) 6%, var(--saea-surface));
 }
 /* A turma do lado é escolhida no próprio cabeçalho dele. */
+/* Turma e busca lado a lado, do mesmo tamanho; depois, a ordem dos nomes e a caixa de marcar todos. */
 .va-painel-topo {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--sp-2);
 }
-.va-painel-turma {
-  flex: 1;
-  min-width: 0;
+.va-painel-turma,
+.va-painel-buscar {
+  flex: 1 1 0;
+  min-width: 140px;
 }
 .va-painel-sub {
   margin: 0;
   font-size: var(--fs-xs);
   color: var(--saea-ink-soft);
+}
+/* A ordem dos nomes: mostra a de agora (A→Z ou Z→A); um clique inverte. Da altura dos campos. */
+.va-ordem {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 46px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--saea-border);
+  background: var(--saea-surface);
+  color: var(--saea-ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.va-ordem .material-icons {
+  font-size: 18px;
+  color: var(--saea-ink-soft);
+}
+.va-ordem:hover {
+  border-color: var(--saea-primary);
+}
+.va-ordem:focus-visible,
+.va-marcar-todos:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 2px;
+}
+/* Marcar todos: uma caixa quadrada da altura dos campos, com o quadrado de marcar no meio. */
+.va-marcar-todos {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--saea-border);
+  background: var(--saea-surface);
+  cursor: pointer;
+}
+.va-marcar-todos:hover:not(:disabled) {
+  border-color: var(--saea-primary);
+}
+.va-marcar-todos:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.va-marcar-caixa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 2px solid var(--saea-ink-soft);
+  border-radius: 5px;
+  color: #fff;
+}
+.va-marcar-caixa .material-icons {
+  font-size: 16px;
+  font-weight: 700;
+}
+.va-marcar-todos[aria-checked='true'] .va-marcar-caixa,
+.va-marcar-todos[aria-checked='mixed'] .va-marcar-caixa {
+  border-color: var(--saea-primary);
+  background: var(--saea-primary);
+}
+.va-limpar-busca {
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: color-mix(in srgb, var(--saea-primary-strong) 75%, var(--saea-ink));
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
 }
 .va-painel-vazio {
   margin: 0;
@@ -277,7 +372,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Os alunos: cartões com a foto redonda, como a do perfil no cabeçalho. Só esta grade rola. */
+/* Os alunos: crachás pequenos, com a mesma foto em pé do crachá da origem. Só esta grade rola. */
 .va-grade {
   flex: 1 1 auto;
   min-height: 0;
@@ -291,6 +386,9 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   list-style: none;
+}
+.va-grade > li {
+  position: relative;
 }
 .va-cartao {
   position: relative;
@@ -333,24 +431,30 @@ li[draggable='true'] .va-cartao:active {
   background: color-mix(in srgb, var(--saea-primary) 10%, var(--saea-surface));
 }
 /*
- * A foto no estilo do avatar do perfil (user-avatar), um pouco maior: círculo com anel primário,
- * que engrossa ao passar o mouse e escurece quando o aluno está marcado. A foto do RM é 3x4: o
- * recorte puxa para cima, onde fica o rosto.
+ * A foto em pé (4:5), a mesma do crachá da origem em tamanho menor: o aluno que muda de lado continua
+ * com a mesma cara. O anel aparece ao passar o mouse e escurece quando o aluno está marcado. A foto do
+ * RM é 3x4: o recorte puxa para cima, onde fica o rosto.
  */
 .va-cartao-foto {
   flex-shrink: 0;
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 100px;
   margin-bottom: 6px;
-  border-radius: 50%;
+  border-radius: 10px;
   object-fit: cover;
   object-position: 50% 20%;
-  background: var(--saea-primary);
-  box-shadow: 0 0 0 2px var(--saea-primary);
+  background: var(--saea-chip-bg);
+  outline: 1px solid color-mix(in srgb, var(--saea-ink) 8%, transparent);
+  outline-offset: -1px;
   transition: box-shadow var(--dur-short) var(--ease-out);
 }
+.va-cartao-foto.va-sem-foto {
+  background: var(--saea-primary);
+  outline: 0;
+  font-size: 1.6rem;
+}
 .va-cartao:hover .va-cartao-foto {
-  box-shadow: 0 0 0 3px var(--saea-primary);
+  box-shadow: 0 0 0 2px var(--saea-primary);
 }
 .va-cartao--marcado .va-cartao-foto {
   box-shadow: 0 0 0 3px var(--saea-primary-strong);
@@ -375,10 +479,57 @@ li[draggable='true'] .va-cartao:active {
   font-weight: 600;
   line-height: 1.3;
 }
+/* O RA no mesmo chip do crachá da origem; embaixo, de onde o aluno veio. */
 .va-cartao-ra {
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--saea-chip-bg);
+  color: var(--saea-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.va-cartao--marcado .va-cartao-ra {
+  background: var(--saea-surface);
+  box-shadow: inset 0 0 0 1px var(--saea-border);
+}
+.va-cartao-de {
   font-size: 11px;
   line-height: 1.3;
   color: var(--saea-ink-soft);
+}
+/* Ampliar a foto: no canto da foto do cartão, ao passar o mouse (sempre, em tela de toque). */
+.va-cartao-ampliar {
+  position: absolute;
+  top: 79px;
+  left: calc(50% + 10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--saea-surface) 92%, transparent);
+  color: var(--saea-ink);
+  box-shadow: var(--elev-1);
+  cursor: zoom-in;
+  opacity: 0;
+  transition: opacity var(--dur-micro) var(--ease-out);
+}
+.va-cartao-ampliar .material-icons {
+  font-size: 14px;
+}
+.va-grade > li:hover .va-cartao-ampliar,
+.va-cartao-ampliar:focus-visible,
+.va-cartao-ampliar--aberta {
+  opacity: 1;
+}
+.va-cartao-ampliar:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 2px;
 }
 .va-cartao-veio {
   margin-top: 2px;
@@ -475,24 +626,123 @@ li[draggable='true'] .va-cartao:active {
   box-shadow: 0 0 0 1px var(--saea-primary-strong);
   background: color-mix(in srgb, var(--saea-primary) 10%, var(--saea-surface));
 }
-/* O quadrado à esquerda; à direita, a foto com o nome e, embaixo, os dados do aluno. */
+/*
+ * O cartão da origem é o crachá compacto: o quadrado que marca, a foto em pé (4:5) e, ao lado, o nome
+ * com o RA e os selos, a faixa com série, período e matrícula e a observação. A foto tem o mesmo
+ * formato da dos cartões do destino, só que menor. Um clique nela a amplia.
+ */
 .va-linha-topo {
+  --va-foto-w: 64px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 6px var(--sp-2);
-  padding: 6px var(--sp-2) var(--sp-2) var(--sp-3);
+  grid-template-columns: auto var(--va-foto-w) minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 10px var(--sp-2) 10px 10px;
 }
 .va-linha-marca {
   flex-shrink: 0;
+  margin-top: 30px;
+}
+.va-linha-retrato {
+  position: relative;
+  display: block;
+  width: var(--va-foto-w);
+  aspect-ratio: 4 / 5;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--saea-chip-bg);
+  cursor: zoom-in;
+  transition: box-shadow var(--dur-short) var(--ease-out);
+}
+.va-linha-retrato:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 2px;
+}
+/* A foto do RM é 3x4: no quadro 4:5 o corte é pequeno e puxa para cima, onde fica o rosto. */
+.va-linha-foto {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  object-fit: cover;
+  object-position: 50% 20%;
+  outline: 1px solid color-mix(in srgb, var(--saea-ink) 8%, transparent);
+  outline-offset: -1px;
+}
+.va-linha-foto.va-sem-foto {
+  display: flex;
+  width: var(--va-foto-w);
+  height: auto;
+  aspect-ratio: 4 / 5;
+  background: var(--saea-primary);
+  outline: 0;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+  cursor: default;
+}
+.va-linha:hover .va-linha-retrato {
+  box-shadow: 0 0 0 2px var(--saea-primary);
+}
+.va-linha--marcado .va-linha-retrato,
+.va-linha-retrato--aberta {
+  box-shadow: 0 0 0 3px var(--saea-primary-strong);
+}
+/* O sinal de ampliar, no canto da foto: aparece ao passar o mouse (sempre, em tela de toque). */
+.va-linha-ampliar {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--saea-surface) 92%, transparent);
+  color: var(--saea-ink);
+  box-shadow: var(--elev-1);
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity var(--dur-micro) var(--ease-out);
+}
+.va-linha-retrato:hover .va-linha-ampliar,
+.va-linha-retrato:focus-visible .va-linha-ampliar,
+.va-linha-retrato--aberta .va-linha-ampliar {
+  opacity: 1;
+}
+/* O RA ao lado dos selos, em fonte de largura fixa, para conferir com o RM. */
+.va-linha-sub {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 var(--sp-2);
+  border-radius: 8px;
+  background: var(--saea-chip-bg);
+  color: var(--saea-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.va-linha-corpo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.va-linha-cabeca {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
 }
 .va-linha-abrir {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: 2px 0;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -505,45 +755,77 @@ li[draggable='true'] .va-cartao:active {
   outline: 2px solid var(--saea-primary-strong);
   outline-offset: 2px;
 }
-.va-linha-foto {
-  width: 44px;
-  height: 44px;
-  margin: 0;
-  font-size: 0.95rem;
-}
-.va-linha:hover .va-linha-foto {
-  box-shadow: 0 0 0 3px var(--saea-primary);
-}
-.va-linha--marcado .va-linha-foto {
-  box-shadow: 0 0 0 3px var(--saea-primary-strong);
-}
 .va-linha-textos {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 5px;
 }
-/* O nome completo numa linha; se não couber, reticências (o detalhe não repete o nome). */
+/* O nome completo; se não couber numa linha, quebra (nada fica escondido). */
 .va-linha-nome {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+  font-size: var(--fs-lg);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
 }
-.va-linha-sub {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.va-linha-selos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.va-selo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--saea-chip-bg);
+  color: var(--saea-ink);
   font-size: var(--fs-xs);
-  line-height: 1.3;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.va-selo--novo {
+  background: color-mix(in srgb, var(--saea-primary) 14%, transparent);
+  color: color-mix(in srgb, var(--saea-primary-strong) 75%, var(--saea-ink));
+}
+.va-selo--antes {
+  font-weight: 400;
+}
+.va-selo--antes strong {
+  font-weight: 600;
+}
+.va-selo--antes::before {
+  content: 'history';
+  font-family: 'Material Icons';
+  font-size: 14px;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
   color: var(--saea-ink-soft);
+}
+/* Marcado, o cartão fica tingido: selos, RA e faixa ganham fundo próprio para não sumir nele. */
+.va-linha--marcado .va-selo:not(.va-selo--novo),
+.va-linha--marcado .va-linha-sub {
+  background: var(--saea-surface);
+  box-shadow: inset 0 0 0 1px var(--saea-border);
 }
 .va-linha-abrir .va-cartao-veio {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   margin-top: 0;
+  padding: 0 10px;
 }
 .va-linha-seta {
   flex-shrink: 0;
@@ -555,23 +837,36 @@ li[draggable='true'] .va-cartao:active {
   transform: rotate(180deg);
 }
 /*
- * Série, período, aluno e matrícula embaixo da foto, rótulo em cima e valor embaixo. As colunas têm
- * a mesma largura em todos os cartões: os valores ficam alinhados de um aluno para o outro. Período,
- * aluno e matrícula têm a largura do maior valor ("Semi-Manhã", "Veterano", "24/11/2025"); a série
- * fica com o resto e, se não couber, quebra a linha (nada fica escondido).
+ * Série, período e matrícula numa linha, separados por um fio; se não couber, quebra. O período mostra
+ * o ícone no lugar do rótulo (o rótulo fica para o leitor de tela).
  */
 .va-linha-dados {
-  grid-column: 2;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 6.5em 4.75em 5.75em;
-  gap: 6px var(--sp-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 4px;
   margin: 0;
-  padding-right: var(--sp-1);
-  font-size: var(--fs-xs);
-  line-height: 1.35;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--saea-ink);
 }
+/*
+ * position: relative segura o rótulo oculto (.va-oculto, absoluto) dentro da célula. Sem isso ele se
+ * ancorava na página: os 123 rótulos ficavam na altura de cada aluno e esticavam a página até o fim
+ * da lista, que passava a rolar sem fim.
+ */
 .va-linha-dados > div {
+  position: relative;
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0 10px;
+  border-left: 1px solid var(--saea-border);
+}
+.va-linha-dados > div:first-child {
+  padding-left: 0;
+  border-left: 0;
 }
 .va-linha-dados dt {
   color: var(--saea-ink-soft);
@@ -579,34 +874,88 @@ li[draggable='true'] .va-cartao:active {
 .va-linha-dados dd {
   margin: 0;
   overflow-wrap: anywhere;
-  color: var(--saea-ink);
-  font-weight: 500;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
-/* A observação na largura toda, num fundo próprio para ser vista; até 3 linhas, o texto inteiro na dica. */
+/* Visível só para o leitor de tela. */
+.va-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.va-linha-dados dd[data-icone]::before {
+  content: attr(data-icone);
+  display: inline-block;
+  margin-right: 3px;
+  vertical-align: -3px;
+  font-family: 'Material Icons';
+  font-size: 15px;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  color: var(--saea-ink-soft);
+}
+.va-linha-dados dd[data-icone='wb_sunny']::before {
+  color: var(--saea-info);
+}
+.va-linha-complemento {
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  color: var(--saea-ink-soft);
+}
+/* A observação em cor quente, para ser vista: costuma pesar na escolha da turma. Até 2 linhas; o texto inteiro na dica e na foto ampliada. */
 .va-linha-obs {
-  grid-column: 1 / -1;
-  padding: var(--sp-1) var(--sp-2);
-  border-radius: var(--radius-sm);
-  background: var(--saea-bg);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--saea-warning) 8%, var(--saea-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--saea-warning) 35%, var(--saea-surface));
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--saea-ink);
 }
-.va-linha-dados .va-linha-obs dd {
+.va-linha-obs-rotulo {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--saea-warning) 70%, var(--saea-ink));
+}
+.va-linha-obs-texto {
+  min-width: 0;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
   white-space: pre-line;
-  font-weight: 400;
+  overflow-wrap: anywhere;
 }
-/* Os dados do aluno: rótulo à esquerda, valor à direita, alinhados com o texto da linha. */
+/* O detalhe, embaixo da faixa: rótulo à esquerda, valor à direita. */
 .va-linha-detalhes {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 4px var(--sp-3);
+  gap: 6px var(--sp-3);
   margin: 0;
-  padding: var(--sp-2) var(--sp-3) var(--sp-3);
-  border-top: 1px solid var(--saea-border);
-  font-size: var(--fs-xs);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-sm);
+  background: var(--saea-surface-sunken);
+  font-size: var(--fs-sm);
   line-height: 1.4;
   cursor: default;
 }
@@ -614,6 +963,7 @@ li[draggable='true'] .va-cartao:active {
   display: contents;
 }
 .va-linha-detalhes dt {
+  font-weight: 600;
   color: var(--saea-ink-soft);
 }
 .va-linha-detalhes dd {
@@ -621,6 +971,107 @@ li[draggable='true'] .va-cartao:active {
   color: var(--saea-ink);
   white-space: pre-line;
   overflow-wrap: anywhere;
+}
+
+/* A foto grande, ao lado da miniatura: para conferir o rosto e os dados sem deixar os cartões altos. */
+.va-previa {
+  width: 236px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: var(--saea-surface);
+  color: var(--saea-ink);
+  box-shadow: var(--elev-3), 0 0 0 1px var(--saea-border);
+  font-family: var(--font-body);
+}
+.va-previa-foto {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  object-position: 50% 20%;
+  background: var(--saea-chip-bg);
+}
+.va-previa-foto.va-sem-foto {
+  display: flex;
+  font-size: 3rem;
+}
+.va-previa-nome {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: 1.35;
+}
+.va-previa-ra {
+  margin: 2px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--saea-ink-soft);
+}
+.va-previa-dados {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px var(--sp-3);
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}
+.va-previa-dados > div {
+  display: contents;
+}
+.va-previa-dados dt {
+  color: var(--saea-ink-soft);
+}
+.va-previa-dados dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.va-previa-obs,
+.va-previa-falha {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.va-previa-obs {
+  background: color-mix(in srgb, var(--saea-warning) 8%, var(--saea-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--saea-warning) 35%, var(--saea-surface));
+}
+.va-previa-obs strong {
+  color: color-mix(in srgb, var(--saea-warning) 70%, var(--saea-ink));
+}
+.va-previa-falha {
+  background: color-mix(in srgb, var(--saea-danger) 10%, var(--saea-surface));
+}
+.va-previa-falha strong {
+  color: var(--saea-danger);
+}
+.va-previa-fechar {
+  align-self: flex-end;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-sm);
+  background: var(--saea-surface);
+  color: var(--saea-ink);
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  cursor: pointer;
+}
+.va-previa-fechar:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 2px;
 }
 
 /* Os botões de desfazer e salvar, sem cartão, alinhados à direita embaixo dos lados. */
@@ -637,7 +1088,7 @@ li[draggable='true'] .va-cartao:active {
   color: var(--saea-danger);
 }
 
-/* Em tela estreita, os lados ficam um embaixo do outro, com os botões entre eles. */
+/* Em tela estreita, os lados ficam um embaixo do outro; o trilho deita entre eles e as setas apontam para cima e para baixo. */
 @media (max-width: 1100px) {
   .va-lados {
     flex: none;
@@ -647,19 +1098,18 @@ li[draggable='true'] .va-cartao:active {
   }
   .va-meio {
     flex-direction: row;
-    align-items: center;
+    padding: var(--sp-1) 0;
   }
-  .va-mover {
-    flex: 1;
+  .va-meio::before {
+    top: 50%;
+    bottom: auto;
+    left: var(--sp-6);
+    right: var(--sp-6);
+    width: auto;
+    height: 1px;
   }
-  .va-mover .material-icons {
+  .va-trilho-botao .material-icons {
     transform: rotate(90deg);
-  }
-  .va-inverter {
-    transform: rotate(90deg);
-  }
-  .va-meio-dica {
-    display: none;
   }
   .va-grade,
   .va-lista {
@@ -667,22 +1117,32 @@ li[draggable='true'] .va-cartao:active {
   }
 }
 
-/*
- * Lista estreita (notebook, celular): a série fica numa linha só dela e período, aluno e matrícula vão
- * em três colunas embaixo. Vale pela largura da lista, não da tela.
- */
+/* Lista estreita (notebook, celular): a foto encolhe. Vale pela largura da lista, não da tela. */
 @container va-lista (max-width: 420px) {
-  .va-linha-dados {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .va-linha-topo {
+    --va-foto-w: 52px;
+    gap: var(--sp-2);
   }
-  .va-linha-dados > div:first-child {
-    grid-column: 1 / -1;
+  .va-linha-marca {
+    margin-top: 22px;
+  }
+}
+
+/* Tela de toque não tem "passar o mouse": o sinal de ampliar fica sempre à vista. */
+@media (hover: none) {
+  .va-linha-ampliar,
+  .va-cartao-ampliar {
+    opacity: 1;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .va-cartao,
   .va-linha,
+  .va-linha-retrato,
+  .va-linha-ampliar,
+  .va-cartao-ampliar,
+  .va-trilho-botao,
   .va-linha-seta,
   .va-lotacao-previsto,
   .va-lotacao-agora {

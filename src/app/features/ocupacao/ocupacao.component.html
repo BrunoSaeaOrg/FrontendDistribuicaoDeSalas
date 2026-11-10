@@ -40,7 +40,7 @@
     </div>
   </div>
 
-  <app-card class="saea-carregavel">
+  <app-card class="ocup-card saea-card-fill saea-carregavel">
     <app-carregando [ativo]="trocandoAno() && vis() !== 'anos'" [texto]="'Carregando ' + ano() + '...'" />
 
     @if (vis() === 'anos') {
@@ -321,7 +321,7 @@
     <details class="ocup-ajuda">
       <summary><span class="material-icons" aria-hidden="true">info</span>Como a ocupação é calculada</summary>
       <ul>
-        <li><b>Ocupação</b> = alunos das turmas ÷ <b>capacidade cadastrada</b> das salas (MD Salas por Período Letivo).</li>
+        <li><b>Ocupação</b> = alunos das turmas ÷ <b>capacidade cadastrada</b> das salas ( Salas por Período Letivo).</li>
         <li>Entram só as salas <b>com turma</b>. Sala vazia não entra na conta.</li>
         <li>Em <b>Todos os turnos</b>, manhã e tarde somam: uma sala com turma nos dois turnos conta a capacidade duas vezes.</li>
         <li>Sala com mais de uma turma no turno: a capacidade é dividida entre elas, na proporção dos alunos.</li>

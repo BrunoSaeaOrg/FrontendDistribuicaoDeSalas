@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { CdkConnectedOverlay, ConnectedPosition } from '@angular/cdk/overlay';
 import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { SaeaBadgeComponent, SaeaCheckboxComponent } from '@sistemas-saea/saea-design-system';
+import { SaeaBadgeComponent, SaeaCheckboxComponent, SaeaInputComponent, SaeaTooltipDirective } from '@sistemas-saea/saea-design-system';
 import { nomeDoAndar, Turno } from '../../core/models';
-import { ApiAlunoEnturmacaoDto } from '../../core/models/ocupacao-api.model';
+import { ApiAlunoEnturmacaoDto, ApiTurmaEnturmacaoDto } from '../../core/models/ocupacao-api.model';
 import { AlunosEnturmacaoService, SelecaoDaTela } from '../../core/services/alunos-enturmacao.service';
 import { RegrasService } from '../../core/services/regras.service';
 import { SalasService, serieDaTurma } from '../../core/services/salas.service';
@@ -85,6 +86,10 @@ export interface AlunoDaTela {
 export interface DadoDoAluno {
   rotulo: string;
   valor: string;
+  /** Texto menor depois do valor: o nível da série ("Ensino Fundamental" depois de "4º Ano"). */
+  complemento?: string;
+  /** Ícone do Material Icons antes do valor (o sol do período da manhã). */
+  icone?: string;
 }
 
 /** Uma série da unidade, com os alunos dela. */
@@ -142,6 +147,10 @@ export interface PainelDaTurma {
   lado: Lado;
   turma: TurmaDaSerie;
   alunos: AlunoDaTela[];
+  /** Os alunos que a lista mostra: os que batem com a busca, em ordem alfabética (A a Z ou Z a A). */
+  visiveis: AlunoDaTela[];
+  /** A busca deste lado, sem espaços nas pontas; vazia, a lista mostra todos. */
+  busca: string;
   lotacao: Lotacao | null;
   /** Marcados deste lado. */
   marcados: number;
@@ -152,7 +161,8 @@ export interface PainelDaTurma {
  * origem e à direita a de destino, com as fotos dos alunos. Marca-se e move-se de um lado para o
  * outro, vendo como a sala de cada turma fica (as turmas do mesmo turno na sala somam).
  *
- * Os dados são reais: turmas e salas do SalasService, alunos e fotos da pré-enturmação do RM
+ * Os dados são reais: as turmas do destino vêm do cadastro (OC_SAL_ENTUR_TURMAS), a sala e as
+ * carteiras de cada uma do SalasService, alunos e fotos da pré-enturmação do RM
  * (OC_SAL_ENTUR_ALUNOS e OC_SAL_ENTUR_FOTOS). Mover muda só a tela; "Salvar" grava os
  * movimentos no MD de enturmação como pendentes (OC_SAL_ENTUR_SALVAR, só no TTESTE por enquanto),
  * e a matrícula muda quando a enturmação for importada no RM. Os já gravados (OC_SAL_ENTUR_PENDENTES)
@@ -162,10 +172,13 @@ export interface PainelDaTurma {
   selector: 'app-vincular-alunos',
   standalone: true,
   imports: [
+    CdkConnectedOverlay,
     FormsModule,
     NgTemplateOutlet,
     SaeaBadgeComponent,
     SaeaCheckboxComponent,
+    SaeaInputComponent,
+    SaeaTooltipDirective,
     AlertComponent,
     ButtonComponent,
     CarregandoComponent,
@@ -255,6 +268,30 @@ export class VincularAlunosComponent {
     return 3000 + (nasSalas + semSala) * 11;
   });
 
+  /** As turmas do cadastro da unidade no ano, que são o destino: carregando, prontas ou com erro. */
+  readonly estadoTurmas = computed(() => {
+    const filial = this.codFilial();
+    if (filial === null || this.carregandoSalas()) return null;
+    return this.alunosService.turmas(this.anoLetivo(), filial) ?? { estado: 'carregando' as const };
+  });
+
+  /** Os alunos e as turmas da unidade chegaram: dá para escolher a série e montar os dois lados. */
+  readonly prontos = computed(() => this.estadoAlunos()?.estado === 'pronto' && this.estadoTurmas()?.estado === 'pronto');
+
+  /** O que não deu para ler da unidade no RM; null = nada falhou. */
+  readonly erroDeLeitura = computed(() => {
+    const alunos = this.estadoAlunos()?.estado === 'erro';
+    const turmas = this.estadoTurmas()?.estado === 'erro';
+    if (alunos && turmas) return 'Não foi possível ler os alunos e as turmas da unidade no RM.';
+    if (alunos) return 'Não foi possível ler os alunos da unidade no RM.';
+    return turmas ? 'Não foi possível ler as turmas da unidade no RM.' : null;
+  });
+
+  private readonly turmasDaUnidade = computed<readonly ApiTurmaEnturmacaoDto[]>(() => {
+    const estado = this.estadoTurmas();
+    return estado?.estado === 'pronto' ? estado.turmas : [];
+  });
+
   /** Os movimentos já gravados no RM e ainda não importados: carregando, prontos ou com erro. */
   readonly estadoPendentes = computed(() => {
     const filial = this.codFilial();
@@ -289,7 +326,7 @@ export class VincularAlunosComponent {
   });
 
   readonly serieOptions = computed<SelectOption[]>(() => {
-    if (this.estadoAlunos()?.estado !== 'pronto') return [{ value: '', label: 'Escolha a unidade antes' }];
+    if (!this.prontos()) return [{ value: '', label: this.codFilial() === null ? 'Escolha a unidade antes' : 'Carregando...' }];
     return [
       { value: '', label: 'Selecione a série' },
       ...this.series().map((s) => ({ value: s.chave, label: `${s.rotulo} (${s.qtd})` })),
@@ -330,34 +367,36 @@ export class VincularAlunosComponent {
   });
 
   /**
-   * As turmas da série, para o destino: as dos alunos dela e as da unidade com a mesma série no nome
-   * (uma turma nova, ainda vazia, também recebe alunos).
+   * As turmas da série, para o destino: as do cadastro da unidade no ano (OC_SAL_ENTUR_TURMAS), com
+   * ou sem sala e com ou sem aluno; as subturmas (Integral, Semi) entram como turmas próprias. A série
+   * da turma é a do curso e habilitação, se o cadastro trouxer; senão, a do nome ("3º Ano A - Manhã" é
+   * do 3º Ano). A sala e as carteiras vêm das salas do ano, pelo código da turma.
    */
   readonly turmasDaSerie = computed<TurmaDaSerie[]>(() => {
     const serie = this.serie();
-    const filial = this.codFilial();
-    if (!serie || filial === null) return [];
-    const daSerie = this.alunosDaUnidade().filter((a) => a.serie === serie);
+    if (!serie || this.codFilial() === null) return [];
+    const [codCurso, codHabilitacao] = serie.split('|');
     const nomeDaSerie = serieDaTurma(this.series().find((s) => s.chave === serie)?.rotulo ?? '');
     const salas = this.salaPorTurma();
-    const livres = this.salasService.turmasLivres().filter((t) => t.codFilial === filial);
-
-    const codigos = new Set(daSerie.map((a) => a.codTurmaOriginal).filter((c): c is string => !!c));
-    salas.forEach((v, codTurma) => {
-      if (serieDaTurma(v.nome) === nomeDaSerie) codigos.add(codTurma);
-    });
-    livres.forEach((t) => {
-      if (serieDaTurma(t.nome) === nomeDaSerie) codigos.add(t.codTurma);
-    });
-
-    const turmas = [...codigos].map<TurmaDaSerie>((codTurma) => {
+    const ehDaSerie = (t: ApiTurmaEnturmacaoDto) =>
+      t.codCurso && t.codHabilitacao
+        ? mesmoCodigo(t.codCurso, codCurso) && mesmoCodigo(t.codHabilitacao, codHabilitacao)
+        : serieDaTurma(t.nome) === nomeDaSerie;
+    const daTurma = (codTurma: string, nome: string, turno: string): TurmaDaSerie => {
       const naSala = salas.get(codTurma);
-      if (naSala) return { id: codTurma, nome: naSala.nome, turno: ROTULO_TURNO[naSala.sala.turno], sala: naSala.sala };
-      const livre = livres.find((t) => t.codTurma === codTurma);
-      return { id: codTurma, nome: livre?.nome ?? codTurma, turno: livre ? ROTULO_TURNO[livre.turno] : '', sala: null };
+      return { id: codTurma, nome, turno: naSala ? ROTULO_TURNO[naSala.sala.turno] : turno, sala: naSala?.sala ?? null };
+    };
+
+    const turmas = new Map<string, TurmaDaSerie>();
+    this.turmasDaUnidade()
+      .filter(ehDaSerie)
+      .forEach((t) => turmas.set(t.codTurma, daTurma(t.codTurma, t.nome, t.turno ?? rotuloDoPeriodo(sufixoDaTurma(t.codTurma)))));
+    // Aluno numa turma que o cadastro não trouxe (não deveria acontecer): ela entra, senão ele sumiria da tela.
+    this.alunosDaUnidade().forEach((a) => {
+      const cod = a.codTurmaOriginal;
+      if (a.serie === serie && cod && !turmas.has(cod)) turmas.set(cod, daTurma(cod, salas.get(cod)?.nome ?? cod, ''));
     });
-    turmas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
-    return turmas;
+    return [...turmas.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
   });
 
   /** As turmas da série para o campo de destino: o nome e quantos alunos tem agora. */
@@ -411,6 +450,12 @@ export class VincularAlunosComponent {
     return id === SEM_TURMA ? todos.filter((a) => a.serie === this.serie()) : todos;
   }
 
+  /** A busca de cada lado, por nome (sem ligar para acento) ou RA. Volta a vazia ao trocar a série. */
+  readonly busca = signal<Readonly<Record<Lado, string>>>({ origem: '', destino: '' });
+
+  /** Cada lado sempre em ordem alfabética: de A a Z, ou de Z a A depois de um clique no botão de ordem. */
+  readonly ordem =signal<Readonly<Record<Lado, OrdemDosNomes>>>({ origem: 'az', destino: 'az' });
+
   readonly origem = computed(() => this.painel('origem'));
   readonly destino = computed(() => this.painel('destino'));
 
@@ -456,11 +501,11 @@ export class VincularAlunosComponent {
       const texto = salvando === 1 ? 'Salvando 1 movimento...' : `Salvando ${salvando} movimentos...`;
       return { ativo: true, texto, estimativaMs: 2000 + salvando * 1200 };
     }
-    return {
-      ativo: this.estadoAlunos()?.estado === 'carregando',
-      texto: 'Lendo os alunos da unidade no RM...',
-      estimativaMs: this.estimativaLeitura(),
-    };
+    if (this.estadoAlunos()?.estado === 'carregando') {
+      return { ativo: true, texto: 'Lendo os alunos da unidade no RM...', estimativaMs: this.estimativaLeitura() };
+    }
+    // As turmas vêm em menos de 1 s: quase sempre chegam antes dos alunos.
+    return { ativo: this.estadoTurmas()?.estado === 'carregando', texto: 'Lendo as turmas da unidade no RM...', estimativaMs: 1500 };
   });
 
   constructor() {
@@ -508,6 +553,59 @@ export class VincularAlunosComponent {
     return ((partes[0]?.[0] ?? '') + (partes.length > 1 ? partes[partes.length - 1][0] : '')).toUpperCase();
   }
 
+  /**
+   * A foto ampliada, ao lado da miniatura que a abriu: de qual aluno, de que lado e o elemento em que
+   * ela se ancora. Fecha com Esc, com um clique fora, ao começar um arraste ou quando o aluno sai do lado.
+   */
+  readonly previa = signal<{ lado: Lado; ra: string; origem: HTMLElement } | null>(null);
+
+  /** O aluno da foto ampliada, enquanto ele continuar no lado em que ela foi aberta. */
+  readonly alunoDaPrevia = computed(() => {
+    const p = this.previa();
+    if (!p) return null;
+    return (p.lado === 'origem' ? this.origem() : this.destino())?.alunos.find((a) => a.id === p.ra) ?? null;
+  });
+
+  /** À direita da miniatura; sem espaço, à esquerda; por último, embaixo. */
+  readonly posicoesDaPrevia: ConnectedPosition[] = [
+    { originX: 'end', originY: 'top', overlayX: 'start', overlayY: 'top', offsetX: 12 },
+    { originX: 'start', originY: 'top', overlayX: 'end', overlayY: 'top', offsetX: -12 },
+    { originX: 'center', originY: 'bottom', overlayX: 'center', overlayY: 'top', offsetY: 8 },
+  ];
+
+  /** Abre a foto grande do aluno; se já for a dele, fecha. */
+  alternarPrevia(lado: Lado, aluno: AlunoDaTela, event: Event): void {
+    event.stopPropagation();
+    const origem = event.currentTarget as HTMLElement;
+    this.previa.update((p) => (p?.ra === aluno.id && p.lado === lado ? null : { lado, ra: aluno.id, origem }));
+  }
+
+  /** A foto grande deste aluno está aberta? */
+  previaAberta(lado: Lado, ra: string): boolean {
+    const p = this.previa();
+    return p?.lado === lado && p.ra === ra;
+  }
+
+  /** Clique fora da foto grande: fecha, menos na miniatura que a abriu (o clique dela já fecha). */
+  cliqueForaDaPrevia(event: MouseEvent): void {
+    const p = this.previa();
+    if (p && !p.origem.contains(event.target as Node)) this.previa.set(null);
+  }
+
+  /** Esc fecha a foto grande. */
+  teclaNaPrevia(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    this.fecharPrevia();
+  }
+
+  /** Fecha a foto grande e devolve o foco à miniatura. */
+  fecharPrevia(): void {
+    const p = this.previa();
+    this.previa.set(null);
+    p?.origem.focus();
+  }
+
   /** O que aparece abaixo do nome: o RA e de onde o aluno veio. */
   descricao(aluno: AlunoDaTela): string {
     if (aluno.novo) return `RA ${aluno.id} · aluno novo`;
@@ -539,15 +637,16 @@ export class VincularAlunosComponent {
   }
 
   /**
-   * Os dados que ficam à mostra no cartão da origem: série (sem o turno, que vai no período), período,
-   * aluno novo ou veterano e a data da matrícula. A turma não entra: na origem o aluno não tem turma.
-   * A observação, quando há, vem embaixo, na largura toda.
+   * A faixa do cartão da origem: a série (o ano em destaque e o nível em letra menor; sem o turno, que
+   * vai no período), o período e a data da matrícula. Novo ou veterano vai num selo ao lado do nome. A
+   * turma não entra: na origem o aluno não tem turma. A observação, quando há, vem embaixo da faixa.
    */
   resumo(aluno: AlunoDaTela): DadoDoAluno[] {
+    const [ano, ...nivel] = rotuloDaSerie(aluno.serieNome).split(' - ');
+    const icone = ICONE_DO_PERIODO[aluno.periodo];
     return [
-      { rotulo: 'Série', valor: rotuloDaSerie(aluno.serieNome) },
-      { rotulo: 'Período', valor: rotuloDoPeriodo(aluno.periodo) },
-      { rotulo: 'Aluno', valor: aluno.novo ? 'Novo' : 'Veterano' },
+      { rotulo: 'Série', valor: ano, ...(nivel.length > 0 ? { complemento: nivel.join(' - ') } : {}) },
+      { rotulo: 'Período', valor: rotuloDoPeriodo(aluno.periodo), ...(icone ? { icone } : {}) },
       { rotulo: 'Matrícula', valor: aluno.dataMatricula ?? '—' },
     ];
   }
@@ -585,6 +684,7 @@ export class VincularAlunosComponent {
    * arraste diz quantos); senão, só ele. Durante a gravação no RM não se arrasta.
    */
   iniciarArrasto(lado: Lado, ra: string, event: DragEvent): void {
+    this.previa.set(null);
     if (this.salvando() > 0) {
       event.preventDefault();
       return;
@@ -665,6 +765,7 @@ export class VincularAlunosComponent {
   selecionarSerie(chave: string): void {
     this.serie.set(chave);
     this.limparMarcados();
+    this.busca.set({ origem: '', destino: '' });
     const periodos = this.periodosDaSerie();
     const origem = periodos.find((p) => this.alunosNaTurma(p.id).length > 0) ?? periodos[0];
     const turmas = this.turmasDaSerie();
@@ -686,6 +787,52 @@ export class VincularAlunosComponent {
   /** O botão ⇄: com marcados dos dois lados, troca os alunos. */
   trocar(): void {
     if (this.podeTrocar()) this.trocarMarcados();
+  }
+
+  /** O que o botão de mover do trilho faz, na dica e para o leitor de tela: quantos e para qual turma. */
+  rotuloMover(de: Lado): string {
+    const qtd = de === 'origem' ? this.qtdMarcadosOrigem() : this.qtdMarcadosDestino();
+    if (qtd === 0) return de === 'origem' ? 'Marque alunos na origem para mover' : 'Marque alunos no destino para mover';
+    const para = de === 'origem' ? this.destinoId() : this.origemId();
+    return `Mover ${qtd} para ${para ? this.nomeDaTurma(para) : 'o outro lado'}`;
+  }
+
+  /** O que o ⇄ do trilho faz: quantos vão de cada lado. */
+  rotuloTrocar(): string {
+    return this.podeTrocar()
+      ? `Trocar ${this.qtdMarcadosOrigem()} da origem por ${this.qtdMarcadosDestino()} do destino`
+      : 'Marque alunos dos dois lados para trocar';
+  }
+
+  buscar(lado: Lado, texto: string): void {
+    this.busca.update((b) => ({ ...b, [lado]: texto }));
+  }
+
+  /** A busca do lado, como foi digitada (para o campo). */
+  buscaDe(lado: Lado): string {
+    return this.busca()[lado];
+  }
+
+  /** A ordem dos nomes do lado: de A a Z ou de Z a A. */
+  ordemDe(lado: Lado): OrdemDosNomes {
+    return this.ordem()[lado];
+  }
+
+  /**
+   * A caixa de marcar todos: marcada com todos os que a lista mostra marcados, parcial com só alguns
+   * deles, vazia com nenhum (o valor vai direto no aria-checked).
+   */
+  estadoMarcarTodos(lado: Lado): 'true' | 'false' | 'mixed' {
+    const painel = lado === 'origem' ? this.origem() : this.destino();
+    const marcados = lado === 'origem' ? this.marcadosOrigem() : this.marcadosDestino();
+    const qtd = painel?.visiveis.filter((a) => marcados.has(a.id)).length ?? 0;
+    if (qtd === 0) return 'false';
+    return qtd === painel!.visiveis.length ? 'true' : 'mixed';
+  }
+
+  /** O botão de ordem: inverte o lado entre A a Z e Z a A. */
+  alternarOrdem(lado: Lado): void {
+    this.ordem.update((o) => ({ ...o, [lado]: o[lado] === 'az' ? 'za' : 'az' }));
   }
 
   /**
@@ -725,19 +872,27 @@ export class VincularAlunosComponent {
     if (this.marcado(lado, ra) !== marcar) this.alternarAluno(lado, ra);
   }
 
-  /** Marca todos do lado; com todos já marcados, desmarca. */
+  /**
+   * Marca todos os que a lista mostra (com busca, só os encontrados; os marcados antes continuam);
+   * com todos eles já marcados, desmarca esses.
+   */
   alternarTodos(lado: Lado): void {
     const painel = lado === 'origem' ? this.origem() : this.destino();
     if (!painel) return;
     const marcados = lado === 'origem' ? this.marcadosOrigem : this.marcadosDestino;
-    const todos = painel.alunos.length > 0 && painel.alunos.every((a) => marcados().has(a.id));
-    marcados.set(todos ? new Set() : new Set(painel.alunos.map((a) => a.id)));
+    const desmarcar = this.todosMarcados(lado);
+    marcados.update((atual) => {
+      const proximos = new Set(atual);
+      painel.visiveis.forEach((a) => (desmarcar ? proximos.delete(a.id) : proximos.add(a.id)));
+      return proximos;
+    });
   }
 
+  /** Todos os que a lista mostra estão marcados. */
   todosMarcados(lado: Lado): boolean {
     const painel = lado === 'origem' ? this.origem() : this.destino();
     const marcados = lado === 'origem' ? this.marcadosOrigem() : this.marcadosDestino();
-    return !!painel && painel.alunos.length > 0 && painel.alunos.every((a) => marcados.has(a.id));
+    return !!painel && painel.visiveis.length > 0 && painel.visiveis.every((a) => marcados.has(a.id));
   }
 
   /** Leva os marcados de um lado para a turma do outro. */
@@ -762,23 +917,15 @@ export class VincularAlunosComponent {
   /**
    * Grava os movimentos da unidade no MD de enturmação. Os que gravaram deixam de ser pendentes (o
    * aluno fica na turma nova com a etiqueta "salvo"); os que falharam ficam, com a etiqueta "não
-   * salvou" e o motivo. "Sem turma" não
-   * grava: o MD precisa de uma turma.
+   * salvou" e o motivo. "Sem turma" vai com a turma vazia: o back desfaz o movimento que ainda não
+   * foi importado (e recusa, dizendo por quê, se o aluno já tem turma na matrícula).
    */
   salvar(): void {
     const filial = this.codFilial();
     if (filial === null || !this.podeSalvar()) return;
     const ano = this.anoLetivo();
     const chave = this.chaveMovimentos();
-    const todos = this.pendentes();
-    const semTurma = todos.filter((m) => m.paraId === SEM_TURMA).map((m) => m.aluno.id);
-    const movimentos = todos.filter((m) => m.paraId !== SEM_TURMA).map((m) => ({ ra: m.aluno.id, codTurma: m.paraId }));
-    const motivoSemTurma = 'Não dá para salvar o aluno sem turma: escolha a turma dele.';
-    if (movimentos.length === 0) {
-      this.falhas.set(new Map(semTurma.map((ra) => [ra, motivoSemTurma])));
-      this.toast.warning('Nada para salvar', motivoSemTurma);
-      return;
-    }
+    const movimentos = this.pendentes().map((m) => ({ ra: m.aluno.id, codTurma: m.paraId === SEM_TURMA ? '' : m.paraId }));
 
     this.salvando.set(movimentos.length);
     this.alunosService.salvar(ano, filial, movimentos).subscribe({
@@ -788,21 +935,14 @@ export class VincularAlunosComponent {
         const falharam = resultados.filter((r) => r.situacao === 'falhou');
         this.atualizarMovidos((m) => gravados.forEach((ra) => m.delete(ra)), chave);
         this.recemMovidos.set(new Set());
-        this.falhas.set(
-          new Map([
-            ...semTurma.map((ra): [string, string] => [ra, motivoSemTurma]),
-            ...falharam.map((r): [string, string] => [r.ra, r.motivo ?? 'Não foi possível salvar.']),
-          ]),
-        );
+        this.falhas.set(new Map(falharam.map((r): [string, string] => [r.ra, r.motivo ?? 'Não foi possível salvar.'])));
         const qtd = `${gravados.length} ${gravados.length === 1 ? 'movimento salvo' : 'movimentos salvos'}`;
-        const naoGravados = falharam.length + semTurma.length;
-        if (naoGravados === 0) {
+        if (falharam.length === 0) {
           this.toast.success(qtd);
         } else {
-          const primeiro = falharam[0]?.motivo ?? motivoSemTurma;
           this.toast.warning(
-            gravados.length > 0 ? `${qtd}; ${naoGravados} não` : 'Nenhum movimento gravado',
-            `${primeiro}${naoGravados > 1 ? ' Os outros estão marcados como "não salvou" nos alunos.' : ''}`,
+            gravados.length > 0 ? `${qtd}; ${falharam.length} não` : 'Nenhum movimento gravado',
+            `${falharam[0].motivo ?? 'Não foi possível salvar.'}${falharam.length > 1 ? ' Os outros estão marcados como "não salvou" nos alunos.' : ''}`,
           );
         }
       },
@@ -819,6 +959,7 @@ export class VincularAlunosComponent {
     this.origemId.set(null);
     this.destinoId.set(null);
     this.limparMarcados();
+    this.busca.set({ origem: '', destino: '' });
   }
 
   private limparMarcados(): void {
@@ -903,10 +1044,14 @@ export class VincularAlunosComponent {
     if (!turma || this.estadoAlunos()?.estado !== 'pronto') return null;
     // Os marcados do outro lado são os que podem vir para cá.
     const vindo = lado === 'origem' ? this.marcadosDestino().size : this.marcadosOrigem().size;
+    const alunos = this.alunosNaTurma(turma.id);
+    const busca = this.busca()[lado].trim();
     return {
       lado,
       turma,
-      alunos: this.alunosNaTurma(turma.id),
+      alunos,
+      visiveis: filtrarEOrdenar(alunos, busca, this.ordem()[lado]),
+      busca,
       lotacao: this.lotacao(turma, vindo),
       marcados: lado === 'origem' ? this.marcadosOrigem().size : this.marcadosDestino().size,
     };
@@ -965,6 +1110,34 @@ const PERIODOS = [
   { chave: '?', rotulo: 'Sem período' },
 ] as const;
 
+/** Sem acento e em minúsculas, para "luisa" achar "LUÍSA". */
+function semAcento(texto: string): string {
+  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+/** A ordem dos nomes numa lista: de A a Z ou de Z a A. */
+export type OrdemDosNomes = 'az' | 'za';
+
+/**
+ * Os alunos que batem com a busca, em ordem alfabética. Cada palavra da busca tem de aparecer no nome
+ * (em qualquer parte, sem ligar para acento) ou no RA: "ana mendes" acha "ANA CLARA MENDES".
+ */
+function filtrarEOrdenar(alunos: AlunoDaTela[], busca: string, ordem: OrdemDosNomes): AlunoDaTela[] {
+  const palavras = semAcento(busca).split(/\s+/).filter(Boolean);
+  const achados =
+    palavras.length === 0
+      ? alunos
+      : alunos.filter((a) => {
+          const nome = semAcento(a.nome);
+          return palavras.every((p) => nome.includes(p) || a.id.includes(p));
+        });
+  const sentido = ordem === 'az' ? 1 : -1;
+  return [...achados].sort((a, b) => sentido * a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** O ícone do período na faixa do cartão: o sol para os de dia, o relógio para o integral. */
+const ICONE_DO_PERIODO: Readonly<Record<string, string>> = { M: 'wb_sunny', SM: 'wb_sunny', T: 'wb_sunny', ST: 'wb_sunny', I: 'schedule' };
+
 /** O período no cartão do aluno: "Manhã", "Semi-Manhã"...; sem período no RM, "Não informado". */
 function rotuloDoPeriodo(chave: string): string {
   return chave === '?' ? 'Não informado' : (PERIODOS.find((p) => p.chave === chave)?.rotulo ?? chave);
@@ -982,6 +1155,12 @@ function chaveDoPeriodo(id: string): string | null {
 /** Para onde o aluno vai: a turma ou, se for um período da origem, sem turma. */
 function paraTurma(id: string): string {
   return chaveDoPeriodo(id) !== null ? SEM_TURMA : id;
+}
+
+/** "03" e "3" são o mesmo código de curso ou habilitação (o RM escreve dos dois jeitos). */
+function mesmoCodigo(a: string, b: string | undefined): boolean {
+  const semZeros = (c: string) => c.trim().replace(/^0+(?=.)/, '');
+  return b !== undefined && semZeros(a) === semZeros(b);
 }
 
 /** "EF4A-SM" → "SM": o período no fim do código da turma. */

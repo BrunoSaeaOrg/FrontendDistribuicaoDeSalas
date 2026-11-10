@@ -15,6 +15,7 @@ import {
   ApiSolicitacaoDto,
   ApiStatusSolicitacao,
   ApiTurmaDto,
+  ApiTurmaEnturmacaoDto,
   ApiTurmaXSalaDto,
 } from '../models/ocupacao-api.model';
 
@@ -50,6 +51,14 @@ export class OcupacaoApiService {
    */
   getAlunosEnturmacao(ano: string, codFilial: number): Observable<ApiAlunoEnturmacaoDto[]> {
     return this.http.post<ApiAlunoEnturmacaoDto[]>(`${this.baseUrl}/OC_SAL_ENTUR_ALUNOS`, {
+      ANO: ano,
+      CODFILIAL: String(codFilial),
+    });
+  }
+
+  /** As turmas do cadastro no ano da filial: o destino da tela Vincular aluno. Leitura leve (menos de 1 s). */
+  getTurmasEnturmacao(ano: string, codFilial: number): Observable<ApiTurmaEnturmacaoDto[]> {
+    return this.http.post<ApiTurmaEnturmacaoDto[]>(`${this.baseUrl}/OC_SAL_ENTUR_TURMAS`, {
       ANO: ano,
       CODFILIAL: String(codFilial),
     });

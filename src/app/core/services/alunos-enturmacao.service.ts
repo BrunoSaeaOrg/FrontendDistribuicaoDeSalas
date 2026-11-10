@@ -1,7 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { concatMap, finalize, from, Observable, reduce, tap } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
-import { ApiAlunoEnturmacaoDto, ApiEnturmacaoResultadoDto } from '../models/ocupacao-api.model';
+import { ApiAlunoEnturmacaoDto, ApiEnturmacaoResultadoDto, ApiTurmaEnturmacaoDto } from '../models/ocupacao-api.model';
 import { OcupacaoApiService } from './ocupacao-api.service';
 
 export type EstadoAlunos =
@@ -13,6 +13,12 @@ export type EstadoAlunos =
 export type EstadoPendentes =
   | { estado: 'carregando' }
   | { estado: 'pronto'; porRa: ReadonlyMap<string, string> }
+  | { estado: 'erro' };
+
+/** As turmas do cadastro no ano da unidade: o destino da tela. */
+export type EstadoTurmas =
+  | { estado: 'carregando' }
+  | { estado: 'pronto'; turmas: readonly ApiTurmaEnturmacaoDto[] }
   | { estado: 'erro' };
 
 /** Igual ao cache do back: depois disso, pedir de novo relê do RM. */
@@ -35,8 +41,9 @@ export interface SelecaoDaTela {
 
 /**
  * Alunos de cada ano e filial para a tela "Vincular aluno à turma" (OC_SAL_ENTUR_ALUNOS), as
- * fotos dos que a tela mostra (OC_SAL_ENTUR_FOTOS) e os movimentos já gravados no MD de
- * enturmação (OC_SAL_ENTUR_PENDENTES), que a tela mostra por cima da turma da matrícula.
+ * turmas do cadastro, que são o destino (OC_SAL_ENTUR_TURMAS), as fotos dos que a tela mostra
+ * (OC_SAL_ENTUR_FOTOS) e os movimentos já gravados no MD de enturmação (OC_SAL_ENTUR_PENDENTES),
+ * que a tela mostra por cima da turma da matrícula.
  *
  * Fica fora da tela porque a leitura é lenta e porque o app recria a tela ao passar para o tamanho
  * de celular ou ao trocar de layout (cada um tem o seu router-outlet). Pelo mesmo motivo, os
@@ -48,6 +55,7 @@ export class AlunosEnturmacaoService {
   private readonly auth = inject(AuthService);
   private readonly _estados = signal<ReadonlyMap<string, EstadoAlunos>>(new Map());
   private readonly _pendentes = signal<ReadonlyMap<string, EstadoPendentes>>(new Map());
+  private readonly _turmas = signal<ReadonlyMap<string, EstadoTurmas>>(new Map());
   /** Fotos que chegaram, por "ano|filial" e RA. */
   private readonly _fotos = signal<ReadonlyMap<string, ReadonlyMap<string, string>>>(new Map());
   /** RAs já pedidos (com ou sem foto), por "ano|filial": não se pede o mesmo de novo. */
@@ -70,12 +78,19 @@ export class AlunosEnturmacaoService {
     return this._pendentes().get(chave(ano, codFilial));
   }
 
-  /** Lê os alunos se ainda não vieram, falharam antes ou já estão velhos; com eles, os pendentes. */
+  turmas(ano: string, codFilial: number): EstadoTurmas | undefined {
+    return this._turmas().get(chave(ano, codFilial));
+  }
+
+  /** Lê os alunos se ainda não vieram, falharam antes ou já estão velhos; com eles, as turmas e os pendentes. */
   garantir(ano: string, codFilial: number): void {
     const atual = this.estado(ano, codFilial);
     const lerAlunos = atual?.estado !== 'carregando' && !(atual?.estado === 'pronto' && Date.now() - atual.lidoEm < VALIDADE_MS);
     if (lerAlunos) this.ler(ano, codFilial);
-    // Alunos relidos, pendentes relidos: alguém pode ter importado a enturmação nesse meio-tempo.
+    // Alunos relidos, turmas e pendentes relidos: alguém pode ter criado uma turma ou importado a
+    // enturmação nesse meio-tempo.
+    const turmas = this.turmas(ano, codFilial)?.estado;
+    if (turmas !== 'carregando' && (lerAlunos || turmas === undefined || turmas === 'erro')) this.lerTurmas(ano, codFilial);
     const pendentes = this.pendentes(ano, codFilial)?.estado;
     if (pendentes !== 'carregando' && (lerAlunos || pendentes === undefined || pendentes === 'erro')) this.lerPendentes(ano, codFilial);
   }
@@ -139,6 +154,19 @@ export class AlunosEnturmacaoService {
     });
   }
 
+  /** Relê as turmas; enquanto relê, as que já se conheciam continuam valendo. */
+  private lerTurmas(ano: string, codFilial: number): void {
+    const k = chave(ano, codFilial);
+    const anterior = this._turmas().get(k);
+    if (anterior?.estado !== 'pronto') this.definirTurmas(k, { estado: 'carregando' });
+    this.api.getTurmasEnturmacao(ano, codFilial).subscribe({
+      next: (turmas) => this.definirTurmas(k, { estado: 'pronto', turmas }),
+      error: () => {
+        if (anterior?.estado !== 'pronto') this.definirTurmas(k, { estado: 'erro' });
+      },
+    });
+  }
+
   /** O que o RM respondeu na gravação, antes de reler: pendente entra, de volta à matrícula sai. */
   private aplicar(k: string, resultados: readonly ApiEnturmacaoResultadoDto[]): void {
     const atual = this._pendentes().get(k);
@@ -165,6 +193,10 @@ export class AlunosEnturmacaoService {
 
   private definirPendentes(k: string, estado: EstadoPendentes): void {
     this._pendentes.update((m) => new Map(m).set(k, estado));
+  }
+
+  private definirTurmas(k: string, estado: EstadoTurmas): void {
+    this._turmas.update((m) => new Map(m).set(k, estado));
   }
 }
 

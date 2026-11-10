@@ -15,7 +15,7 @@
         [ngModel]="serie()"
         (ngModelChange)="selecionarSerie($event)"
         [options]="serieOptions()"
-        [disabled]="estadoAlunos()?.estado !== 'pronto'"
+        [disabled]="!prontos()"
       />
     </div>
   </div>
@@ -28,54 +28,66 @@
         description="As turmas da série aparecem lado a lado, com as fotos dos alunos, para você mover de uma para outra."
       />
     </div>
-  } @else if (estadoAlunos()?.estado === 'erro') {
+  } @else if (erroDeLeitura(); as erro) {
     <div class="va-erro">
-      <app-alert tone="danger">Não foi possível ler os alunos da unidade no RM.</app-alert>
+      <app-alert tone="danger">{{ erro }}</app-alert>
       <app-button variant="secondary" size="sm" (clicked)="tentarDeNovo()">Tentar de novo</app-button>
     </div>
-  } @else if (estadoAlunos()?.estado === 'pronto' && !serie()) {
+  } @else if (prontos() && !serie()) {
     <div class="va-vazio">
       <app-empty-state icon="school" title="Escolha a série" description="A lista de séries mostra quantos alunos cada uma tem na unidade." />
     </div>
-  } @else if (estadoAlunos()?.estado === 'pronto') {
+  } @else if (prontos()) {
     <div class="va-lados">
       @if (origem(); as p) {
         <ng-container *ngTemplateOutlet="painel; context: { p: p }" />
       }
-      <div class="va-meio">
+      <!--
+        O meio: um trilho com três botões redondos, mover para o destino, trocar e mover para a origem.
+        Sem marcados, ficam discretos; com marcados, o botão acende com quantos são. Para qual turma
+        vão fica na dica e no rótulo do leitor de tela.
+      -->
+      <div class="va-meio" role="group" aria-label="Mover alunos entre as turmas">
         <button
           type="button"
-          class="va-inverter"
-          [class.va-inverter--troca]="podeTrocar()"
+          class="va-trilho-botao"
+          [class.va-trilho-botao--ativo]="qtdMarcadosOrigem() > 0"
+          [disabled]="qtdMarcadosOrigem() === 0"
+          (click)="moverMarcados('origem')"
+          [attr.aria-label]="rotuloMover('origem')"
+          [saeaTooltip]="rotuloMover('origem')"
+        >
+          <span class="material-icons" aria-hidden="true">arrow_forward</span>
+          @if (qtdMarcadosOrigem() > 0) {
+            <span class="va-trilho-numero" aria-hidden="true">{{ qtdMarcadosOrigem() }}</span>
+          }
+        </button>
+        <button
+          type="button"
+          class="va-trilho-botao va-trilho-botao--trocar"
+          [class.va-trilho-botao--ativo]="podeTrocar()"
           [disabled]="!podeTrocar()"
           (click)="trocar()"
-          [attr.aria-label]="podeTrocar() ? 'Trocar os alunos marcados' : 'Marque alunos dos dois lados para trocar'"
-          [title]="podeTrocar() ? 'Trocar os alunos marcados' : 'Marque alunos dos dois lados para trocar'"
+          [attr.aria-label]="rotuloTrocar()"
+          [saeaTooltip]="rotuloTrocar()"
         >
           <span class="material-icons" aria-hidden="true">swap_horiz</span>
         </button>
         <button
           type="button"
-          class="va-mover va-mover--principal"
-          [disabled]="qtdMarcadosOrigem() === 0"
-          (click)="moverMarcados('origem')"
+          class="va-trilho-botao va-trilho-botao--voltar"
+          [class.va-trilho-botao--ativo]="qtdMarcadosDestino() > 0"
+          [disabled]="qtdMarcadosDestino() === 0"
+          (click)="moverMarcados('destino')"
+          [attr.aria-label]="rotuloMover('destino')"
+          [saeaTooltip]="rotuloMover('destino')"
+          saeaTooltipPosition="bottom"
         >
-          {{ qtdMarcadosOrigem() ? 'Mover ' + qtdMarcadosOrigem() : 'Marque à esquerda' }}
-          <span class="material-icons" aria-hidden="true">arrow_forward</span>
-        </button>
-        <button type="button" class="va-mover" [disabled]="qtdMarcadosDestino() === 0" (click)="moverMarcados('destino')">
           <span class="material-icons" aria-hidden="true">arrow_back</span>
-          {{ qtdMarcadosDestino() ? 'Mover ' + qtdMarcadosDestino() : 'Marque à direita' }}
-        </button>
-        <p class="va-meio-dica">
-          @if (podeTrocar()) {
-            <span class="material-icons" aria-hidden="true">swap_horiz</span>
-            Use o ⇄ para trocar os marcados dos dois lados.
-          } @else {
-            <span class="material-icons" aria-hidden="true">pan_tool_alt</span>
-            Ou arraste as fotos de um lado para o outro.
+          @if (qtdMarcadosDestino() > 0) {
+            <span class="va-trilho-numero" aria-hidden="true">{{ qtdMarcadosDestino() }}</span>
           }
-        </p>
+        </button>
       </div>
       @if (destino(); as p) {
         <ng-container *ngTemplateOutlet="painel; context: { p: p }" />
@@ -116,9 +128,45 @@
         (ngModelChange)="escolherTurma(p.lado, $event)"
         [options]="p.lado === 'origem' ? turmaOptionsOrigem() : turmaOptions()"
       />
-      <app-button variant="secondary" size="sm" [disabled]="p.alunos.length === 0" (clicked)="alternarTodos(p.lado)">
-        {{ todosMarcados(p.lado) ? 'Desmarcar todos' : 'Marcar todos' }}
-      </app-button>
+      <!-- Ao lado da turma, do mesmo tamanho: a busca por nome ou RA, só deste lado. -->
+      <saea-input
+        class="va-painel-buscar"
+        type="search"
+        icon="search"
+        label="Buscar aluno"
+        placeholder="Nome ou RA"
+        [value]="buscaDe(p.lado)"
+        (valueChange)="buscar(p.lado, $event)"
+      />
+      @let ordem = ordemDe(p.lado);
+      <button
+        type="button"
+        class="va-ordem"
+        (click)="alternarOrdem(p.lado)"
+        [attr.aria-label]="ordem === 'az' ? 'Nomes de A a Z. Inverter para Z a A' : 'Nomes de Z a A. Inverter para A a Z'"
+        [saeaTooltip]="ordem === 'az' ? 'Inverter para Z a A' : 'Inverter para A a Z'"
+      >
+        <span class="material-icons" aria-hidden="true">sort_by_alpha</span>{{ ordem === 'az' ? 'A→Z' : 'Z→A' }}
+      </button>
+      @let marcacao = estadoMarcarTodos(p.lado);
+      <button
+        type="button"
+        class="va-marcar-todos"
+        role="checkbox"
+        [attr.aria-checked]="marcacao"
+        [attr.aria-label]="p.busca ? 'Marcar os encontrados' : 'Marcar todos'"
+        [saeaTooltip]="(marcacao === 'true' ? 'Desmarcar ' : 'Marcar ') + (p.busca ? 'os encontrados' : 'todos')"
+        [disabled]="p.visiveis.length === 0"
+        (click)="alternarTodos(p.lado)"
+      >
+        <span class="va-marcar-caixa" aria-hidden="true">
+          @if (marcacao === 'true') {
+            <span class="material-icons">check</span>
+          } @else if (marcacao === 'mixed') {
+            <span class="material-icons">remove</span>
+          }
+        </span>
+      </button>
     </div>
 
     @if (p.lotacao; as l) {
@@ -154,7 +202,12 @@
     } @else {
       <p class="va-painel-sub">
         @if (p.lado === 'origem') {
-          {{ qtdAlunos(p.alunos.length) }} sem turma neste período
+          {{ qtdAlunos(p.alunos.length) }} sem turma neste período ·
+          @if (p.marcados > 0) {
+            {{ p.marcados }} {{ p.marcados === 1 ? 'marcado' : 'marcados' }}
+          } @else {
+            marque ou arraste as fotos para mover
+          }
         } @else if (p.turma.id === SEM_TURMA) {
           {{ qtdAlunos(p.alunos.length) }} da série ainda sem turma
         } @else {
@@ -165,14 +218,21 @@
 
     @if (p.alunos.length === 0) {
       <p class="va-painel-vazio">{{ p.lado === 'origem' ? 'Nenhum aluno sem turma neste período.' : 'Nenhum aluno nesta turma.' }}</p>
+    } @else if (p.visiveis.length === 0) {
+      <p class="va-painel-vazio">
+        Nenhum aluno com "{{ p.busca }}".
+        <button type="button" class="va-limpar-busca" (click)="buscar(p.lado, '')">Limpar a busca</button>
+      </p>
     } @else if (p.lado === 'origem') {
       <!--
-        Origem: um cartão por aluno. O quadrado marca; embaixo do nome ficam série, período, aluno,
+        Origem: um cartão por aluno, o crachá compacto. O quadrado marca; a foto em pé amplia; ao lado, o
+        nome com o RA e os selos (novo ou veterano, a turma de antes), a faixa com série, período e
         matrícula e a observação, se houver. O resto (ano anterior, escola de origem, movimento) abre
-        clicando no nome; sem nada a mais, o clique marca o aluno.
+        embaixo clicando no nome; sem nada a mais, o clique marca o aluno. A foto tem o mesmo formato
+        dos cartões do destino: o aluno que muda de lado continua com a mesma cara.
       -->
       <ul class="va-lista" role="list">
-        @for (a of p.alunos; track a.id) {
+        @for (a of p.visiveis; track a.id) {
           @let extras = detalhes(a);
           <li
             class="va-linha"
@@ -191,74 +251,88 @@
                 (checkedChange)="definirMarcado(p.lado, a.id, $event)"
                 [ariaLabel]="'Marcar ' + a.nome"
               />
-              <button
-                type="button"
-                class="va-linha-abrir"
-                [attr.aria-expanded]="extras.length > 0 ? detalheAberto() === a.id : null"
-                [attr.aria-controls]="extras.length > 0 ? 'va-detalhe-' + a.id : null"
-                [attr.aria-pressed]="extras.length > 0 ? null : marcado(p.lado, a.id)"
-                (click)="extras.length > 0 ? alternarDetalhe(a.id) : alternarAluno(p.lado, a.id)"
-              >
-                @if (foto(a); as src) {
-                  <img class="va-cartao-foto va-linha-foto" [src]="src" alt="" />
-                } @else {
-                  <span class="va-cartao-foto va-linha-foto va-sem-foto" aria-hidden="true">{{ iniciais(a.nome) }}</span>
-                }
-                <span class="va-linha-textos">
-                  <span class="va-linha-nome">{{ a.nome }}</span>
-                  <span class="va-linha-sub">
-                    RA {{ a.id }}
-                    @if (a.turmaAnterior) {
-                      <span>· antes {{ a.turmaAnterior }}</span>
+              @if (foto(a); as src) {
+                <button
+                  type="button"
+                  class="va-linha-retrato"
+                  [class.va-linha-retrato--aberta]="previaAberta(p.lado, a.id)"
+                  [attr.aria-label]="'Ampliar a foto de ' + a.nome"
+                  [attr.aria-expanded]="previaAberta(p.lado, a.id)"
+                  (click)="alternarPrevia(p.lado, a, $event)"
+                >
+                  <img class="va-linha-foto" [src]="src" alt="" />
+                  <span class="material-icons va-linha-ampliar" aria-hidden="true">open_in_full</span>
+                </button>
+              } @else {
+                <span class="va-linha-retrato va-linha-foto va-sem-foto" aria-hidden="true">{{ iniciais(a.nome) }}</span>
+              }
+              <div class="va-linha-corpo">
+                <div class="va-linha-cabeca">
+                  <button
+                    type="button"
+                    class="va-linha-abrir"
+                    [attr.aria-expanded]="extras.length > 0 ? detalheAberto() === a.id : null"
+                    [attr.aria-controls]="extras.length > 0 ? 'va-detalhe-' + a.id : null"
+                    [attr.aria-pressed]="extras.length > 0 ? null : marcado(p.lado, a.id)"
+                    (click)="extras.length > 0 ? alternarDetalhe(a.id) : alternarAluno(p.lado, a.id)"
+                  >
+                    <span class="va-linha-textos">
+                      <span class="va-linha-nome">{{ a.nome }}</span>
+                      <span class="va-linha-selos">
+                        <span class="va-linha-sub">RA {{ a.id }}</span>
+                        <span class="va-selo" [class.va-selo--novo]="a.novo">{{ a.novo ? 'Novo' : 'Veterano' }}</span>
+                        @if (a.turmaAnterior) {
+                          <span class="va-selo va-selo--antes">antes <strong>{{ a.turmaAnterior }}</strong></span>
+                        }
+                      </span>
+                    </span>
+                    @if (falhaDe(a); as motivo) {
+                      <span class="va-cartao-veio va-cartao-veio--falhou" [title]="motivo">
+                        <span class="material-icons" aria-hidden="true">error</span>não salvou
+                      </span>
+                    } @else if (veioDe(a); as origemDoAluno) {
+                      <span class="va-cartao-veio">veio do {{ origemDoAluno }}</span>
+                    } @else if (gravado(a); as dica) {
+                      <span class="va-cartao-veio va-cartao-veio--gravado" [title]="dica">
+                        <span class="material-icons" aria-hidden="true">cloud_done</span>salvo
+                      </span>
                     }
-                  </span>
-                </span>
-                @if (falhaDe(a); as motivo) {
-                  <span class="va-cartao-veio va-cartao-veio--falhou" [title]="motivo">
-                    <span class="material-icons" aria-hidden="true">error</span>não salvou
-                  </span>
-                } @else if (veioDe(a); as origemDoAluno) {
-                  <span class="va-cartao-veio">veio do {{ origemDoAluno }}</span>
-                } @else if (gravado(a); as dica) {
-                  <span class="va-cartao-veio va-cartao-veio--gravado" [title]="dica">
-                    <span class="material-icons" aria-hidden="true">cloud_done</span>salvo
-                  </span>
-                }
-                @if (extras.length > 0) {
-                  <span class="material-icons va-linha-seta" aria-hidden="true">expand_more</span>
-                }
-              </button>
-              <dl class="va-linha-dados">
-                @for (d of resumo(a); track d.rotulo) {
-                  <div>
-                    <dt>{{ d.rotulo }}</dt>
-                    <dd>{{ d.valor }}</dd>
-                  </div>
-                }
+                    @if (extras.length > 0) {
+                      <span class="material-icons va-linha-seta" aria-hidden="true">expand_more</span>
+                    }
+                  </button>
+                </div>
+                <dl class="va-linha-dados">
+                  @for (d of resumo(a); track d.rotulo) {
+                    <div>
+                      <dt [class.va-oculto]="!!d.icone">{{ d.rotulo }}</dt>
+                      <dd [attr.data-icone]="d.icone ?? null">{{ d.valor }}@if (d.complemento) {<span class="va-linha-complemento"> · {{ d.complemento }}</span>}</dd>
+                    </div>
+                  }
+                </dl>
                 @if (a.obs) {
-                  <div class="va-linha-obs">
-                    <dt>Observação</dt>
-                    <dd [title]="a.obs">{{ a.obs }}</dd>
-                  </div>
+                  <p class="va-linha-obs" [title]="a.obs">
+                    <strong class="va-linha-obs-rotulo">Obs.</strong><span class="va-linha-obs-texto">{{ a.obs }}</span>
+                  </p>
                 }
-              </dl>
+                @if (extras.length > 0 && detalheAberto() === a.id) {
+                  <dl class="va-linha-detalhes" [id]="'va-detalhe-' + a.id">
+                    @for (d of extras; track d.rotulo) {
+                      <div>
+                        <dt>{{ d.rotulo }}</dt>
+                        <dd>{{ d.valor }}</dd>
+                      </div>
+                    }
+                  </dl>
+                }
+              </div>
             </div>
-            @if (extras.length > 0 && detalheAberto() === a.id) {
-              <dl class="va-linha-detalhes" [id]="'va-detalhe-' + a.id">
-                @for (d of extras; track d.rotulo) {
-                  <div>
-                    <dt>{{ d.rotulo }}</dt>
-                    <dd>{{ d.valor }}</dd>
-                  </div>
-                }
-              </dl>
-            }
           </li>
         }
       </ul>
     } @else {
       <ul class="va-grade" role="list">
-        @for (a of p.alunos; track a.id) {
+        @for (a of p.visiveis; track a.id) {
           <li [draggable]="salvando() === 0" (dragstart)="iniciarArrasto(p.lado, a.id, $event)" (dragend)="terminarArrasto()">
             <button
               type="button"
@@ -277,7 +351,7 @@
               <span class="va-cartao-nome" [title]="a.nome">{{ doisNomes(a.nome) }}</span>
               <span class="va-cartao-ra">RA {{ a.id }}</span>
               @if (anterior(a); as deOnde) {
-                <span class="va-cartao-ra">{{ deOnde }}</span>
+                <span class="va-cartao-de">{{ deOnde }}</span>
               }
               @if (falhaDe(a); as motivo) {
                 <span class="va-cartao-veio va-cartao-veio--falhou" [title]="motivo">
@@ -294,9 +368,62 @@
                 <span class="va-cartao-check" aria-hidden="true"><span class="material-icons">check</span></span>
               }
             </button>
+            @if (foto(a)) {
+              <button
+                type="button"
+                class="va-cartao-ampliar"
+                [class.va-cartao-ampliar--aberta]="previaAberta(p.lado, a.id)"
+                [attr.aria-label]="'Ampliar a foto de ' + a.nome"
+                [attr.aria-expanded]="previaAberta(p.lado, a.id)"
+                (click)="alternarPrevia(p.lado, a, $event)"
+              >
+                <span class="material-icons" aria-hidden="true">open_in_full</span>
+              </button>
+            }
           </li>
         }
       </ul>
     }
   </section>
 </ng-template>
+
+<!-- A foto grande, ao lado da miniatura que a abriu, com os dados para conferir. -->
+@if (alunoDaPrevia(); as pa) {
+  <ng-template
+    cdkConnectedOverlay
+    [cdkConnectedOverlayOrigin]="previa()!.origem"
+    [cdkConnectedOverlayOpen]="true"
+    [cdkConnectedOverlayPositions]="posicoesDaPrevia"
+    [cdkConnectedOverlayPush]="true"
+    [cdkConnectedOverlayViewportMargin]="8"
+    (overlayOutsideClick)="cliqueForaDaPrevia($event)"
+    (overlayKeydown)="teclaNaPrevia($event)"
+  >
+    <aside class="va-previa" role="dialog" [attr.aria-label]="'Foto de ' + pa.nome">
+      @if (foto(pa); as src) {
+        <img class="va-previa-foto" [src]="src" alt="" />
+      } @else {
+        <span class="va-previa-foto va-sem-foto" aria-hidden="true">{{ iniciais(pa.nome) }}</span>
+      }
+      <div>
+        <p class="va-previa-nome">{{ pa.nome }}</p>
+        <p class="va-previa-ra">RA {{ pa.id }}@if (pa.turmaAnterior) { · antes {{ pa.turmaAnterior }}} @else if (pa.novo) { · aluno novo}</p>
+      </div>
+      <dl class="va-previa-dados">
+        @for (d of resumo(pa); track d.rotulo) {
+          <div>
+            <dt>{{ d.rotulo }}</dt>
+            <dd>{{ d.valor }}@if (d.complemento) { · {{ d.complemento }}}</dd>
+          </div>
+        }
+      </dl>
+      @if (pa.obs) {
+        <p class="va-previa-obs"><strong>Obs.</strong> {{ pa.obs }}</p>
+      }
+      @if (falhaDe(pa); as motivo) {
+        <p class="va-previa-falha"><strong>Não salvou:</strong> {{ motivo }}</p>
+      }
+      <button type="button" class="va-previa-fechar" (click)="fecharPrevia()">Fechar</button>
+    </aside>
+  </ng-template>
+}

@@ -2,12 +2,32 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
 }
 
+/*
+ * Regra de altura do projeto (styles.css): a página cabe em .saea-main e o card preenche a sobra,
+ * com a tabela/gráfico rolando por dentro. Sem flex:1/min-height:0 aqui, o conteúdo estourava o
+ * shell e passava por cima do rodapé. Em tela baixa demais para o mínimo do card, a página rola.
+ */
 .ocup-page {
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Os filtros não esticam nem encolhem: a altura que sobra é do card. */
+.ocup-filters {
+  flex-shrink: 0;
+}
+
+/* Abaixo disto a tabela ficaria espremida: a página rola em vez de cortar o card. */
+.ocup-page > .ocup-card {
+  min-height: 420px;
 }
 
 /* Faixas das Regras de ocupação: a mesma leitura do Painel e da Planta. A cor vai só nas marcas
@@ -253,14 +273,13 @@
 
 /* ------------------------------------------------------------------ tabela --- */
 
-.ocup-table-wrap {
+/* Tabela e gráfico ocupam a altura que sobra no card e rolam por dentro (cabeçalho e total fixos). */
+.ocup-table-wrap,
+.ocup-graf-area {
+  flex: 0 1 auto;
+  min-height: 0;
   overflow: auto;
-  max-height: 560px;
-}
-@media (max-height: 800px) {
-  .ocup-table-wrap {
-    max-height: 393px;
-  }
+  overscroll-behavior: contain;
 }
 .ocup-table {
   width: 100%;
@@ -374,13 +393,6 @@
 
 .ocup-graf-area {
   position: relative;
-  overflow-y: auto;
-  max-height: 560px;
-}
-@media (max-height: 800px) {
-  .ocup-graf-area {
-    max-height: 393px;
-  }
 }
 .ocup-graf-lista {
   list-style: none;
@@ -584,6 +596,19 @@
 }
 
 @media (max-width: 880px) {
+  /* No celular o próprio main rola: o card cresce com o conteúdo e a tabela volta a ter teto. */
+  .ocup-page {
+    flex: none;
+    overflow: visible;
+  }
+  .ocup-page > .ocup-card {
+    flex: none;
+    min-height: 0;
+  }
+  .ocup-table-wrap,
+  .ocup-graf-area {
+    max-height: 60dvh;
+  }
   .ocup-resumo {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
