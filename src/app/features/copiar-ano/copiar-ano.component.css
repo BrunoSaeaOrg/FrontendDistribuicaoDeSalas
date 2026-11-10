@@ -152,6 +152,20 @@
 .ca-sala--igual .ca-nome {
   font-weight: 500;
 }
+/* Sala que só o ano de destino tem (ex.: criada pela Nova sala): não há o que copiar. */
+.ca-so-destino {
+  display: inline-block;
+  margin-left: var(--sp-2);
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--saea-primary) 12%, transparent);
+  color: var(--saea-primary-strong);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
 /* Unidade, andar e tipo: texto de apoio ao nome da sala. */
 .ca-cel-suave {
   color: var(--saea-ink-soft);

@@ -31,14 +31,21 @@
       </div>
       <div class="ca-acao">
         @if (uiMode.readOnlyMode()) {
-          <span class="ca-dica">Só quem pode editar consegue copiar.</span>
-        } @else if (temSalas()) {
-          <app-button [disabled]="!podeCopiar()" [loading]="copiando()" [loadingText]="textoProgresso()" (clicked)="copiar()">
-            <span class="material-icons" aria-hidden="true">event_repeat</span> {{ textoBotao() }}
+          <span class="ca-dica">Só quem pode editar consegue copiar ou criar salas.</span>
+        } @else {
+          <app-button variant="secondary" [disabled]="copiando()" (clicked)="novaSalaAberta.set(true)">
+            <span class="material-icons" aria-hidden="true">add</span> Nova sala
           </app-button>
+          @if (temSalas()) {
+            <app-button [disabled]="!podeCopiar()" [loading]="copiando()" [loadingText]="textoProgresso()" (clicked)="copiar()">
+              <span class="material-icons" aria-hidden="true">event_repeat</span> {{ textoBotao() }}
+            </app-button>
+          }
         }
       </div>
     </div>
+
+    <app-nova-sala [(open)]="novaSalaAberta" [anoSugerido]="anoDestino()" (criada)="aoCriarSala($event)" />
 
     <div class="ca-corpo saea-scroll">
       @if (anoOrigem() && anoOrigem() === anoDestino()) {
@@ -106,7 +113,7 @@
                 <tr
                   class="ca-sala"
                   [class.ca-sala--marcada]="selecionadas().has(linha.chave)"
-                  [class.ca-sala--igual]="!linha.aGravar && !linha.erro"
+                  [class.ca-sala--igual]="!linha.aGravar && !linha.erro && linha.estado !== 'destino'"
                   [title]="linha.selo.texto"
                 >
                   <td class="ca-col-marca">
@@ -120,7 +127,13 @@
                   <td class="ca-cel-suave">{{ linha.unidade }}</td>
                   <td class="ca-cel-suave">{{ linha.andar }}</td>
                   <td>
-                    <span class="ca-nome">{{ linha.nome }}</span>
+                    <span class="ca-nome">
+                      {{ linha.nome }}
+                      @if (linha.estado === 'destino') {
+                        <!-- Sala que só o ano de destino tem (ex.: criada pela Nova sala): nada a copiar. -->
+                        <span class="ca-so-destino">Só em {{ anoDestino() }}</span>
+                      }
+                    </span>
                     @if (linha.erro) {
                       <span class="ca-erro">{{ linha.erro }}</span>
                     }

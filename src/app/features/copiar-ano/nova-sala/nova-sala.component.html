@@ -1,0 +1,164 @@
+<saea-dialog
+  [(open)]="open"
+  eyebrow="Salas por ano"
+  [title]="titulo()"
+  [width]="620"
+  [closable]="!criando()"
+  [closeOnBackdrop]="!criando()"
+  [closeOnEsc]="!criando()"
+>
+  @if (lendo()) {
+    <div class="ns-unidades" aria-busy="true" aria-label="Lendo as unidades no RM">
+      @for (i of [1, 2, 3]; track i) {
+        <saea-skeleton height="68" radius="12px" />
+      }
+    </div>
+  } @else if (erroLeitura()) {
+    <saea-alert tone="danger" label="Não foi possível ler as unidades">{{ erroLeitura() }}</saea-alert>
+    <button saea-button variant="secondary" type="button" class="ns-tentar" (click)="tentarDeNovo()">Tentar de novo</button>
+  } @else if (unidade(); as u) {
+    <!-- ============================== A sala ============================== -->
+    <p class="ns-onde">
+      <span class="material-icons" aria-hidden="true">apartment</span>
+      <span>
+        <b>{{ nomeDaUnidade() }}</b>
+        @if (localOptions().length === 1) {
+          · {{ localOptions()[0].label }}
+        }
+      </span>
+    </p>
+
+    <div class="ns-campos">
+      @if (localOptions().length > 1) {
+        <saea-select
+          class="ns-largo"
+          label="Prédio e bloco"
+          placeholder="Escolha onde fica"
+          [options]="localOptions()"
+          [value]="local() || null"
+          (valueChange)="escolherLocal($event)"
+          [error]="erroDe('local')"
+          required
+        />
+      } @else if (erroDe('local'); as erro) {
+        <saea-alert class="ns-largo" tone="warning">{{ erro }}</saea-alert>
+      }
+
+      <saea-input
+        label="Código"
+        [value]="codigo()"
+        (valueChange)="codigo.set($event)"
+        [error]="erroDe('codigo')"
+        helper="Letras e números, como 45 ou LAB04"
+        [maxlength]="10"
+        autocomplete="off"
+        required
+      />
+      <saea-input
+        label="Nome nas telas"
+        [value]="nome()"
+        (valueChange)="digitarNome($event)"
+        [error]="erroDe('nome')"
+        [maxlength]="40"
+        autocomplete="off"
+        required
+      />
+      <saea-select
+        label="Andar"
+        placeholder="Escolha o andar"
+        [options]="andarOptions"
+        [value]="andar()"
+        (valueChange)="andar.set($event)"
+        [error]="erroDe('andar')"
+        required
+      />
+      <saea-select
+        label="Tipo"
+        placeholder="Escolha o tipo"
+        [options]="tipoOptions()"
+        [value]="tipo()"
+        (valueChange)="tipo.set($event)"
+        [error]="erroDe('tipo')"
+        helper="Só salas do pedagógico, que aparecem nas telas"
+        required
+      />
+      <saea-input
+        label="Área (m²)"
+        inputmode="decimal"
+        placeholder="Ex.: 48,5"
+        [value]="area()"
+        (valueChange)="area.set($event)"
+        [error]="erroDe('area')"
+        helper="Opcional"
+        autocomplete="off"
+      />
+      <saea-input
+        label="Capacidade (lugares)"
+        inputmode="numeric"
+        [value]="capacidade()"
+        (valueChange)="digitarCapacidade($event)"
+        [error]="erroDe('capacidade')"
+        [helper]="capacidadeSugerida() !== null ? 'Pela área: ' + textoAreaPorAluno() + ' m² por aluno (regra da unidade)' : 'Com a área, sai pela regra da unidade'"
+        autocomplete="off"
+        required
+      />
+      <saea-input
+        label="Carteiras"
+        inputmode="numeric"
+        [value]="carteiras()"
+        (valueChange)="digitarCarteiras($event)"
+        [error]="erroDe('carteiras')"
+        helper="Começa igual à capacidade"
+        autocomplete="off"
+        required
+      />
+    </div>
+
+    <fieldset class="ns-anos">
+      <legend>Entra nos anos letivos</legend>
+      <div class="ns-anos-lista">
+        @for (ano of u.anos; track ano) {
+          <saea-checkbox [label]="ano" [checked]="anoMarcado(ano)" (checkedChange)="marcarAno(ano, $event)" [disabled]="criando()" />
+        }
+      </div>
+      @if (erroDe('anos'); as erro) {
+        <p class="ns-erro" role="alert">{{ erro }}</p>
+      } @else {
+        <p class="ns-dica">A sala vai para o cadastro do RM e aparece nas telas dos anos marcados.</p>
+      }
+    </fieldset>
+
+    @if (erroDoRm(); as erro) {
+      <saea-alert tone="danger" label="A sala não foi criada">{{ erro }}</saea-alert>
+    }
+  } @else if (unidades().length === 0) {
+    <saea-alert tone="warning" label="Nenhuma unidade">Você não tem unidade com período letivo para criar uma sala.</saea-alert>
+  } @else {
+    <!-- ============================== A unidade ============================== -->
+    <p class="ns-pergunta">Em qual unidade a sala vai ficar?</p>
+    <ul class="ns-unidades">
+      @for (op of unidades(); track op.codFilial) {
+        <li>
+          <button type="button" class="ns-unidade" (click)="escolherUnidade(op.codFilial)">
+            <span class="material-icons ns-unidade-icone" aria-hidden="true">apartment</span>
+            <span class="ns-unidade-texto">
+              <b>{{ op.nome }}</b>
+              <span class="ns-unidade-sub">{{ op.nomeNoRm }} · {{ op.salas }} {{ op.salas === 1 ? 'sala' : 'salas' }}</span>
+              <span class="ns-unidade-sub">Anos: {{ op.anos.join(', ') }}</span>
+            </span>
+            <span class="material-icons ns-unidade-seta" aria-hidden="true">chevron_right</span>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+
+  <div saeaDialogFooter>
+    @if (unidade() && !lendo()) {
+      <button saea-button variant="ghost" type="button" icon="arrow_back" [disabled]="criando()" (click)="trocarUnidade()">Trocar unidade</button>
+      <button saea-button type="button" icon="add" [loading]="criando()" (click)="criar()">Criar sala</button>
+    } @else {
+      <button saea-button variant="ghost" type="button" (click)="fechar()">Cancelar</button>
+    }
+  </div>
+</saea-dialog>

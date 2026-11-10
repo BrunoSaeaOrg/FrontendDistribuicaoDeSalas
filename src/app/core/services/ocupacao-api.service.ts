@@ -11,12 +11,15 @@ import {
   ApiEnturmacaoResultadoDto,
   ApiRegraDto,
   ApiRegraSalvaDto,
+  ApiSalaCriadaDto,
   ApiSalaDoAnoDto,
+  ApiSalaNovaOpcoesDto,
   ApiSolicitacaoDto,
   ApiStatusSolicitacao,
   ApiTurmaDto,
   ApiTurmaEnturmacaoDto,
   ApiTurmaXSalaDto,
+  SalaNovaPedido,
 } from '../models/ocupacao-api.model';
 
 @Injectable({ providedIn: 'root' })
@@ -243,6 +246,29 @@ export class OcupacaoApiService {
       ANOORIGEM: anoOrigem,
       ANODESTINO: anoDestino,
       IDS: ids,
+    });
+  }
+
+  /** Para o formulário de sala nova: as unidades do usuário (anos, prédio e bloco, salas já cadastradas) e os tipos de sala. */
+  getOpcoesSalaNova(codUsuario: string): Observable<ApiSalaNovaOpcoesDto> {
+    return this.http.post<ApiSalaNovaOpcoesDto>(`${this.baseUrl}/OC_SAL_SALA_NOVA_OPCOES`, { CODUSUARIO: codUsuario });
+  }
+
+  /** Cria a sala no cadastro do RM e nos anos letivos marcados (só no TTESTE, por enquanto). */
+  criarSala(codUsuario: string, sala: SalaNovaPedido): Observable<ApiSalaCriadaDto> {
+    return this.http.post<ApiSalaCriadaDto>(`${this.baseUrl}/OC_SAL_SALA_CRIAR`, {
+      CODUSUARIO: codUsuario,
+      CODFILIAL: sala.codFilial,
+      CODPREDIO: sala.codPredio,
+      CODBLOCO: sala.codBloco,
+      CODSALA: sala.codSala,
+      DESCRICAO: sala.descricao,
+      CODTIPOSALA: sala.codTipoSala,
+      ANDAR: sala.andar,
+      AREA: sala.area,
+      CAPACIDADE: sala.capacidade,
+      CARTEIRAS: sala.carteiras,
+      ANOS: sala.anos,
     });
   }
 }

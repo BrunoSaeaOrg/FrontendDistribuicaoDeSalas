@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { juntarFiliais, nomesDasUnidades } from '../../core/mock/ocupacao-adapter';
 import { nomeDoAndar, unidadeNoFiltro } from '../../core/models';
-import { ApiCopiaAnoPlanoDto, ApiCopiaSalaDto } from '../../core/models/ocupacao-api.model';
+import { ApiCopiaAnoPlanoDto, ApiCopiaSalaDto, ApiSalaCriadaDto } from '../../core/models/ocupacao-api.model';
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
 import { motivoDaFalha, SalasService } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -17,12 +17,13 @@ import { CarregandoComponent } from '../../shared/ui/carregando/carregando.compo
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { MultiSelectComponent, MultiSelectOption } from '../../shared/ui/multi-select/multi-select.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
+import { NovaSalaComponent } from './nova-sala/nova-sala.component';
 
 /** Salas por chamada de OC_SAL_COPIAR_ANO_SALAS: nenhuma chamada fica longa. */
 export const SALAS_POR_LOTE = 10;
 
-/** O que a sala marcada grava no destino. */
-export type EstadoSala = 'nova' | 'muda' | 'igual' | 'falhou';
+/** O que a sala marcada grava no destino; "destino" é a sala que só o ano de destino tem (nada a copiar). */
+export type EstadoSala = 'nova' | 'muda' | 'igual' | 'falhou' | 'destino';
 
 /** O que a cópia faz com a sala, na dica da linha (a tabela só tem as colunas da sala). */
 const SELO: Record<EstadoSala, { tom: BadgeTone; texto: (destino: string) => string }> = {
@@ -30,6 +31,7 @@ const SELO: Record<EstadoSala, { tom: BadgeTone; texto: (destino: string) => str
   muda: { tom: 'warning', texto: () => 'Carteiras diferentes' },
   igual: { tom: 'success', texto: () => 'Igual' },
   falhou: { tom: 'danger', texto: () => 'Não gravou' },
+  destino: { tom: 'info', texto: (d) => `Só em ${d}` },
 };
 
 /** Uma sala da lista: os registros de carteiras dela. */
@@ -100,6 +102,7 @@ function chaveDoRegistro(s: ApiCopiaSalaDto): string {
     CarregandoComponent,
     EmptyStateComponent,
     MultiSelectComponent,
+    NovaSalaComponent,
     SelectComponent,
     SaeaCheckboxComponent,
   ],
@@ -201,7 +204,9 @@ export class CopiarAnoComponent {
           ? 'nova'
           : registros.some((r) => r.situacao === 'atualizar')
             ? 'muda'
-            : 'igual';
+            : registros.every((r) => r.situacao === 'so-no-destino')
+              ? 'destino'
+              : 'igual';
       const muda = registros.find((r) => r.situacao === 'atualizar');
       return {
         chave,
@@ -350,6 +355,19 @@ export class CopiarAnoComponent {
 
   tentarDeNovo(): void {
     void this.ler(this.anoOrigem(), this.anoDestino());
+  }
+
+  /** O diálogo Nova sala (escolher a unidade e preencher a sala). */
+  readonly novaSalaAberta = signal(false);
+
+  /**
+   * A sala nova está no cadastro do RM e nos anos em que entrou: relê a lista (ela aparece se entrou
+   * no ano de origem) e, se o ano das outras telas é um deles, recarrega as salas delas.
+   */
+  aoCriarSala(criada: ApiSalaCriadaDto): void {
+    void this.ler(this.anoOrigem(), this.anoDestino());
+    const entrou = criada.anos.filter((a) => a.situacao !== 'falhou').map((a) => a.ano);
+    if (entrou.includes(this.salasService.anoLetivo())) this.salasService.carregar();
   }
 
   /** Grava as salas marcadas; o que falhar fica marcado para copiar de novo. */

@@ -112,6 +112,19 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
     expect(celulas(1)).toEqual(['Centro', '1º andar', 'Sala 2', 'Sala de aula', '25 → 30', '28 → 33']);
   });
 
+  it('a sala que só o ano de destino tem (ex.: Nova sala) aparece com "Só em 2027" e sem como marcar', async () => {
+    const fixture = await criar(plano([sala(1), { ...sala(9, 'so-no-destino'), id: '1|2|200|1|1|1|9' }]));
+    const tela = fixture.componentInstance;
+    const el = fixture.nativeElement as HTMLElement;
+
+    const nova = tela.grupos()[0].linhas.find((l) => l.nome === 'Sala 9')!;
+    expect([nova.estado, nova.selo.texto, nova.aGravar]).toEqual(['destino', 'Só em 2027', 0]);
+    expect(tela.grupos()[0].selecionaveis).toEqual([chave(1)]);
+    const linha = [...el.querySelectorAll('tr.ca-sala')].find((tr) => tr.textContent?.includes('Sala 9'))!;
+    expect(linha.querySelector('.ca-so-destino')?.textContent?.trim()).toBe('Só em 2027');
+    expect(linha.classList.contains('ca-sala--igual')).toBe(false);
+  });
+
   it('trocar o ano relê as salas; o mesmo ano nos dois não lê nada', async () => {
     const fixture = await criar(plano([sala(1)]));
     const tela = fixture.componentInstance;
@@ -311,7 +324,7 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
 
     expect(tela.temSalas()).toBe(true);
     expect(tela.selecionaveis()).toEqual([]);
-    expect(texto(fixture)).toContain('Só quem pode editar consegue copiar.');
+    expect(texto(fixture)).toContain('Só quem pode editar consegue copiar ou criar salas.');
     tela.marcar(chave(1), true);
     await tela.copiar();
     expect(api.copiarSalasDoAno).not.toHaveBeenCalled();
