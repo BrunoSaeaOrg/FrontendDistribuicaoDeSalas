@@ -22,16 +22,13 @@
       <span class="material-icons" aria-hidden="true">apartment</span>
       <b>{{ nomeDaUnidade() }}</b>
     </p>
-    <p class="ns-pergunta">
-      Estas salas já estão no cadastro do RM, mas faltam em algum ano letivo. Escolha uma para colocar no ano, ou cadastre uma sala nova.
-    </p>
+    
     <ul class="ns-unidades">
       <li>
         <button type="button" class="ns-unidade ns-unidade--nova" (click)="cadastrarNova()">
           <span class="material-icons ns-unidade-icone" aria-hidden="true">add</span>
           <span class="ns-unidade-texto">
             <b>Cadastrar uma sala nova</b>
-            <span class="ns-unidade-sub">Uma sala que o RM ainda não tem</span>
           </span>
           <span class="material-icons ns-unidade-seta" aria-hidden="true">chevron_right</span>
         </button>

@@ -43,16 +43,16 @@
         <ng-container *ngTemplateOutlet="painel; context: { p: p }" />
       }
       <!--
-        O meio: um trilho com três botões redondos, mover para o destino, trocar e mover para a origem.
-        Sem marcados, ficam discretos; com marcados, o botão acende com quantos são. Para qual turma
-        vão fica na dica e no rótulo do leitor de tela.
+        O meio: um trilho com dois botões redondos, mover para o destino e mover para a origem. Sem
+        marcados, ficam discretos; com marcados, o botão acende com quantos são. Para qual turma vão
+        fica na dica e no rótulo do leitor de tela. Mover já grava no RM.
       -->
       <div class="va-meio" role="group" aria-label="Mover alunos entre as turmas">
         <button
           type="button"
           class="va-trilho-botao"
           [class.va-trilho-botao--ativo]="qtdMarcadosOrigem() > 0"
-          [disabled]="qtdMarcadosOrigem() === 0"
+          [disabled]="qtdMarcadosOrigem() === 0 || !podeMover()"
           (click)="moverMarcados('origem')"
           [attr.aria-label]="rotuloMover('origem')"
           [saeaTooltip]="rotuloMover('origem')"
@@ -64,20 +64,9 @@
         </button>
         <button
           type="button"
-          class="va-trilho-botao va-trilho-botao--trocar"
-          [class.va-trilho-botao--ativo]="podeTrocar()"
-          [disabled]="!podeTrocar()"
-          (click)="trocar()"
-          [attr.aria-label]="rotuloTrocar()"
-          [saeaTooltip]="rotuloTrocar()"
-        >
-          <span class="material-icons" aria-hidden="true">swap_horiz</span>
-        </button>
-        <button
-          type="button"
           class="va-trilho-botao va-trilho-botao--voltar"
           [class.va-trilho-botao--ativo]="qtdMarcadosDestino() > 0"
-          [disabled]="qtdMarcadosDestino() === 0"
+          [disabled]="qtdMarcadosDestino() === 0 || !podeMover()"
           (click)="moverMarcados('destino')"
           [attr.aria-label]="rotuloMover('destino')"
           [saeaTooltip]="rotuloMover('destino')"
@@ -94,15 +83,9 @@
       }
     </div>
 
-    <div class="va-acoes">
-      @if (estadoPendentes()?.estado === 'erro') {
-        <span class="va-acoes-nota">Não deu para ler os movimentos já salvos; recarregue a página antes de salvar.</span>
-      }
-      <app-button variant="secondary" size="sm" [disabled]="pendentes().length === 0 || salvando() > 0" (clicked)="desfazerTudo()">Desfazer tudo</app-button>
-      <app-button size="sm" [disabled]="!podeSalvar()" (clicked)="salvar()">
-        {{ pendentes().length > 0 ? 'Salvar (' + pendentes().length + ')' : 'Salvar' }}
-      </app-button>
-    </div>
+    @if (estadoPendentes()?.estado === 'erro') {
+      <p class="va-acoes-nota">Não deu para ler os movimentos já salvos: recarregue a página para mover os alunos.</p>
+    }
   }
 
   <app-carregando [ativo]="espera().ativo" [texto]="espera().texto" [estimativaMs]="espera().estimativaMs" />
@@ -169,39 +152,17 @@
       </button>
     </div>
 
-    @if (p.lotacao; as l) {
-      <div class="va-lotacao" [attr.data-faixa]="l.faixa">
-        <div class="va-lotacao-texto">
-          <span class="va-lotacao-resumo">
-            <span class="va-lotacao-situacao">
-              <span class="material-icons" aria-hidden="true">{{ l.icone }}</span>
-              {{ l.rotulo }}
-            </span>
-            @if (l.rotuloVagas) {
-              <saea-badge [tone]="l.tom">{{ l.rotuloVagas }}</saea-badge>
-            }
-          </span>
-          <span class="va-lotacao-numeros">
-            @if (l.previstos !== l.alunos) {
-              com os {{ l.previstos - l.alunos }} marcados: {{ l.previstos }} de {{ l.carteiras }}
-            } @else {
-              {{ l.alunos }} de {{ l.carteiras }} carteiras
-            }
-          </span>
-        </div>
-        <div class="va-lotacao-trilha" aria-hidden="true">
-          <span class="va-lotacao-previsto" [style.width.%]="l.pctPrevisto"></span>
-          <span class="va-lotacao-agora" [class.va-lotacao-agora--neutra]="l.previstos !== l.alunos" [style.width.%]="l.pct"></span>
-        </div>
-        <span class="va-painel-sub">
-          {{ p.turma.sala.nome }} · {{ p.turma.sala.andar }}@if (l.dividemCom.length > 0) {
-            · divide a sala com {{ l.dividemCom.join(', ') }}
-          }
-        </span>
-      </div>
-    } @else {
+    <!--
+      A sala da turma (na origem, quantos estão sem turma) e, no destino com marcados, o botão que
+      leva os marcados para outra turma da série: para corrigir quem foi para a turma errada.
+    -->
+    <div class="va-painel-info">
       <p class="va-painel-sub">
-        @if (p.lado === 'origem') {
+        @if (p.turma.sala; as sala) {
+          {{ sala.nome }} · {{ sala.andar }}@if (p.dividemCom.length > 0) {
+            · divide a sala com {{ p.dividemCom.join(', ') }}
+          }
+        } @else if (p.lado === 'origem') {
           {{ qtdAlunos(p.alunos.length) }} sem turma neste período ·
           @if (p.marcados > 0) {
             {{ p.marcados }} {{ p.marcados === 1 ? 'marcado' : 'marcados' }}
@@ -211,10 +172,24 @@
         } @else if (p.turma.id === SEM_TURMA) {
           {{ qtdAlunos(p.alunos.length) }} da série ainda sem turma
         } @else {
-          {{ qtdAlunos(p.alunos.length) }} · sem sala vinculada, sem carteiras para comparar
+          {{ qtdAlunos(p.alunos.length) }} · sem sala vinculada
         }
       </p>
-    }
+      @if (p.lado === 'destino' && p.marcados > 0) {
+        <button
+          type="button"
+          class="va-mover-para"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="!!menuMoverAberto()"
+          [disabled]="!podeMover()"
+          (click)="alternarMenuMover($event)"
+        >
+          <span class="material-icons" aria-hidden="true">drive_file_move</span>
+          Mover {{ qtdAlunos(p.marcados) }} para outra turma
+          <span class="material-icons" aria-hidden="true">expand_more</span>
+        </button>
+      }
+    </div>
 
     @if (p.alunos.length === 0) {
       <p class="va-painel-vazio">{{ p.lado === 'origem' ? 'Nenhum aluno sem turma neste período.' : 'Nenhum aluno nesta turma.' }}</p>
@@ -240,7 +215,7 @@
             [class.va-linha--recente]="recemMovidos().has(a.id)"
             [class.va-linha--arrastando]="arrastando(a.id)"
             [class.va-linha--aberta]="extras.length > 0 && detalheAberto() === a.id"
-            [draggable]="salvando() === 0"
+            [draggable]="podeMover()"
             (dragstart)="iniciarArrasto(p.lado, a.id, $event)"
             (dragend)="terminarArrasto()"
           >
@@ -290,12 +265,6 @@
                       <span class="va-cartao-veio va-cartao-veio--falhou" [title]="motivo">
                         <span class="material-icons" aria-hidden="true">error</span>não salvou
                       </span>
-                    } @else if (veioDe(a); as origemDoAluno) {
-                      <span class="va-cartao-veio">veio do {{ origemDoAluno }}</span>
-                    } @else if (gravado(a); as dica) {
-                      <span class="va-cartao-veio va-cartao-veio--gravado" [title]="dica">
-                        <span class="material-icons" aria-hidden="true">cloud_done</span>salvo
-                      </span>
                     }
                     @if (extras.length > 0) {
                       <span class="material-icons va-linha-seta" aria-hidden="true">expand_more</span>
@@ -333,7 +302,7 @@
     } @else {
       <ul class="va-grade" role="list">
         @for (a of p.visiveis; track a.id) {
-          <li [draggable]="salvando() === 0" (dragstart)="iniciarArrasto(p.lado, a.id, $event)" (dragend)="terminarArrasto()">
+          <li [draggable]="podeMover()" (dragstart)="iniciarArrasto(p.lado, a.id, $event)" (dragend)="terminarArrasto()">
             <button
               type="button"
               class="va-cartao"
@@ -356,12 +325,6 @@
               @if (falhaDe(a); as motivo) {
                 <span class="va-cartao-veio va-cartao-veio--falhou" [title]="motivo">
                   <span class="material-icons" aria-hidden="true">error</span>não salvou
-                </span>
-              } @else if (veioDe(a); as origemDoAluno) {
-                <span class="va-cartao-veio">veio do {{ origemDoAluno }}</span>
-              } @else if (gravado(a); as dica) {
-                <span class="va-cartao-veio va-cartao-veio--gravado" [title]="dica">
-                  <span class="material-icons" aria-hidden="true">cloud_done</span>salvo
                 </span>
               }
               @if (marcado(p.lado, a.id)) {
@@ -425,5 +388,31 @@
       }
       <button type="button" class="va-previa-fechar" (click)="fecharPrevia()">Fechar</button>
     </aside>
+  </ng-template>
+}
+
+<!-- As outras turmas da série, embaixo do "Mover para outra turma" do destino: escolher uma já move e grava. -->
+@if (menuMoverAberto(); as botaoDoMenu) {
+  <ng-template
+    cdkConnectedOverlay
+    [cdkConnectedOverlayOrigin]="botaoDoMenu"
+    [cdkConnectedOverlayOpen]="true"
+    [cdkConnectedOverlayPositions]="posicoesDoMenu"
+    [cdkConnectedOverlayPush]="true"
+    [cdkConnectedOverlayViewportMargin]="8"
+    (attach)="focarMenu()"
+    (overlayOutsideClick)="cliqueForaDoMenu($event)"
+    (overlayKeydown)="teclaNoMenu($event)"
+  >
+    <div class="va-menu" role="menu" [attr.aria-label]="'Mover ' + qtdAlunos(qtdMarcadosDestino()) + ' para a turma'">
+      @for (t of turmasParaMover(); track t.id) {
+        <button type="button" role="menuitem" class="va-menu-item" (click)="moverMarcadosPara(t.id)">
+          <span>{{ t.nome }}</span>
+          <span class="va-menu-qtd">{{ qtdAlunos(t.qtd) }}</span>
+        </button>
+      } @empty {
+        <p class="va-menu-vazio">A série não tem outra turma.</p>
+      }
+    </div>
   </ng-template>
 }

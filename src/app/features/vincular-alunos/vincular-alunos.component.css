@@ -64,7 +64,7 @@
   gap: var(--sp-3);
 }
 
-/* Os dois lados e, entre eles, o trilho com os botões de mover e trocar. */
+/* Os dois lados e, entre eles, o trilho com os botões de mover. */
 .va-lados {
   flex: 1 0 460px;
   min-height: 460px;
@@ -74,7 +74,7 @@
   gap: var(--sp-3);
 }
 /*
- * O meio: um trilho fino com três botões redondos, mover para o destino, trocar e mover para a origem.
+ * O meio: um trilho fino com dois botões redondos, mover para o destino e mover para a origem.
  * Sem marcados, ficam discretos; com marcados, o botão acende e mostra quantos são. A turma para onde
  * vão fica na dica e no rótulo do leitor de tela.
  */
@@ -117,13 +117,6 @@
 .va-trilho-botao .material-icons {
   font-size: 22px;
 }
-.va-trilho-botao--trocar {
-  width: 40px;
-  height: 40px;
-}
-.va-trilho-botao--trocar .material-icons {
-  font-size: 19px;
-}
 /* Com marcados, o botão de mover fica com a cor do botão principal. */
 .va-trilho-botao--ativo {
   border-color: transparent;
@@ -135,15 +128,13 @@
 .va-trilho-botao--ativo:hover {
   box-shadow: var(--elev-3);
 }
-/* O ⇄ só acende com marcados dos dois lados, num tom mais leve que o de mover. */
-.va-trilho-botao--trocar.va-trilho-botao--ativo {
-  border-color: color-mix(in srgb, var(--saea-primary) 45%, var(--saea-surface));
-  background: color-mix(in srgb, var(--saea-primary) 14%, var(--saea-surface));
-  color: color-mix(in srgb, var(--saea-primary-strong) 75%, var(--saea-ink));
-  box-shadow: none;
+/* Gravando no RM: os botões não acendem, mesmo com marcados. */
+.va-trilho-botao:disabled {
+  cursor: default;
 }
-.va-trilho-botao--trocar.va-trilho-botao--ativo:hover {
-  background: color-mix(in srgb, var(--saea-primary) 24%, var(--saea-surface));
+.va-trilho-botao--ativo:disabled {
+  opacity: 0.6;
+  box-shadow: none;
 }
 .va-trilho-botao:focus-visible {
   outline: 2px solid var(--saea-primary-strong);
@@ -209,10 +200,54 @@
   flex: 1 1 0;
   min-width: 140px;
 }
+/*
+ * A sala da turma e, no destino com marcados, o botão de mover para outra turma: numa linha da altura
+ * do botão, para a grade não pular quando ele aparece.
+ */
+.va-painel-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-2);
+  min-height: 32px;
+}
 .va-painel-sub {
   margin: 0;
   font-size: var(--fs-xs);
   color: var(--saea-ink-soft);
+}
+.va-mover-para {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--saea-primary-gradient-deep);
+  color: #fff;
+  box-shadow: var(--elev-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: box-shadow var(--dur-micro) var(--ease-out);
+}
+.va-mover-para .material-icons {
+  font-size: 18px;
+}
+.va-mover-para:hover:not(:disabled) {
+  box-shadow: var(--elev-2);
+}
+.va-mover-para:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.va-mover-para:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 2px;
 }
 /* A ordem dos nomes: mostra a de agora (A→Z ou Z→A); um clique inverte. Da altura dos campos. */
 .va-ordem {
@@ -302,74 +337,6 @@
   text-align: center;
   font-size: var(--fs-sm);
   color: var(--saea-ink-soft);
-}
-
-/* Lotação da sala no turno: barra de agora e, mais clara, a prevista com os marcados. */
-.va-lotacao {
-  --faixa: var(--saea-success);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.va-lotacao[data-faixa='quase'] {
-  --faixa: var(--saea-warning);
-}
-.va-lotacao[data-faixa='excedida'] {
-  --faixa: var(--saea-danger);
-}
-.va-lotacao-trilha {
-  position: relative;
-  height: 8px;
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--saea-chip-bg);
-}
-.va-lotacao-previsto,
-.va-lotacao-agora {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: inherit;
-  transition: width var(--dur-short) var(--ease-out);
-}
-.va-lotacao-previsto {
-  background: var(--faixa);
-  opacity: 0.45;
-}
-.va-lotacao-agora {
-  background: var(--faixa);
-}
-.va-lotacao-agora--neutra {
-  background: var(--saea-ink-faint);
-}
-.va-lotacao-texto {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  font-size: var(--fs-sm);
-}
-/* A situação e, ao lado, o selo com as vagas que sobram na sala. */
-.va-lotacao-resumo {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-}
-.va-lotacao-situacao {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-weight: 600;
-  color: var(--saea-ink);
-}
-.va-lotacao-situacao .material-icons {
-  font-size: 18px;
-  color: var(--faixa);
-}
-.va-lotacao-numeros {
-  color: var(--saea-ink-soft);
-  font-variant-numeric: tabular-nums;
 }
 
 /* Os alunos: crachás pequenos, com a mesma foto em pé do crachá da origem. Só esta grade rola. */
@@ -539,18 +506,6 @@ li[draggable='true'] .va-cartao:active {
   color: var(--saea-primary-strong);
   font-size: 11px;
   font-weight: 600;
-}
-/* Movimento já gravado no RM, esperando a importação para a matrícula. */
-.va-cartao-veio--gravado {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background: color-mix(in srgb, var(--saea-success) 14%, transparent);
-  color: var(--saea-ink);
-}
-.va-cartao-veio--gravado .material-icons {
-  font-size: 13px;
-  color: var(--saea-success);
 }
 /* A última tentativa de salvar falhou: o motivo fica na dica e no detalhe. */
 .va-cartao-veio--falhou {
@@ -1074,16 +1029,61 @@ li[draggable='true'] .va-cartao:active {
   outline-offset: 2px;
 }
 
-/* Os botões de desfazer e salvar, sem cartão, alinhados à direita embaixo dos lados. */
-.va-acoes {
+/* As outras turmas da série, embaixo do "Mover para outra turma": escolher uma já move. */
+.va-menu {
+  min-width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  box-sizing: border-box;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--sp-2) var(--sp-3);
+  flex-direction: column;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  background: var(--saea-surface);
+  color: var(--saea-ink);
+  box-shadow: var(--elev-3), 0 0 0 1px var(--saea-border);
+  font-family: var(--font-body);
 }
+.va-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 40px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.va-menu-item:hover,
+.va-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--saea-primary) 12%, transparent);
+}
+.va-menu-item:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: -2px;
+}
+.va-menu-qtd {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.va-menu-vazio {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+}
+
+/* Os movimentos já gravados não vieram: sem eles não se move (a turma de onde o aluno sai pode estar errada). */
 .va-acoes-nota {
-  margin-right: auto;
+  margin: 0;
   font-size: var(--fs-xs);
   color: var(--saea-danger);
 }
@@ -1144,8 +1144,7 @@ li[draggable='true'] .va-cartao:active {
   .va-cartao-ampliar,
   .va-trilho-botao,
   .va-linha-seta,
-  .va-lotacao-previsto,
-  .va-lotacao-agora {
+  .va-mover-para {
     transition: none;
   }
 }

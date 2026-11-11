@@ -6,10 +6,9 @@ import { AuthService } from '../../core/auth/auth.service';
 import { Sala, TurmaLivre, TurmaVinculada, Turnos, Unidade } from '../../core/models';
 import { ApiAlunoEnturmacaoDto, ApiEnturmacaoResultadoDto, ApiTurmaEnturmacaoDto } from '../../core/models/ocupacao-api.model';
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
-import { RegrasService } from '../../core/services/regras.service';
 import { SalasService } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
-import { SEM_TURMA, VincularAlunosComponent } from './vincular-alunos.component';
+import { VincularAlunosComponent } from './vincular-alunos.component';
 
 const turma = (codTurma: string, nome: string): TurmaVinculada => ({
   nome,
@@ -114,7 +113,10 @@ describe('VincularAlunosComponent (lado a lado)', () => {
   let salvarNoRm: ReturnType<typeof vi.fn>;
   /** O MD de enturmação do "RM": RA → turma dos movimentos pendentes. */
   let gravadosNoRm: Map<string, string>;
-  /** O que o "RM" responde a cada movimento; sem regra, grava como pendente. */
+  /**
+   * O que o "RM" responde a cada movimento. Sem regra, grava como pendente; a turma vazia desfaz o
+   * movimento ainda não importado, e o aluno volta para a turma da matrícula.
+   */
   let respostaDoRm: (m: { ra: string; codTurma: string }) => ApiEnturmacaoResultadoDto;
   const anoLetivo = signal('2026');
   const anoCarregado = signal<string | null>('2026');
@@ -131,7 +133,7 @@ describe('VincularAlunosComponent (lado a lado)', () => {
       of(Object.fromEntries(ras.filter((ra) => ra !== '2').map((ra) => [ra, `data:image/jpeg;base64,${ra}`]))),
     );
     gravadosNoRm = new Map();
-    respostaDoRm = (m) => ({ ...m, situacao: 'pendente', motivo: null });
+    respostaDoRm = (m) => ({ ...m, situacao: m.codTurma === '' ? 'na-matricula' : 'pendente', motivo: null });
     getPendentes = vi.fn(() => of([...gravadosNoRm].map(([ra, codTurma]) => ({ ra, codTurma }))));
     salvarNoRm = vi.fn((_usuario: string, _ano: string, _filial: number, movimentos: { ra: string; codTurma: string }[]) => {
       const resultados = movimentos.map((m) => respostaDoRm(m));
@@ -152,7 +154,6 @@ describe('VincularAlunosComponent (lado a lado)', () => {
           },
         },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'fulano' }) } },
-        { provide: RegrasService, useValue: { regrasDaFilial: () => ({ areaPorAluno: 1.5, pctMaximoUtilizacao: 90, permitirExcesso: false }) } },
         {
           provide: SalasService,
           useValue: {
@@ -203,7 +204,6 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     // A Semi-Manhã é subturma: o destino inicial é o 3º A Manhã.
     expect(tela.destinoId()).toBe('EF3A-M');
     expect(nomes('origem')).toEqual(['Ivo', 'Júlia']);
-    expect(tela.origem()!.lotacao).toBeNull();
     expect(tela.descricao(tela.origem()!.alunos[0])).toBe('RA 9 · aluno novo');
   });
 
@@ -217,11 +217,11 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(tela.turmasDaSerie().map((t) => t.id)).toEqual(['EF3A-I', 'EF3A-M', 'EF3A-SM', 'EF3B-M']);
     // A Integral não é a turma principal: o destino abre no 3º A Manhã.
     expect(tela.destinoId()).toBe('EF3A-M');
-    // Sem sala, o turno sai do fim do código e não há lotação para mostrar.
+    // Sem sala, o turno sai do fim do código e não há com quem dividir a sala.
     const integral = tela.turmasDaSerie().find((t) => t.id === 'EF3A-I')!;
     expect([integral.sala, integral.turno]).toEqual([null, 'Integral']);
     tela.escolherTurma('destino', 'EF3A-I');
-    expect(tela.destino()!.lotacao).toBeNull();
+    expect(tela.destino()!.dividemCom).toEqual([]);
   });
 
   it('com curso e habilitação no cadastro, a série da turma é por eles, não pelo nome', () => {
@@ -295,130 +295,146 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     ]);
   });
 
-  it('a lotação é da sala no turno: as turmas que dividem a sala somam', () => {
+  it('o painel mostra a sala da turma e quem divide a sala no turno, sem a lotação de carteiras', () => {
     montar();
     abrir();
+    expect(tela.destino()!.dividemCom).toEqual(['EF3A-SM']);
+    expect(tela.origem()!.dividemCom).toEqual([]);
 
-    const l = tela.destino()!.lotacao!;
-    expect([l.alunos, l.carteiras, l.faixa]).toEqual([3, 25, 'disponivel']);
-    expect(l.dividemCom).toEqual(['EF3A-SM']);
-    // Sobram 22 das 25 carteiras: o selo diz quantas, no tom da faixa.
-    expect([l.vagas, l.rotuloVagas, l.tom]).toEqual([22, '22 vagas', 'success']);
+    fixture.detectChanges();
+    const destino = (fixture.nativeElement as HTMLElement).querySelectorAll('.va-painel')[1];
+    const sala = destino.querySelector('.va-painel-sub')!.textContent!.replace(/\s+/g, ' ');
+    expect(sala).toContain('SALA 1');
+    expect(sala).toContain('divide a sala com EF3A-SM');
+    expect(destino.textContent).not.toContain('carteiras');
+    // Sem desfazer nem salvar: mover já grava.
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Desfazer tudo');
   });
 
-  it('as vagas seguem a previsão: sem vaga, e passando das carteiras, quantas faltam', () => {
+  it('mover grava na hora: os marcados entram na turma e ficam como gravados no RM', () => {
     montar();
     abrir();
-    // Sala 3: 4 carteiras e 3 alunos.
-    tela.escolherTurma('destino', 'EF3B-M');
-    expect(tela.destino()!.lotacao!.rotuloVagas).toBe('1 vaga');
-
+    const sucesso = vi.spyOn(TestBed.inject(ToastService), 'success');
     tela.alternarAluno('origem', '9');
-    expect([tela.destino()!.lotacao!.rotuloVagas, tela.destino()!.lotacao!.tom]).toEqual(['Sem vagas', 'warning']);
-
     tela.alternarAluno('origem', '10');
-    expect([tela.destino()!.lotacao!.rotuloVagas, tela.destino()!.lotacao!.tom]).toEqual(['Falta 1 carteira', 'danger']);
+    tela.moverMarcados('origem');
 
-    // O 3º D ainda não tem sala: não há vagas para mostrar.
-    tela.escolherTurma('destino', 'EF3D-T');
-    expect(tela.destino()!.lotacao).toBeNull();
+    expect(salvarNoRm).toHaveBeenCalledWith('fulano', '2026', 2, [
+      { ra: '9', codTurma: 'EF3A-M' },
+      { ra: '10', codTurma: 'EF3A-M' },
+    ]);
+    // Os recém-movidos vêm primeiro, destacados.
+    expect(nomes('destino')).toEqual(['Ivo', 'Júlia', 'Ana', 'Bruno']);
+    expect(nomes('origem')).toEqual([]);
+    expect([tela.qtdMarcadosOrigem(), tela.salvando()]).toEqual([0, 0]);
+    expect(tela.destino()!.alunos.filter((a) => a.gravadoNoRm).map((a) => a.id)).toEqual(['9', '10']);
+    expect(sucesso).toHaveBeenCalledWith('2 alunos movidos para 3º Ano A - Manhã');
   });
 
-  it('sala sem carteiras cadastradas não aparece como disponível nem tem selo de vagas', () => {
-    montar();
-    abrir('2|4');
-    tela.escolherTurma('destino', 'EF4B-T');
-    const vazia = tela.destino()!.lotacao!;
-    expect([vazia.rotulo, vazia.rotuloVagas, vazia.faixa]).toEqual(['Sala sem carteiras cadastradas', '', 'quase']);
-
-    // Com o Leo marcado para vir, a sala sem carteiras passa a excedida.
-    tela.alternarAluno('origem', '12');
-    expect(tela.destino()!.lotacao!.faixa).toBe('excedida');
-  });
-
-  it('marcar de um lado mostra a previsão do outro; mover leva os marcados e entra nos pendentes', () => {
+  it('passando das carteiras da sala, o aviso diz quantos alunos para quantas; sala sem carteiras cadastradas não avisa', () => {
     montar();
     abrir();
     const aviso = vi.spyOn(TestBed.inject(ToastService), 'warning');
+    const sucesso = vi.spyOn(TestBed.inject(ToastService), 'success');
+    // Sala 3: 4 carteiras e 3 alunos; com o Ivo e a Júlia, 5.
     tela.escolherTurma('destino', 'EF3B-M');
     tela.alternarAluno('origem', '9');
     tela.alternarAluno('origem', '10');
-
-    // Sala 3: 3 alunos e 4 carteiras; com os 2 marcados, 5.
-    const previsto = tela.destino()!.lotacao!;
-    expect([previsto.alunos, previsto.previstos, previsto.faixa]).toEqual([3, 5, 'excedida']);
-
     tela.moverMarcados('origem');
+    expect(aviso).toHaveBeenCalledWith('2 alunos movidos para 3º Ano B - Manhã', 'A sala passou das carteiras: 5 alunos para 4.');
 
-    expect(nomes('destino')).toEqual(['Ivo', 'Júlia', 'Davi', 'Eva', 'Fábio']);
-    expect(nomes('origem')).toEqual([]);
-    expect(tela.qtdMarcadosOrigem()).toBe(0);
-    expect(tela.pendentes().map((m) => [m.aluno.nome, m.de, m.para])).toEqual([
-      ['Ivo', 'Sem turma', '3º Ano B - Manhã'],
-      ['Júlia', 'Sem turma', '3º Ano B - Manhã'],
-    ]);
-    expect(aviso).toHaveBeenCalled();
-    expect(tela.veioDe(tela.destino()!.alunos[0])).toBe('sem turma');
+    // A Sala 6 ainda não tem carteiras cadastradas: não há o que comparar.
+    tela.selecionarSerie('2|4');
+    tela.escolherTurma('destino', 'EF4B-T');
+    tela.alternarAluno('origem', '12');
+    tela.moverMarcados('origem');
+    expect(sucesso).toHaveBeenCalledWith('1 aluno movido para 4º Ano B - Tarde');
   });
 
-  it('voltar para a origem desfaz o movimento; desfazer tira um ou todos', () => {
+  it('no destino, os marcados vão para outra turma da série pelo "Mover para outra turma", e já grava', () => {
     montar();
     abrir();
-    tela.alternarAluno('origem', '9');
-    tela.moverMarcados('origem');
-    tela.alternarAluno('destino', '9');
-    tela.moverMarcados('destino');
-    expect(tela.pendentes()).toEqual([]);
-    expect(nomes('origem')).toEqual(['Ivo', 'Júlia']);
-
+    const sucesso = vi.spyOn(TestBed.inject(ToastService), 'success');
+    // O Ivo e a Júlia foram para o 3º A por engano: o certo é o 3º D.
     tela.alternarAluno('origem', '9');
     tela.alternarAluno('origem', '10');
     tela.moverMarcados('origem');
-    tela.desfazer('9');
-    expect(tela.pendentes().map((m) => m.aluno.id)).toEqual(['10']);
-    tela.desfazerTudo();
-    expect(nomes('origem')).toEqual(['Ivo', 'Júlia']);
-  });
 
-  it('levar para a origem um aluno com turma o deixa sem turma, no grupo do período dele', () => {
-    montar();
-    abrir();
-    const sucesso = vi.spyOn(TestBed.inject(ToastService), 'success');
-    tela.alternarAluno('destino', '1');
-    tela.moverMarcados('destino');
-
-    expect(nomes('origem')).toEqual(['Ana', 'Ivo', 'Júlia']);
-    expect(tela.pendentes().map((m) => [m.aluno.id, m.paraId])).toEqual([['1', SEM_TURMA]]);
-    expect(sucesso).toHaveBeenCalledWith('1 aluno tirado da turma', expect.any(String));
-  });
-
-  it('com marcados dos dois lados, o ⇄ troca: os da origem entram na turma e os da turma voltam para a origem', () => {
-    montar();
-    abrir();
-    const sucesso = vi.spyOn(TestBed.inject(ToastService), 'success');
-    tela.alternarAluno('origem', '9');
-    expect(tela.podeTrocar()).toBe(false);
-    tela.alternarAluno('destino', '1');
-    expect(tela.podeTrocar()).toBe(true);
-
-    tela.trocar();
-
-    // O Ivo entra no 3º A e a Ana fica sem turma; os lados continuam os mesmos.
-    expect([tela.origemId(), tela.destinoId()]).toEqual(['periodo:M', 'EF3A-M']);
-    expect(nomes('origem')).toEqual(['Ana', 'Júlia']);
-    expect(nomes('destino')).toEqual(['Ivo', 'Bruno']);
-    expect(tela.pendentes().map((m) => [m.aluno.id, m.paraId])).toEqual([
-      ['9', 'EF3A-M'],
-      ['1', SEM_TURMA],
+    // A lista são as outras turmas da série, com quantos alunos têm agora.
+    expect(tela.turmasParaMover().map((t) => [t.id, t.qtd])).toEqual([
+      ['EF3A-SM', 1],
+      ['EF3B-M', 3],
+      ['EF3D-T', 0],
     ]);
-    expect([tela.qtdMarcadosOrigem(), tela.qtdMarcadosDestino()]).toEqual([0, 0]);
-    expect(tela.podeSalvar()).toBe(true);
-    expect(sucesso).toHaveBeenCalledWith('2 alunos trocados entre 3º Ano - Manhã e 3º Ano A - Manhã', expect.any(String));
+    const botao = document.createElement('button');
+    const clique = { currentTarget: botao } as unknown as Event;
+    // Sem marcados no destino, a lista não abre.
+    tela.alternarMenuMover(clique);
+    expect(tela.menuMoverAberto()).toBeNull();
 
-    // Sem marcados dos dois lados, o ⇄ não faz nada.
-    tela.trocar();
-    expect([tela.origemId(), tela.destinoId()]).toEqual(['periodo:M', 'EF3A-M']);
-    expect(tela.pendentes()).toHaveLength(2);
+    tela.alternarAluno('destino', '9');
+    tela.alternarAluno('destino', '10');
+    tela.alternarMenuMover(clique);
+    expect(tela.menuMoverAberto()).toBe(botao);
+    // Esc e o clique fora fecham; o clique no próprio botão fica para ele.
+    tela.teclaNoMenu(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(tela.menuMoverAberto()).toBeNull();
+    tela.alternarMenuMover(clique);
+    tela.cliqueForaDoMenu({ target: botao } as unknown as MouseEvent);
+    expect(tela.menuMoverAberto()).toBe(botao);
+    tela.cliqueForaDoMenu({ target: document.body } as unknown as MouseEvent);
+    expect(tela.menuMoverAberto()).toBeNull();
+
+    tela.alternarMenuMover(clique);
+    tela.moverMarcadosPara('EF3D-T');
+
+    expect(salvarNoRm).toHaveBeenLastCalledWith('fulano', '2026', 2, [
+      { ra: '9', codTurma: 'EF3D-T' },
+      { ra: '10', codTurma: 'EF3D-T' },
+    ]);
+    expect(sucesso).toHaveBeenLastCalledWith('2 alunos movidos para 3º Ano D - Tarde');
+    expect([tela.menuMoverAberto(), tela.qtdMarcadosDestino()]).toEqual([null, 0]);
+    expect(nomes('destino')).toEqual(['Ana', 'Bruno']);
+    tela.escolherTurma('destino', 'EF3D-T');
+    expect(nomes('destino')).toEqual(['Ivo', 'Júlia']);
+  });
+
+  it('enquanto grava, nada mais se move; o aluno já aparece na turma nova', () => {
+    montar();
+    abrir();
+    const resposta = new Subject<ApiEnturmacaoResultadoDto[]>();
+    salvarNoRm.mockImplementation(() => resposta);
+    tela.alternarAluno('origem', '9');
+    tela.moverMarcados('origem');
+
+    expect(nomes('destino')).toEqual(['Ivo', 'Ana', 'Bruno']);
+    expect([tela.salvando(), tela.podeMover()]).toEqual([1, false]);
+    expect(tela.espera().texto).toBe('Salvando 1 movimento...');
+    tela.alternarAluno('origem', '10');
+    tela.moverMarcados('origem');
+    const arraste = { preventDefault: vi.fn(), dataTransfer: null } as unknown as DragEvent;
+    tela.iniciarArrasto('origem', '10', arraste);
+    expect(arraste.preventDefault).toHaveBeenCalled();
+    expect(salvarNoRm).toHaveBeenCalledTimes(1);
+
+    gravadosNoRm.set('9', 'EF3A-M');
+    resposta.next([{ ra: '9', codTurma: 'EF3A-M', situacao: 'pendente', motivo: null }]);
+    resposta.complete();
+    expect(tela.podeMover()).toBe(true);
+    expect(nomes('destino')).toEqual(['Ivo', 'Ana', 'Bruno']);
+  });
+
+  it('sem os movimentos já gravados, a tela não deixa mover', () => {
+    montar();
+    getPendentes.mockImplementation(() => throwError(() => new Error('RM fora do ar')));
+    abrir();
+
+    expect(tela.estadoPendentes()?.estado).toBe('erro');
+    expect(tela.podeMover()).toBe(false);
+    tela.alternarAluno('origem', '9');
+    tela.moverMarcados('origem');
+    expect(salvarNoRm).not.toHaveBeenCalled();
+    expect(nomes('origem')).toEqual(['Ivo', 'Júlia']);
   });
 
   it('na origem, o checkbox marca o aluno e a linha abre os dados dele, um por vez', () => {
@@ -475,11 +491,12 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     // O RA fica embaixo da foto, sozinho, como num crachá.
     expect(cartaoDe('9').querySelector('.va-linha-sub')?.textContent?.trim()).toBe('RA 9');
 
-    // O detalhe fica com o que o cartão não mostra: a escola de origem e o movimento ainda não salvo.
+    // O detalhe fica com o que o cartão não mostra: a escola de origem e a turma gravada no RM.
     expect(tela.detalhes(ivo)).toEqual([{ rotulo: 'Escola de origem', valor: 'Escola Pé Pequeno' }]);
     tela.definirMarcado('origem', '9', true);
     tela.moverMarcados('origem');
-    expect(tela.detalhes(ivo)).toContainEqual({ rotulo: 'Nesta tela', valor: 'movido de Sem turma para 3º Ano A - Manhã, falta salvar' });
+    const gravado = tela.destino()!.alunos.find((a) => a.id === '9')!;
+    expect(tela.detalhes(gravado)).toContainEqual({ rotulo: 'Salvo para', valor: '3º Ano A - Manhã' });
   });
 
   it('na origem, sem nada a mais para mostrar, clicar no cartão marca o aluno', () => {
@@ -568,7 +585,7 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(tela.iniciais('Bruno Gomes Silva')).toBe('BS');
   });
 
-  it('os movimentos ficam guardados por unidade', () => {
+  it('o que foi gravado continua lá ao voltar para a unidade', () => {
     montar();
     abrir();
     tela.alternarAluno('origem', '9');
@@ -576,10 +593,9 @@ describe('VincularAlunosComponent (lado a lado)', () => {
 
     tela.selecionarUnidade('13');
     TestBed.tick();
-    expect(tela.pendentes()).toEqual([]);
-
     abrir();
-    expect(tela.pendentes().map((m) => m.aluno.id)).toEqual(['9']);
+    expect(nomes('destino')).toEqual(['Ana', 'Bruno', 'Ivo']);
+    expect(nomes('origem')).toEqual(['Júlia']);
   });
 
   it('enquanto lê não há painéis; com erro, tentar de novo relê', () => {
@@ -608,26 +624,27 @@ describe('VincularAlunosComponent (lado a lado)', () => {
         dataTransfer: { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: '', dropEffect: '' },
       }) as unknown as DragEvent;
 
-    tela.iniciarArrasto('origem', '9', evento());
-    expect(tela.arrasto()).toEqual({ de: 'origem', ras: ['9'] });
-    expect(tela.arrastando('9')).toBe(true);
+    // Arrastando um marcado, vão todos os marcados do lado; a imagem do arraste é a etiqueta com quantos são.
+    tela.alternarAluno('origem', '9');
+    tela.alternarAluno('origem', '10');
+    const inicio = evento();
+    tela.iniciarArrasto('origem', '9', inicio);
+    expect(tela.arrasto()).toEqual({ de: 'origem', ras: ['9', '10'] });
+    expect(tela.arrastando('10')).toBe(true);
+    expect(inicio.dataTransfer!.setDragImage).toHaveBeenCalled();
     const sobre = evento();
     tela.arrastarSobre('destino', sobre);
     expect(sobre.preventDefault).toHaveBeenCalled();
     expect(tela.alvoDoArrasto()).toBe('destino');
     tela.soltar('destino', evento());
-    expect(nomes('destino')).toEqual(['Ivo', 'Ana', 'Bruno']);
+    expect(nomes('destino')).toEqual(['Ivo', 'Júlia', 'Ana', 'Bruno']);
     expect([tela.arrasto(), tela.alvoDoArrasto()]).toEqual([null, null]);
 
-    tela.alternarAluno('destino', '1');
-    tela.alternarAluno('destino', '2');
-    const inicio = evento();
-    tela.iniciarArrasto('destino', '1', inicio);
-    expect(tela.arrasto()!.ras).toEqual(['1', '2']);
-    // Vários: a imagem do arraste é a etiqueta com quantos são.
-    expect(inicio.dataTransfer!.setDragImage).toHaveBeenCalled();
+    // Sem marcar, vai só o arrastado.
+    tela.iniciarArrasto('destino', '10', evento());
+    expect(tela.arrasto()!.ras).toEqual(['10']);
     tela.soltar('origem', evento());
-    expect(nomes('origem')).toEqual(['Ana', 'Bruno', 'Júlia']);
+    expect(nomes('origem')).toEqual(['Júlia']);
 
     // No próprio lado não se solta.
     tela.iniciarArrasto('origem', '10', evento());
@@ -635,7 +652,7 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     tela.arrastarSobre('origem', mesmoLado);
     expect(mesmoLado.preventDefault).not.toHaveBeenCalled();
     tela.soltar('origem', evento());
-    expect(tela.pendentes().map((m) => m.aluno.id)).toEqual(['9', '1', '2']);
+    expect(salvarNoRm).toHaveBeenCalledTimes(2);
   });
 
   it('o cartão mostra o primeiro e o segundo nome (a partícula vai junto)', () => {
@@ -645,7 +662,7 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(tela.doisNomes(' Ana ')).toBe('Ana');
   });
 
-  it('o movimento já gravado no RM põe o aluno na turma nova, com a etiqueta "gravado"', () => {
+  it('o movimento já gravado no RM põe o aluno na turma nova', () => {
     montar();
     gravadosNoRm.set('1', 'EF3B-M');
     abrir();
@@ -653,36 +670,34 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(getPendentes).toHaveBeenCalledWith('fulano', '2026', 2);
     expect(nomes('destino')).toEqual(['Bruno']);
     tela.escolherTurma('destino', 'EF3B-M');
-    const ana = tela.destino()!.alunos.find((a) => a.id === '1')!;
-    expect(tela.gravado(ana)).toContain('EF3A-M');
-    expect(tela.destino()!.lotacao!.alunos).toBe(4);
+    expect(tela.destino()!.alunos.map((a) => a.id)).toContain('1');
 
-    // Levar de volta para a origem é um movimento (o RM diz 3º B): ela fica sem turma.
+    // Levar de volta para a origem desfaz o movimento no RM: ela volta para a turma da matrícula, o 3º A.
     tela.alternarAluno('destino', '1');
     tela.moverMarcados('destino');
-    expect(tela.pendentes().map((m) => [m.aluno.id, m.paraId])).toEqual([['1', SEM_TURMA]]);
-    expect(tela.gravado(tela.origem()!.alunos.find((a) => a.id === '1')!)).toBeNull();
+    expect(salvarNoRm).toHaveBeenCalledWith('fulano', '2026', 2, [{ ra: '1', codTurma: '' }]);
+    tela.escolherTurma('destino', 'EF3A-M');
+    expect(nomes('destino')).toEqual(['Ana', 'Bruno']);
   });
 
   it('tirar da turma o aluno com movimento salvo e sem turma na matrícula desfaz o movimento no RM', () => {
     montar();
     gravadosNoRm.set('9', 'EF3A-M');
-    respostaDoRm = (m) => ({ ...m, situacao: m.codTurma === '' ? 'na-matricula' : 'pendente', motivo: null });
     abrir();
     const sucesso = vi.spyOn(TestBed.inject(ToastService), 'success');
     expect(tela.destino()!.alunos.map((a) => a.id)).toContain('9');
 
     tela.alternarAluno('destino', '9');
     tela.moverMarcados('destino');
-    tela.salvar();
 
     expect(salvarNoRm).toHaveBeenCalledWith('fulano', '2026', 2, [{ ra: '9', codTurma: '' }]);
-    expect(tela.pendentes()).toEqual([]);
+    // De volta à origem, no grupo do período dele.
+    expect(nomes('origem')).toEqual(['Ivo', 'Júlia']);
     expect(tela.origem()!.alunos.find((a) => a.id === '9')!.gravadoNoRm).toBe(false);
-    expect(sucesso).toHaveBeenCalledWith('1 movimento salvo');
+    expect(sucesso).toHaveBeenCalledWith('1 aluno tirado da turma');
   });
 
-  it('salvar grava os movimentos; os gravados saem da lista e os que falharam ficam com o motivo', () => {
+  it('o que o RM não grava volta para onde estava, com o motivo no aluno', () => {
     montar();
     abrir();
     const jaNaMatricula = 'O aluno já está na turma EF3A-M na matrícula: para tirá-lo da turma, faça no RM.';
@@ -696,40 +711,33 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     tela.alternarAluno('origem', '9');
     tela.alternarAluno('origem', '10');
     tela.moverMarcados('origem');
-    // A Ana volta para a origem: tirar da turma também vai para o RM, com a turma vazia.
-    tela.alternarAluno('destino', '1');
-    tela.moverMarcados('destino');
-    expect(tela.podeSalvar()).toBe(true);
-
-    tela.salvar();
 
     expect(salvarNoRm).toHaveBeenCalledWith('fulano', '2026', 2, [
       { ra: '9', codTurma: 'EF3A-M' },
       { ra: '10', codTurma: 'EF3A-M' },
-      { ra: '1', codTurma: '' },
     ]);
     expect(tela.salvando()).toBe(0);
-    // A Ana já está no 3º A na matrícula: o RM recusa tirá-la, e o motivo fica nela.
-    expect(tela.pendentes().map((m) => [m.aluno.id, m.falha])).toEqual([
-      ['10', 'Não foi possível salvar: tempo esgotado.'],
-      ['1', jaNaMatricula],
-    ]);
-    expect(aviso).toHaveBeenCalledWith('1 movimento salvo; 2 não', expect.stringContaining('tempo esgotado'));
-    // Sem a lista de movimentos, o motivo fica no próprio aluno.
-    const julia = tela.destino()!.alunos.find((a) => a.id === '10')!;
+    expect(aviso).toHaveBeenCalledWith('1 aluno movido para 3º Ano A - Manhã; 1 não', 'Não foi possível salvar: tempo esgotado.');
+    // O Ivo ficou no 3º A, gravado; a Júlia voltou para a origem, com o motivo nela.
+    expect(nomes('destino')).toEqual(['Ivo', 'Ana', 'Bruno']);
+    expect(nomes('origem')).toEqual(['Júlia']);
+    const julia = tela.origem()!.alunos[0];
     expect(tela.falhaDe(julia)).toBe('Não foi possível salvar: tempo esgotado.');
     expect(tela.detalhes(julia)).toContainEqual({ rotulo: 'Não salvou', valor: 'Não foi possível salvar: tempo esgotado.' });
-    // O Ivo continua no 3º A, agora como gravado; os pendentes foram relidos do RM.
-    const ivo = tela.destino()!.alunos.find((a) => a.id === '9')!;
-    expect(ivo.gravadoNoRm).toBe(true);
+    expect(tela.destino()!.alunos.find((a) => a.id === '9')!.gravadoNoRm).toBe(true);
+    // Depois da gravação, os pendentes foram relidos do RM.
     expect(getPendentes).toHaveBeenCalledTimes(2);
 
-    // Desfazer o que falhou esquece o motivo.
-    tela.desfazer('10');
-    expect(tela.pendentes().map((m) => m.aluno.id)).toEqual(['1']);
+    // A Ana já está no 3º A na matrícula: o RM recusa tirá-la, e ela fica. O motivo é o da última gravação.
+    tela.alternarAluno('destino', '1');
+    tela.moverMarcados('destino');
+    expect(aviso).toHaveBeenLastCalledWith('Nenhum aluno foi movido', jaNaMatricula);
+    expect(nomes('destino')).toContain('Ana');
+    expect(tela.falhaDe(tela.destino()!.alunos.find((a) => a.id === '1')!)).toBe(jaNaMatricula);
+    expect(tela.falhaDe(julia)).toBeNull();
   });
 
-  it('erro do back na gravação avisa e mantém os movimentos', () => {
+  it('erro do back na gravação avisa e devolve os alunos para onde estavam', () => {
     montar();
     abrir();
     salvarNoRm.mockImplementation(() => throwError(() => new HttpErrorResponse({ status: 400, error: { message: 'Só no TTESTE.' } })));
@@ -737,14 +745,13 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     tela.alternarAluno('origem', '9');
     tela.moverMarcados('origem');
 
-    tela.salvar();
-
-    expect(erro).toHaveBeenCalledWith('Não foi possível salvar', 'Só no TTESTE.');
-    expect(tela.pendentes().map((m) => m.aluno.id)).toEqual(['9']);
-    expect(tela.podeSalvar()).toBe(true);
+    expect(erro).toHaveBeenCalledWith('Não foi possível salvar', 'Só no TTESTE. O aluno voltou para onde estava.');
+    expect(nomes('origem')).toEqual(['Ivo', 'Júlia']);
+    expect(tela.falhaDe(tela.origem()!.alunos[0])).toBe('Só no TTESTE.');
+    expect([tela.salvando(), tela.podeMover()]).toEqual([0, true]);
   });
 
-  it('recriada pelo layout (celular ↔ computador), a tela volta como estava, com os movimentos por salvar', () => {
+  it('recriada pelo layout (celular ↔ computador), a tela volta como estava', () => {
     montar();
     abrir();
     tela.escolherTurma('destino', 'EF3D-T');
@@ -758,7 +765,6 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     tela = fixture.componentInstance;
 
     expect([tela.codFilial(), tela.serie(), tela.origemId(), tela.destinoId()]).toEqual([2, '2|3', 'periodo:M', 'EF3D-T']);
-    expect(tela.pendentes().map((m) => [m.aluno.id, m.paraId])).toEqual([['9', 'EF3D-T']]);
     expect(nomes('destino')).toEqual(['Ivo']);
     // A leitura dos alunos ainda vale: a tela recriada não vai ao RM de novo.
     expect(getAlunos).toHaveBeenCalledTimes(1);

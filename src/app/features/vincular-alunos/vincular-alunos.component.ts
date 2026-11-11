@@ -3,11 +3,10 @@ import { CdkConnectedOverlay, ConnectedPosition } from '@angular/cdk/overlay';
 import { NgTemplateOutlet } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { SaeaBadgeComponent, SaeaCheckboxComponent, SaeaInputComponent, SaeaTooltipDirective } from '@sistemas-saea/saea-design-system';
+import { SaeaCheckboxComponent, SaeaInputComponent, SaeaTooltipDirective } from '@sistemas-saea/saea-design-system';
 import { nomeDoAndar, Turno } from '../../core/models';
 import { ApiAlunoEnturmacaoDto, ApiTurmaEnturmacaoDto } from '../../core/models/ocupacao-api.model';
 import { AlunosEnturmacaoService, SelecaoDaTela } from '../../core/services/alunos-enturmacao.service';
-import { RegrasService } from '../../core/services/regras.service';
 import { SalasService, serieDaTurma } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AlertComponent } from '../../shared/ui/alert/alert.component';
@@ -15,7 +14,6 @@ import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
-import { FAIXAS, FaixaOcupacao, faixaDe } from '../ocupacao/ocupacao-calculo';
 
 /** "1 aluno", "3 alunos". */
 const qtdAlunos = (n: number) => `${n} ${n === 1 ? 'aluno' : 'alunos'}`;
@@ -121,28 +119,6 @@ export interface TurmaDaSerie {
   sala: SalaDaTurma | null;
 }
 
-/** Lotação de uma sala no turno da turma, contra as carteiras, com a previsão se os marcados vierem. */
-export interface Lotacao {
-  alunos: number;
-  carteiras: number;
-  /** Alunos se os marcados do outro lado vierem; igual a `alunos` sem marcados. */
-  previstos: number;
-  faixa: FaixaOcupacao;
-  rotulo: string;
-  icone: string;
-  /** Carteiras que sobram com a previsão (negativo = faltam carteiras). */
-  vagas: number;
-  /** "3 vagas", "1 vaga", "Sem vagas" ou "Faltam 2 carteiras"; vazio = sem selo (sala sem carteiras). */
-  rotuloVagas: string;
-  /** O tom do selo das vagas: o da faixa. */
-  tom: 'success' | 'warning' | 'danger';
-  /** Barra: largura de agora e da previsão, no máximo 100. */
-  pct: number;
-  pctPrevisto: number;
-  /** As outras turmas que dividem a sala nesse turno. */
-  dividemCom: string[];
-}
-
 export interface PainelDaTurma {
   lado: Lado;
   turma: TurmaDaSerie;
@@ -151,22 +127,29 @@ export interface PainelDaTurma {
   visiveis: AlunoDaTela[];
   /** A busca deste lado, sem espaços nas pontas; vazia, a lista mostra todos. */
   busca: string;
-  lotacao: Lotacao | null;
+  /** As outras turmas que dividem a sala da turma nesse turno (vazio sem sala). */
+  dividemCom: string[];
   /** Marcados deste lado. */
   marcados: number;
+}
+
+/** Um aluno que acabou de mudar de turma na tela e a turma para onde foi (CODTURMA ou SEM_TURMA). */
+interface Chegada {
+  aluno: AlunoDaTela;
+  para: string;
 }
 
 /**
  * Vincular aluno à turma, lado a lado: escolhe-se a unidade e a série; à esquerda fica a turma de
  * origem e à direita a de destino, com as fotos dos alunos. Marca-se e move-se de um lado para o
- * outro, vendo como a sala de cada turma fica (as turmas do mesmo turno na sala somam).
+ * outro; no destino, os marcados também vão para qualquer outra turma da série ("Mover para outra
+ * turma"), para corrigir quem foi para a turma errada.
  *
- * Os dados são reais: as turmas do destino vêm do cadastro (OC_SAL_ENTUR_TURMAS), a sala e as
- * carteiras de cada uma do SalasService, alunos e fotos da pré-enturmação do RM
- * (OC_SAL_ENTUR_ALUNOS e OC_SAL_ENTUR_FOTOS). Mover muda só a tela; "Salvar" grava os
- * movimentos no MD de enturmação como pendentes (OC_SAL_ENTUR_SALVAR, só no TTESTE por enquanto),
- * e a matrícula muda quando a enturmação for importada no RM. Os já gravados (OC_SAL_ENTUR_PENDENTES)
- * aparecem na turma nova, com a etiqueta "gravado".
+ * Os dados são reais: as turmas do destino vêm do cadastro (OC_SAL_ENTUR_TURMAS), a sala de cada
+ * uma do SalasService, alunos e fotos da pré-enturmação do RM (OC_SAL_ENTUR_ALUNOS e
+ * OC_SAL_ENTUR_FOTOS). Mover já grava o movimento no MD de enturmação como pendente
+ * (OC_SAL_ENTUR_SALVAR, só no TTESTE por enquanto), e a matrícula muda quando a enturmação for
+ * importada no RM. Os já gravados (OC_SAL_ENTUR_PENDENTES) aparecem na turma nova.
  */
 @Component({
   selector: 'app-vincular-alunos',
@@ -175,7 +158,6 @@ export interface PainelDaTurma {
     CdkConnectedOverlay,
     FormsModule,
     NgTemplateOutlet,
-    SaeaBadgeComponent,
     SaeaCheckboxComponent,
     SaeaInputComponent,
     SaeaTooltipDirective,
@@ -192,7 +174,6 @@ export interface PainelDaTurma {
 export class VincularAlunosComponent {
   private readonly toast = inject(ToastService);
   private readonly salasService = inject(SalasService);
-  private readonly regras = inject(RegrasService);
   private readonly alunosService = inject(AlunosEnturmacaoService);
 
   readonly qtdAlunos = qtdAlunos;
@@ -212,11 +193,14 @@ export class VincularAlunosComponent {
   readonly marcadosDestino = signal<ReadonlySet<string>>(new Set());
   /** Os últimos movidos: ficam no começo da turma em que entraram, destacados. */
   readonly recemMovidos = signal<ReadonlySet<string>>(new Set());
-  /** Para onde cada aluno foi movido (RA → CODTURMA ou SEM_TURMA), por "ano|filial". Fica no service: sobrevive à tela. */
+  /**
+   * Para onde cada aluno está indo enquanto a gravação não volta (RA → CODTURMA ou SEM_TURMA), por
+   * "ano|filial": a tela já o mostra na turma nova. Fica no service: sobrevive à tela.
+   */
   private readonly movimentos = this.alunosService.movimentos;
   /** Quantos movimentos estão sendo salvos agora (0 = nenhum). */
   readonly salvando = this.alunosService.salvando;
-  /** Por que o movimento do aluno não foi salvo na última vez (RA → motivo). */
+  /** Por que o movimento do aluno não foi salvo na última vez (RA → motivo); ele voltou para onde estava. */
   readonly falhas = this.alunosService.falhas;
   /** O aluno da origem com os dados abertos embaixo da linha (um por vez); null = nenhum. */
   readonly detalheAberto = signal<string | null>(null);
@@ -462,35 +446,31 @@ export class VincularAlunosComponent {
   readonly qtdMarcadosOrigem = computed(() => this.marcadosOrigem().size);
   readonly qtdMarcadosDestino = computed(() => this.marcadosDestino().size);
 
-  /** Há marcados dos dois lados: o ⇄ troca os alunos (os da origem entram na turma; os da turma voltam para a origem). */
-  readonly podeTrocar = computed(
-    () => this.qtdMarcadosOrigem() > 0 && this.qtdMarcadosDestino() > 0 && !!this.origemId() && !!this.destinoId(),
+  /**
+   * Dá para mover (e gravar na hora): nenhuma gravação em curso e os movimentos já gravados foram
+   * lidos (sem eles, a turma de onde cada aluno sai pode estar errada).
+   */
+  readonly podeMover = computed(() => this.salvando() === 0 && this.estadoPendentes()?.estado === 'pronto');
+
+  /** As outras turmas da série, para onde os marcados do destino podem ir, com quantos alunos têm. */
+  readonly turmasParaMover = computed(() =>
+    this.turmasDaSerie()
+      .filter((t) => t.id !== this.destinoId())
+      .map((t) => ({ id: t.id, nome: t.nome, qtd: this.alunosNaTurma(t.id).length })),
   );
 
-  /** Os movimentos da unidade que ainda não foram salvos, com o motivo se a última gravação falhou. */
-  readonly pendentes = computed(() => {
-    const movidos = this.movidos();
-    const falhas = this.falhas();
-    const porRa = new Map(this.alunosDaUnidade().map((a) => [a.id, a]));
-    return [...movidos].flatMap(([ra, para]) => {
-      const aluno = porRa.get(ra);
-      if (!aluno) return [];
-      return [
-        {
-          aluno,
-          de: this.nomeDaTurma(aluno.codTurmaOriginal ?? SEM_TURMA),
-          para: this.nomeDaTurma(para),
-          paraId: para,
-          falha: falhas.get(ra) ?? null,
-        },
-      ];
-    });
-  });
+  /** O botão "Mover para outra turma" com a lista aberta embaixo dele; null = fechada. */
+  private readonly menuMover = signal<HTMLElement | null>(null);
 
-  /** Dá para salvar: há movimentos, nenhuma gravação em curso e os já gravados foram lidos. */
-  readonly podeSalvar = computed(
-    () => this.pendentes().length > 0 && this.salvando() === 0 && this.estadoPendentes()?.estado === 'pronto',
-  );
+  /** A lista das outras turmas, enquanto há marcados no destino e dá para mover: o botão em que ela se ancora. */
+  readonly menuMoverAberto = computed(() => (this.qtdMarcadosDestino() > 0 && this.podeMover() ? this.menuMover() : null));
+
+  /** Embaixo do botão, alinhada pela esquerda; sem espaço, pela direita; por último, em cima. */
+  readonly posicoesDoMenu: ConnectedPosition[] = [
+    { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 6 },
+    { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 6 },
+    { originX: 'start', originY: 'top', overlayX: 'start', overlayY: 'bottom', offsetY: -6 },
+  ];
 
   /** A barra de espera: as salas do ano, os alunos da unidade ou a gravação no RM. */
   readonly espera = computed<{ ativo: boolean; texto: string; estimativaMs: number | null }>(() => {
@@ -612,23 +592,9 @@ export class VincularAlunosComponent {
     return aluno.turmaAnterior ? `RA ${aluno.id} · antes ${aluno.turmaAnterior}` : `RA ${aluno.id}`;
   }
 
-  /** Movido nesta tela: de qual turma veio (null = está na turma do RM). */
-  veioDe(aluno: AlunoDaTela): string | null {
-    return this.movidos().has(aluno.id) ? this.nomeCurto(aluno.codTurmaOriginal ?? SEM_TURMA) : null;
-  }
-
-  /** A última tentativa de salvar o movimento deste aluno falhou: o motivo (null = não falhou). */
+  /** A última tentativa de mover este aluno não gravou (ele voltou para onde estava): o motivo (null = não falhou). */
   falhaDe(aluno: AlunoDaTela): string | null {
     return this.falhas().get(aluno.id) ?? null;
-  }
-
-  /**
-   * Gravado no RM e ainda não importado (e não mexido de novo nesta tela): a dica da etiqueta
-   * "gravado", com a turma da matrícula. null = sem etiqueta.
-   */
-  gravado(aluno: AlunoDaTela): string | null {
-    if (!aluno.gravadoNoRm || this.movidos().has(aluno.id)) return null;
-    return `Movimento salvo, falta importar para a matrícula (hoje em ${this.nomeCurto(aluno.codTurmaMatricula ?? SEM_TURMA)}).`;
   }
 
   /** Abre os dados do aluno embaixo da linha dele (fecha o que estava aberto); clicar de novo fecha. */
@@ -656,16 +622,9 @@ export class VincularAlunosComponent {
    * não tem fica de fora; sem nada, o cartão não abre.
    */
   detalhes(aluno: AlunoDaTela): DadoDoAluno[] {
-    const movidoPara = this.movidos().get(aluno.id);
     const anoAnterior = [aluno.serieAnterior, aluno.turmaAnterior].filter(Boolean).join(' · ');
     const dados: (DadoDoAluno | null)[] = [
       aluno.gravadoNoRm ? { rotulo: 'Salvo para', valor: this.nomeDaTurma(aluno.codTurmaOriginal ?? SEM_TURMA) } : null,
-      movidoPara
-        ? {
-            rotulo: 'Nesta tela',
-            valor: `movido de ${this.nomeDaTurma(aluno.codTurmaOriginal ?? SEM_TURMA)} para ${this.nomeDaTurma(movidoPara)}, falta salvar`,
-          }
-        : null,
       this.falhaDe(aluno) ? { rotulo: 'Não salvou', valor: this.falhaDe(aluno)! } : null,
       anoAnterior ? { rotulo: 'Ano anterior', valor: anoAnterior } : null,
       aluno.instituicaoOrigem ? { rotulo: 'Escola de origem', valor: aluno.instituicaoOrigem } : null,
@@ -685,7 +644,7 @@ export class VincularAlunosComponent {
    */
   iniciarArrasto(lado: Lado, ra: string, event: DragEvent): void {
     this.previa.set(null);
-    if (this.salvando() > 0) {
+    if (!this.podeMover()) {
       event.preventDefault();
       return;
     }
@@ -784,11 +743,6 @@ export class VincularAlunosComponent {
     this.limparMarcados();
   }
 
-  /** O botão ⇄: com marcados dos dois lados, troca os alunos. */
-  trocar(): void {
-    if (this.podeTrocar()) this.trocarMarcados();
-  }
-
   /** O que o botão de mover do trilho faz, na dica e para o leitor de tela: quantos e para qual turma. */
   rotuloMover(de: Lado): string {
     const qtd = de === 'origem' ? this.qtdMarcadosOrigem() : this.qtdMarcadosDestino();
@@ -797,11 +751,49 @@ export class VincularAlunosComponent {
     return `Mover ${qtd} para ${para ? this.nomeDaTurma(para) : 'o outro lado'}`;
   }
 
-  /** O que o ⇄ do trilho faz: quantos vão de cada lado. */
-  rotuloTrocar(): string {
-    return this.podeTrocar()
-      ? `Trocar ${this.qtdMarcadosOrigem()} da origem por ${this.qtdMarcadosDestino()} do destino`
-      : 'Marque alunos dos dois lados para trocar';
+  /** O botão "Mover para outra turma" do destino: abre a lista das outras turmas da série; aberta, fecha. */
+  alternarMenuMover(event: Event): void {
+    const botao = event.currentTarget as HTMLElement;
+    this.menuMover.update((aberto) => (aberto || this.qtdMarcadosDestino() === 0 ? null : botao));
+  }
+
+  /** Clique fora da lista: fecha, menos no botão que a abriu (o clique dele já fecha). */
+  cliqueForaDoMenu(event: MouseEvent): void {
+    const botao = this.menuMover();
+    if (botao && !botao.contains(event.target as Node)) this.menuMover.set(null);
+  }
+
+  /** Aberta a lista, o foco vai para a primeira turma (depois que ela aparece na página). */
+  focarMenu(): void {
+    setTimeout(() => document.querySelector<HTMLElement>('.va-menu [role="menuitem"]')?.focus());
+  }
+
+  /** Na lista: setas e Home/End andam pelas turmas; Esc fecha e volta ao botão; Tab fecha. */
+  teclaNoMenu(event: KeyboardEvent): void {
+    const botao = this.menuMover();
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.menuMover.set(null);
+      botao?.focus();
+      return;
+    }
+    if (event.key === 'Tab') {
+      this.menuMover.set(null);
+      return;
+    }
+    const itens = [...document.querySelectorAll<HTMLElement>('.va-menu [role="menuitem"]')];
+    const atual = itens.indexOf(document.activeElement as HTMLElement);
+    const proximo = ({ ArrowDown: atual + 1, ArrowUp: atual - 1, Home: 0, End: itens.length - 1 } as Record<string, number>)[event.key];
+    if (proximo === undefined || itens.length === 0) return;
+    event.preventDefault();
+    itens[(proximo + itens.length) % itens.length].focus();
+  }
+
+  /** Leva os marcados do destino para a turma escolhida na lista (e grava). */
+  moverMarcadosPara(codTurma: string): void {
+    this.menuMover.set(null);
+    const marcados = [...this.marcadosDestino()];
+    if (marcados.length > 0) this.mover(marcados, codTurma);
   }
 
   buscar(lado: Lado, texto: string): void {
@@ -833,23 +825,6 @@ export class VincularAlunosComponent {
   /** O botão de ordem: inverte o lado entre A a Z e Z a A. */
   alternarOrdem(lado: Lado): void {
     this.ordem.update((o) => ({ ...o, [lado]: o[lado] === 'az' ? 'za' : 'az' }));
-  }
-
-  /**
-   * Os marcados da origem entram na turma do destino e os marcados da turma voltam para a origem (sem
-   * turma), de uma vez.
-   */
-  trocarMarcados(): void {
-    const origem = this.origemId();
-    const destino = this.destinoId();
-    if (!origem || !destino) return;
-    const movidos = this.aplicarMovimentos([
-      { ras: [...this.marcadosOrigem()], para: destino },
-      { ras: [...this.marcadosDestino()], para: origem },
-    ]);
-    if (movidos.length === 0) return;
-    const titulo = `${qtdAlunos(movidos.length)} ${movidos.length === 1 ? 'trocado' : 'trocados'} entre ${this.nomeDaTurma(origem)} e ${this.nomeDaTurma(destino)}`;
-    this.avisarMovimento(titulo, [origem, destino]);
   }
 
   tentarDeNovo(): void {
@@ -903,57 +878,6 @@ export class VincularAlunosComponent {
     this.mover([...marcados], para);
   }
 
-  desfazer(ra: string): void {
-    this.atualizarMovidos((m) => m.delete(ra));
-    this.esquecerFalhas([ra]);
-  }
-
-  desfazerTudo(): void {
-    this.esquecerFalhas([...this.movidos().keys()]);
-    this.atualizarMovidos((m) => m.clear());
-    this.recemMovidos.set(new Set());
-  }
-
-  /**
-   * Grava os movimentos da unidade no MD de enturmação. Os que gravaram deixam de ser pendentes (o
-   * aluno fica na turma nova com a etiqueta "salvo"); os que falharam ficam, com a etiqueta "não
-   * salvou" e o motivo. "Sem turma" vai com a turma vazia: o back desfaz o movimento que ainda não
-   * foi importado (e recusa, dizendo por quê, se o aluno já tem turma na matrícula).
-   */
-  salvar(): void {
-    const filial = this.codFilial();
-    if (filial === null || !this.podeSalvar()) return;
-    const ano = this.anoLetivo();
-    const chave = this.chaveMovimentos();
-    const movimentos = this.pendentes().map((m) => ({ ra: m.aluno.id, codTurma: m.paraId === SEM_TURMA ? '' : m.paraId }));
-
-    this.salvando.set(movimentos.length);
-    this.alunosService.salvar(ano, filial, movimentos).subscribe({
-      next: (resultados) => {
-        this.salvando.set(0);
-        const gravados = resultados.filter((r) => r.situacao !== 'falhou').map((r) => r.ra);
-        const falharam = resultados.filter((r) => r.situacao === 'falhou');
-        this.atualizarMovidos((m) => gravados.forEach((ra) => m.delete(ra)), chave);
-        this.recemMovidos.set(new Set());
-        this.falhas.set(new Map(falharam.map((r): [string, string] => [r.ra, r.motivo ?? 'Não foi possível salvar.'])));
-        const qtd = `${gravados.length} ${gravados.length === 1 ? 'movimento salvo' : 'movimentos salvos'}`;
-        if (falharam.length === 0) {
-          this.toast.success(qtd);
-        } else {
-          this.toast.warning(
-            gravados.length > 0 ? `${qtd}; ${falharam.length} não` : 'Nenhum movimento gravado',
-            `${falharam[0].motivo ?? 'Não foi possível salvar.'}${falharam.length > 1 ? ' Os outros estão marcados como "não salvou" nos alunos.' : ''}`,
-          );
-        }
-      },
-      error: (erro: unknown) => {
-        this.salvando.set(0);
-        const mensagem = erro instanceof HttpErrorResponse && erro.status === 400 ? erro.error?.message : null;
-        this.toast.danger('Não foi possível salvar', typeof mensagem === 'string' && mensagem ? mensagem : 'Falha de comunicação com o servidor.');
-      },
-    });
-  }
-
   private limparSerie(): void {
     this.serie.set('');
     this.origemId.set(null);
@@ -966,6 +890,7 @@ export class VincularAlunosComponent {
     this.marcadosOrigem.set(new Set());
     this.marcadosDestino.set(new Set());
     this.recemMovidos.set(new Set());
+    this.menuMover.set(null);
   }
 
   private esquecerFalhas(ras: readonly string[]): void {
@@ -985,65 +910,105 @@ export class VincularAlunosComponent {
     });
   }
 
-  private mover(ras: string[], destinoId: string): void {
-    const movidos = this.aplicarMovimentos([{ ras, para: destinoId }]);
-    if (movidos.length === 0) return;
-    const titulo =
-      paraTurma(destinoId) === SEM_TURMA
-        ? `${qtdAlunos(movidos.length)} ${movidos.length === 1 ? 'tirado' : 'tirados'} da turma`
-        : `${qtdAlunos(movidos.length)} ${movidos.length === 1 ? 'movido' : 'movidos'} para ${this.nomeDaTurma(destinoId)}`;
-    this.avisarMovimento(titulo, [destinoId]);
+  /** Leva os alunos para a turma (ou, se for um período da origem, para "sem turma") e grava na hora. */
+  private mover(ras: readonly string[], destinoId: string): void {
+    if (!this.podeMover()) return;
+    const para = paraTurma(destinoId);
+    const chegando = this.aplicarMovimento(ras, para);
+    if (chegando.length > 0) this.gravar(chegando, para);
   }
 
   /**
-   * Leva cada grupo de alunos para a sua turma, todos de uma vez: a turma de onde cada um sai é a de
-   * antes de qualquer movimento (numa troca, um não atrapalha o outro). Ir para um período da origem é
-   * ficar sem turma. Devolve os que mudaram de turma.
+   * Põe os alunos na turma, na tela, enquanto a gravação não volta. Os que já estão nela ficam de
+   * fora. Devolve os que mudaram de turma.
    */
-  private aplicarMovimentos(grupos: readonly { ras: readonly string[]; para: string }[]): AlunoDaTela[] {
+  private aplicarMovimento(ras: readonly string[], para: string): Chegada[] {
     const porRa = new Map(this.alunosDaUnidade().map((a) => [a.id, a]));
-    const chegando = grupos.flatMap(({ ras, para: destino }) => {
-      const para = paraTurma(destino);
-      return ras.flatMap((ra) => {
-        const aluno = porRa.get(ra);
-        return aluno && this.turmaAtual(aluno) !== para ? [{ aluno, para }] : [];
-      });
+    const chegando = ras.flatMap((ra) => {
+      const aluno = porRa.get(ra);
+      return aluno && this.turmaAtual(aluno) !== para ? [{ aluno, para }] : [];
     });
     this.limparMarcados();
     if (chegando.length === 0) return [];
-    this.atualizarMovidos((m) =>
-      chegando.forEach(({ aluno, para }) => {
-        // Voltar para a turma do RM não é movimento: sai da lista.
-        if (para === (aluno.codTurmaOriginal ?? SEM_TURMA)) m.delete(aluno.id);
-        else m.set(aluno.id, para);
-      }),
-    );
-    const ras = chegando.map(({ aluno }) => aluno.id);
-    this.esquecerFalhas(ras);
-    this.recemMovidos.set(new Set(ras));
-    return chegando.map(({ aluno }) => aluno);
+    this.atualizarMovidos((m) => chegando.forEach(({ aluno }) => m.set(aluno.id, para)));
+    const movidos = chegando.map(({ aluno }) => aluno.id);
+    this.esquecerFalhas(movidos);
+    this.recemMovidos.set(new Set(movidos));
+    return chegando;
   }
 
-  /** O aviso do movimento: alerta se a sala de alguma das turmas passou das carteiras. */
-  private avisarMovimento(titulo: string, turmas: readonly string[]): void {
-    const passou = turmas
-      .map((id) => this.turmasDaSerie().find((t) => t.id === id))
-      .map((turma) => (turma ? { turma, lotacao: this.lotacao(turma, 0) } : null))
-      .find((x) => !!x?.lotacao && x.lotacao.alunos > x.lotacao.carteiras);
-    if (passou?.lotacao) {
-      const sala = turmas.length > 1 ? `A ${passou.turma.sala?.nome ?? 'sala'}` : 'A sala';
-      this.toast.warning(titulo, `${sala} passou das carteiras: ${passou.lotacao.alunos} alunos para ${passou.lotacao.carteiras}.`);
-    } else {
-      this.toast.success(titulo, 'Falta salvar: recarregar a página antes desfaz.');
-    }
+  /**
+   * Grava no MD de enturmação, na hora, os alunos que acabaram de mudar de turma (ficam pendentes até
+   * a enturmação ser importada no RM). Enquanto grava, a tela já os mostra na turma nova, debaixo do
+   * véu, e não deixa mover mais ninguém. Gravado, o aluno fica na turma nova (o service já o pôs nos
+   * pendentes do RM); se não gravou, volta para onde estava, com a etiqueta "não salvou" e o motivo.
+   * "Sem turma" vai com a turma vazia: o back desfaz o movimento que ainda não foi importado (e
+   * recusa, dizendo por quê, se o aluno já tem turma na matrícula).
+   */
+  private gravar(chegando: readonly Chegada[], para: string): void {
+    const filial = this.codFilial();
+    if (filial === null) return;
+    const chave = this.chaveMovimentos();
+    const ras = chegando.map(({ aluno }) => aluno.id);
+    // Gravado, vale o pendente do RM; não gravado, volta a turma de antes. Nos dois casos, sai daqui.
+    const tirarDaTela = () => this.atualizarMovidos((m) => ras.forEach((ra) => m.delete(ra)), chave);
+    const movimentos = ras.map((ra) => ({ ra, codTurma: para === SEM_TURMA ? '' : para }));
+
+    this.salvando.set(movimentos.length);
+    this.alunosService.salvar(this.anoLetivo(), filial, movimentos).subscribe({
+      next: (resultados) => {
+        this.salvando.set(0);
+        tirarDaTela();
+        const falharam = resultados.filter((r) => r.situacao === 'falhou');
+        this.falhas.set(new Map(falharam.map((r): [string, string] => [r.ra, r.motivo ?? 'Não foi possível salvar.'])));
+        const gravados = ras.length - falharam.length;
+        const titulo = this.rotuloDoMovimento(gravados, para);
+        if (falharam.length === 0) {
+          const excesso = this.excessoNaSala(para);
+          if (excesso) this.toast.warning(titulo, excesso);
+          else this.toast.success(titulo);
+          return;
+        }
+        const outros = falharam.length > 1 ? ' Os outros estão marcados como "não salvou".' : '';
+        this.toast.warning(
+          gravados > 0 ? `${titulo}; ${falharam.length} não` : 'Nenhum aluno foi movido',
+          `${falharam[0].motivo ?? 'Não foi possível salvar.'}${outros}`,
+        );
+      },
+      error: (erro: unknown) => {
+        this.salvando.set(0);
+        tirarDaTela();
+        const resposta = erro instanceof HttpErrorResponse && erro.status === 400 ? erro.error?.message : null;
+        const motivo = typeof resposta === 'string' && resposta ? resposta : 'Falha de comunicação com o servidor.';
+        this.falhas.set(new Map(ras.map((ra): [string, string] => [ra, motivo])));
+        const voltaram = ras.length === 1 ? 'O aluno voltou para onde estava.' : 'Os alunos voltaram para onde estavam.';
+        this.toast.danger('Não foi possível salvar', `${motivo} ${voltaram}`);
+      },
+    });
+  }
+
+  /** "2 alunos movidos para 3º Ano B - Manhã", "1 aluno tirado da turma". */
+  private rotuloDoMovimento(qtd: number, para: string): string {
+    return para === SEM_TURMA
+      ? `${qtdAlunos(qtd)} ${qtd === 1 ? 'tirado' : 'tirados'} da turma`
+      : `${qtdAlunos(qtd)} ${qtd === 1 ? 'movido' : 'movidos'} para ${this.nomeDaTurma(para)}`;
+  }
+
+  /**
+   * A sala da turma passou das carteiras (as turmas do turno na sala somam)? O aviso; null se não
+   * passou, se a turma não tem sala ou se a sala ainda não tem carteiras cadastradas.
+   */
+  private excessoNaSala(codTurma: string): string | null {
+    const sala = this.turmasDaSerie().find((t) => t.id === codTurma)?.sala;
+    if (!sala || sala.carteiras <= 0) return null;
+    const alunos = sala.turmasNoTurno.reduce((total, cod) => total + (this.alunosPorTurma().get(cod)?.length ?? 0), 0);
+    return alunos > sala.carteiras ? `A sala passou das carteiras: ${alunos} alunos para ${sala.carteiras}.` : null;
   }
 
   private painel(lado: Lado): PainelDaTurma | null {
     const id = lado === 'origem' ? this.origemId() : this.destinoId();
     const turma = (lado === 'origem' ? this.periodosDaSerie() : this.turmasDaSerie()).find((t) => t.id === id);
     if (!turma || this.estadoAlunos()?.estado !== 'pronto') return null;
-    // Os marcados do outro lado são os que podem vir para cá.
-    const vindo = lado === 'origem' ? this.marcadosDestino().size : this.marcadosOrigem().size;
     const alunos = this.alunosNaTurma(turma.id);
     const busca = this.busca()[lado].trim();
     return {
@@ -1052,37 +1017,8 @@ export class VincularAlunosComponent {
       alunos,
       visiveis: filtrarEOrdenar(alunos, busca, this.ordem()[lado]),
       busca,
-      lotacao: this.lotacao(turma, vindo),
+      dividemCom: (turma.sala?.turmasNoTurno ?? []).filter((c) => c !== turma.id).map((c) => this.nomeCurto(c)),
       marcados: lado === 'origem' ? this.marcadosOrigem().size : this.marcadosDestino().size,
-    };
-  }
-
-  /** A sala da turma no turno dela: todas as turmas do turno somam contra as carteiras. */
-  private lotacao(turma: TurmaDaSerie, vindo: number): Lotacao | null {
-    const sala = turma.sala;
-    if (!sala) return null;
-    const alunos = sala.turmasNoTurno.reduce((total, cod) => total + (this.alunosPorTurma().get(cod)?.length ?? 0), 0);
-    const previstos = alunos + vindo;
-    const limite = (sala.carteiras * this.regras.regrasDaFilial(sala.codFilial).pctMaximoUtilizacao) / 100;
-    // Sala sem carteiras cadastradas (comum no ano novo, antes de montar as salas): nem "Disponível"
-    // nem selo de vagas; com alunos, é excedida.
-    const semCarteiras = sala.carteiras <= 0;
-    const faixa = semCarteiras ? (previstos > 0 ? 'excedida' : 'quase') : faixaDe(previstos, sala.carteiras, limite);
-    const pct = (n: number) => (sala.carteiras > 0 ? Math.min(100, Math.round((n / sala.carteiras) * 100)) : 100);
-    const vagas = sala.carteiras - previstos;
-    return {
-      alunos,
-      carteiras: sala.carteiras,
-      previstos,
-      faixa,
-      rotulo: semCarteiras ? 'Sala sem carteiras cadastradas' : FAIXAS[faixa].rotulo,
-      icone: FAIXAS[faixa].icone,
-      vagas,
-      rotuloVagas: semCarteiras ? '' : rotuloDasVagas(vagas),
-      tom: FAIXAS[faixa].tom,
-      pct: pct(alunos),
-      pctPrevisto: pct(previstos),
-      dividemCom: sala.turmasNoTurno.filter((c) => c !== turma.id).map((c) => this.nomeCurto(c)),
     };
   }
 
@@ -1182,14 +1118,6 @@ function periodoDoAluno(serie: string, turno: string): string {
   if (parte.includes('manh')) return 'M';
   if (parte.includes('tarde')) return 'T';
   return ({ M: 'M', V: 'T', I: 'I' } as Record<string, string>)[tipo] ?? '?';
-}
-
-/** As carteiras que sobram na sala; passando delas, quantas faltam. */
-function rotuloDasVagas(vagas: number): string {
-  if (vagas > 1) return `${vagas} vagas`;
-  if (vagas === 1) return '1 vaga';
-  if (vagas === 0) return 'Sem vagas';
-  return vagas === -1 ? 'Falta 1 carteira' : `Faltam ${-vagas} carteiras`;
 }
 
 /**
