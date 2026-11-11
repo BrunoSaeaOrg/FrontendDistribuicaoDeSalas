@@ -68,6 +68,14 @@
 .ns-unidade-seta {
   color: var(--saea-ink-faint);
 }
+/* "Cadastrar uma sala nova", acima das pré-criadas: borda tracejada para não parecer uma delas. */
+.ns-unidade--nova {
+  border-style: dashed;
+}
+/* Pré-criada sem andar no RM: não dá para incluir até cadastrar. */
+.ns-sem-andar {
+  color: var(--saea-danger);
+}
 
 /* ------------------------------------------------------------------ formulário --- */
 
@@ -131,6 +139,10 @@ saea-alert {
 }
 .ns-campos saea-alert {
   margin-top: 0;
+}
+/* O aviso da pré-criada sem andar fica acima dos campos. */
+saea-alert.ns-aviso-topo {
+  margin: 0 0 var(--sp-4);
 }
 .ns-tentar {
   margin-top: var(--sp-3);

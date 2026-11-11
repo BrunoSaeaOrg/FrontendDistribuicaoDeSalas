@@ -225,7 +225,10 @@ export class OcupacaoApiService {
     });
   }
 
-  /** Plano da cópia de um ano letivo para outro: o que cada sala e turma vira no destino (não grava). */
+  /**
+   * Plano da cópia de um ano letivo para outro: o que cada sala vira no destino (não grava). Com
+   * `anoDestino` vazio, só as salas da origem, como "sem-destino".
+   */
   getPlanoCopiaAno(codUsuario: string, anoOrigem: string, anoDestino: string): Observable<ApiCopiaAnoPlanoDto> {
     return this.http.post<ApiCopiaAnoPlanoDto>(`${this.baseUrl}/OC_SAL_COPIAR_ANO_PLANO`, {
       CODUSUARIO: codUsuario,
@@ -269,6 +272,7 @@ export class OcupacaoApiService {
       CAPACIDADE: sala.capacidade,
       CARTEIRAS: sala.carteiras,
       ANOS: sala.anos,
+      EXISTENTE: sala.existente,
     });
   }
 }

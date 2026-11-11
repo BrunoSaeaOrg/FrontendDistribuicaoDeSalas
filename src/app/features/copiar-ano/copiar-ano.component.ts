@@ -22,8 +22,8 @@ import { NovaSalaComponent } from './nova-sala/nova-sala.component';
 /** Salas por chamada de OC_SAL_COPIAR_ANO_SALAS: nenhuma chamada fica longa. */
 export const SALAS_POR_LOTE = 10;
 
-/** O que a sala marcada grava no destino; "destino" é a sala que só o ano de destino tem (nada a copiar). */
-export type EstadoSala = 'nova' | 'muda' | 'igual' | 'falhou' | 'destino';
+/** O que a sala marcada grava no destino; "sem-destino" é a lista antes de escolher o "Para" (nada a copiar ainda). */
+export type EstadoSala = 'nova' | 'muda' | 'igual' | 'falhou' | 'sem-destino';
 
 /** O que a cópia faz com a sala, na dica da linha (a tabela só tem as colunas da sala). */
 const SELO: Record<EstadoSala, { tom: BadgeTone; texto: (destino: string) => string }> = {
@@ -31,7 +31,7 @@ const SELO: Record<EstadoSala, { tom: BadgeTone; texto: (destino: string) => str
   muda: { tom: 'warning', texto: () => 'Carteiras diferentes' },
   igual: { tom: 'success', texto: () => 'Igual' },
   falhou: { tom: 'danger', texto: () => 'Não gravou' },
-  destino: { tom: 'info', texto: (d) => `Só em ${d}` },
+  'sem-destino': { tom: 'info', texto: () => 'Escolha o ano de destino para copiar' },
 };
 
 /** Uma sala da lista: os registros de carteiras dela. */
@@ -84,8 +84,10 @@ function chaveDoRegistro(s: ApiCopiaSalaDto): string {
 
 /**
  * Salas por ano: copia salas de um ano letivo para outro (ex.: 2026 → 2027), uma tela só. Ao
- * escolher os anos, a tela lê o plano (OC_SAL_COPIAR_ANO_PLANO, que só lê o RM) e lista as salas
- * de cada unidade, que é uma filial do RM (o campo Unidade deixa só as marcadas na tela, sem reler o RM); a pessoa marca as salas (ou
+ * escolher o ano de origem, a tela lê o plano (OC_SAL_COPIAR_ANO_PLANO, que só lê o RM) e lista as
+ * salas dele (só as dele: a sala que só o destino tem não entra); sem o ano de destino, a lista vem
+ * sem nada para marcar. As salas ficam por unidade, que é uma filial do RM (o campo Unidade deixa
+ * só as marcadas na tela, sem reler o RM); com os dois anos, a pessoa marca as salas (ou
  * todas) e Copiar grava só as marcadas que estão na tela: o registro de
  * carteiras e capacidade da sala (OC_SAL_COPIAR_ANO_SALAS, em lotes). Depois relê o plano: o que
  * gravou vira "Igual" e o que falhou fica marcado para copiar de novo. As turmas não vão junto: as
@@ -129,7 +131,12 @@ export class CopiarAnoComponent {
     ...this.salasService.anosLetivos().map((ano) => ({ value: ano, label: ano })),
   ]);
 
-  readonly anosValidos = computed(() => !!this.anoOrigem() && !!this.anoDestino() && this.anoOrigem() !== this.anoDestino());
+  /** O "Para" ainda vazio: a lista é só das salas da origem, sem nada para marcar. */
+  readonly semDestino = computed(() => !this.anoDestino());
+
+  readonly textoLendo = computed(() =>
+    this.semDestino() ? `Lendo ${this.anoOrigem()} no RM...` : `Lendo ${this.anoOrigem()} e ${this.anoDestino()} no RM...`,
+  );
 
   readonly plano = signal<ApiCopiaAnoPlanoDto | null>(null);
   readonly lendo = signal(false);
@@ -144,7 +151,7 @@ export class CopiarAnoComponent {
   private leitura = 0;
 
   constructor() {
-    // Trocar os anos relê as salas (só leitura). A seleção é dos anos que estavam na tela.
+    // Trocar os anos relê as salas (só leitura); basta o de origem para listar. A seleção é dos anos que estavam na tela.
     effect(() => {
       const origem = this.anoOrigem();
       const destino = this.anoDestino();
@@ -204,8 +211,8 @@ export class CopiarAnoComponent {
           ? 'nova'
           : registros.some((r) => r.situacao === 'atualizar')
             ? 'muda'
-            : registros.every((r) => r.situacao === 'so-no-destino')
-              ? 'destino'
+            : registros.every((r) => r.situacao === 'sem-destino')
+              ? 'sem-destino'
               : 'igual';
       const muda = registros.find((r) => r.situacao === 'atualizar');
       return {
@@ -296,7 +303,9 @@ export class CopiarAnoComponent {
   readonly marcadas = computed(() => this.linhas().filter((l) => this.selecionadas().has(l.chave)));
   readonly algumaMarcada = computed(() => this.marcadas().length > 0);
   readonly temSalas = computed(() => this.linhas().length > 0);
-  readonly tudoIgual = computed(() => this.temSalas() && this.selecionaveis().length === 0 && !this.uiMode.readOnlyMode());
+  readonly tudoIgual = computed(
+    () => this.temSalas() && !this.semDestino() && this.selecionaveis().length === 0 && !this.uiMode.readOnlyMode(),
+  );
   readonly textoTudoIgual = computed(() => {
     const salas = this.daUnidade() ? `as salas ${this.daUnidade()}` : 'as salas';
     return `Todas ${salas} em ${this.anoDestino()} já estão iguais às de ${this.anoOrigem()}.`;
@@ -428,11 +437,14 @@ export class CopiarAnoComponent {
     this.toast.success('Cópia concluída', `${plural(salas, 'sala copiada', 'salas copiadas')} para ${destino}.`);
   }
 
-  /** Lê o plano dos dois anos (só leitura). Anos inválidos limpam a lista. */
+  /**
+   * Lê o plano (só leitura). Sem destino, vêm só as salas da origem; sem origem ou com o mesmo ano
+   * nos dois, a lista fica vazia.
+   */
   private async ler(origem: string, destino: string): Promise<void> {
     const leitura = ++this.leitura;
     this.erroLeitura.set(null);
-    if (!origem || !destino || origem === destino) {
+    if (!origem || origem === destino) {
       this.plano.set(null);
       this.lendo.set(false);
       return;

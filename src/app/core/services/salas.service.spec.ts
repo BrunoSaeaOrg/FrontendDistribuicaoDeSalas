@@ -4,7 +4,20 @@ import { of, Subject } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { OcupacaoApiService } from './ocupacao-api.service';
 import { RegrasService } from './regras.service';
-import { SalasService, serieDaTurma } from './salas.service';
+import { motivoDaFalha, SalasService, serieDaTurma } from './salas.service';
+
+describe('motivoDaFalha', () => {
+  it('usa a mensagem do backend; na validação do ASP.NET, diz os campos em vez do título em inglês', () => {
+    expect(motivoDaFalha({ error: { message: 'O RM não criou a sala.' } })).toBe('O RM não criou a sala.');
+    const validacao = (errors: Record<string, string[]>) => ({ error: { title: 'One or more validation errors occurred.', errors } });
+    expect(motivoDaFalha(validacao({ ANDAR: ['The ANDAR field is required.'] }))).toBe('O servidor recusou o pedido: o campo ANDAR veio inválido.');
+    expect(motivoDaFalha(validacao({ ANDAR: ['x'], DESCRICAO: ['y'] }))).toBe(
+      'O servidor recusou o pedido: os campos ANDAR, DESCRICAO vieram inválidos.',
+    );
+    expect(motivoDaFalha({ error: { title: 'Erro qualquer' } })).toBe('Erro qualquer');
+    expect(motivoDaFalha(null)).toBe('Não foi possível contatar o servidor.');
+  });
+});
 
 describe('SalasService.trocandoAno', () => {
   it('cobre a tela só enquanto carrega um ano que ainda não está nela', () => {

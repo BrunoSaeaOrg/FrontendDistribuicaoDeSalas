@@ -20,6 +20,7 @@ import {
   ApiSalaNovaLocalDto,
   ApiSalaNovaOpcoesDto,
   ApiSalaNovaUnidadeDto,
+  ApiSalaPreCriadaDto,
   SalaNovaPedido,
 } from '../../../core/models/ocupacao-api.model';
 import { OcupacaoApiService } from '../../../core/services/ocupacao-api.service';
@@ -43,6 +44,17 @@ export interface UnidadeParaEscolher {
   nomeNoRm: string;
   salas: number;
   anos: string[];
+}
+
+/** Uma sala pré-criada na escolha: o nome e as duas linhas de apoio. */
+export interface PreCriadaParaEscolher {
+  chave: string;
+  sala: ApiSalaPreCriadaDto;
+  nome: string;
+  detalhe: string;
+  anos: string;
+  /** O andar é obrigatório e vem do cadastro do RM: sem ele, a sala não pode ser incluída. */
+  semAndar: boolean;
 }
 
 /** "01" e "1" são o mesmo prédio ou bloco: o RM escreve dos dois jeitos. */
@@ -79,6 +91,12 @@ const inteiroEntre = (texto: string, minimo: number, maximo: number): number | n
  * de carteiras e capacidade, o mesmo da cópia). Sugere o código (o próximo número da unidade), o
  * nome ("SALA 45"), a capacidade pela área e a regra da unidade e as carteiras iguais à capacidade;
  * tudo pode ser trocado. As opções vêm do RM a cada vez que abre, para o código nunca se repetir.
+ *
+ * Se a unidade tem salas pré-criadas (do pedagógico, no cadastro, mas fora de algum ano), a pessoa
+ * escolhe uma delas ou uma sala nova. Na pré-criada o modal só tem capacidade, carteiras e anos
+ * (código, nome, andar, tipo e área são do cadastro e não aparecem; o nome vai no título): os
+ * números vêm do ano mais recente em que ela já está (ou do cadastro) e podem ser trocados, e os
+ * anos são só os que faltam. Nada é criado no cadastro: ela só entra nos anos marcados.
  */
 @Component({
   selector: 'app-nova-sala',
@@ -114,6 +132,10 @@ export class NovaSalaComponent {
   readonly erroLeitura = signal<string | null>(null);
 
   readonly codFilial = signal<number | null>(null);
+  /** Unidade com salas pré-criadas: antes do formulário, a pessoa escolhe uma delas ou uma sala nova. */
+  readonly escolhendoSala = signal(false);
+  /** A pré-criada escolhida; null = sala nova. */
+  readonly preCriada = signal<ApiSalaPreCriadaDto | null>(null);
   readonly local = signal('');
   readonly codigo = signal('');
   private readonly nomeDigitado = signal<string | null>(null);
@@ -173,6 +195,30 @@ export class NovaSalaComponent {
     return (this.unidade()?.salas ?? []).filter((s) => chaveDoLocal(s) === local);
   });
 
+  /** As pré-criadas da unidade, na ordem do nome ("SALA 2" antes de "SALA 10"). */
+  readonly preCriadas = computed<PreCriadaParaEscolher[]>(() =>
+    (this.unidade()?.preCriadas ?? [])
+      .map((s) => ({
+        chave: `${chaveDoLocal(s)}|${s.codSala}`,
+        sala: s,
+        nome: s.sala || `Sala ${s.codSala}`,
+        detalhe: [s.tipoSala, s.andar ? nomeDoAndar(s.andar) : '', `código ${s.codSala}`].filter(Boolean).join(' · '),
+        anos: `Falta em ${s.faltam.join(', ')}` + (s.jaEsta.length ? ` · já está em ${s.jaEsta.join(', ')}` : ''),
+        semAndar: !s.andar.trim(),
+      }))
+      .sort((a, b) => COMPARADOR.compare(a.nome, b.nome)),
+  );
+
+  /** Sala já cadastrada no RM (pré-criada): o modal só mostra capacidade, carteiras e anos. */
+  readonly doCadastro = computed(() => this.preCriada() !== null);
+  /** Pré-criada sem andar no cadastro do RM: o andar é obrigatório, então ela não pode ser incluída. */
+  readonly semAndarNoCadastro = computed(() => {
+    const pre = this.preCriada();
+    return pre !== null && !pre.andar.trim();
+  });
+  /** Os anos para marcar: na pré-criada, só os que faltam. */
+  readonly anosParaMarcar = computed(() => this.preCriada()?.faltam ?? this.unidade()?.anos ?? []);
+
   readonly andarOptions: SaeaSelectOption[] = ANDARES.map((a) => ({ value: a, label: nomeDoAndar(a) }));
   readonly tipoOptions = computed<SaeaSelectOption[]>(() =>
     (this.opcoes()?.tipos ?? []).map((t) => ({ value: String(t.codTipoSala), label: t.nome })),
@@ -190,10 +236,40 @@ export class NovaSalaComponent {
   readonly capacidade = computed(() => this.capacidadeDigitada() ?? (this.capacidadeSugerida()?.toString() ?? ''));
   readonly carteiras = computed(() => this.carteirasDigitadas() ?? this.capacidade());
 
+  /** De onde vieram os números da pré-criada: "Como em 2027" ou "Do cadastro do RM". */
+  private readonly origemDosNumeros = computed(() => {
+    const ano = this.preCriada()?.anoDosNumeros;
+    return ano ? `Como em ${ano}` : 'Do cadastro do RM';
+  });
+  readonly ajudaCapacidade = computed(() => {
+    const pre = this.preCriada();
+    if (pre?.capacidade != null) return this.origemDosNumeros();
+    if (pre) {
+      // A área não aparece no modal da pré-criada: o texto diz qual é.
+      return this.capacidadeSugerida() !== null
+        ? `Pela área do cadastro (${this.area()} m²) e a regra da unidade`
+        : 'O RM não tem a capacidade nem a área desta sala';
+    }
+    return this.capacidadeSugerida() !== null
+      ? `Pela área: ${this.textoAreaPorAluno()} m² por aluno (regra da unidade)`
+      : 'Com a área, sai pela regra da unidade';
+  });
+  readonly ajudaCarteiras = computed(() =>
+    this.preCriada()?.carteiras != null ? this.origemDosNumeros() : 'Começa igual à capacidade',
+  );
+
   readonly erros = computed<Partial<Record<CampoDaSala, string>>>(() => {
     const erros: Partial<Record<CampoDaSala, string>> = {};
     const unidade = this.unidade();
     if (!unidade) return erros;
+    if (this.preCriada()) {
+      // Os campos do cadastro não aparecem: só os do ano são da pessoa. O andar tem de vir do RM.
+      if (this.semAndarNoCadastro()) erros.andar = 'A sala não tem andar no cadastro do RM.';
+      if (inteiroEntre(this.capacidade(), 1, MAXIMO_DE_LUGARES) === null) erros.capacidade = `De 1 a ${MAXIMO_DE_LUGARES} lugares.`;
+      if (inteiroEntre(this.carteiras(), 0, MAXIMO_DE_LUGARES) === null) erros.carteiras = `De 0 a ${MAXIMO_DE_LUGARES}.`;
+      if (this.anos().size === 0) erros.anos = 'Marque pelo menos um ano.';
+      return erros;
+    }
     if (!this.localEscolhido()) erros.local = unidade.locais.length ? 'Escolha o prédio e o bloco.' : 'A unidade não tem prédio e bloco no RM.';
     const codigo = this.codigo().trim().toUpperCase();
     const repetida = this.salasDoLocal().find((s) => s.codSala.trim().toUpperCase() === codigo);
@@ -219,13 +295,58 @@ export class NovaSalaComponent {
     return this.mostrarErros() || (campo === 'codigo' && erro?.startsWith('Já existe')) ? erro : null;
   }
 
-  readonly titulo = computed(() => (this.unidade() ? `Nova sala na ${this.nomeDaUnidade()}` : 'Nova sala'));
+  readonly titulo = computed(() => {
+    const pre = this.preCriada();
+    if (pre) return `${pre.sala || `Sala ${pre.codSala}`} na ${this.nomeDaUnidade()}`;
+    return this.unidade() ? `Nova sala na ${this.nomeDaUnidade()}` : 'Nova sala';
+  });
 
   escolherUnidade(codFilial: number): void {
     const unidade = this.opcoes()?.unidades.find((u) => u.codFilial === codFilial);
     if (!unidade) return;
     this.codFilial.set(codFilial);
     this.regras.carregarFiliais([codFilial]);
+    this.prepararSalaNova(unidade);
+    this.escolhendoSala.set(unidade.preCriadas.length > 0);
+  }
+
+  /** Na escolha das salas da unidade: a pré-criada vem preenchida com o que o RM já tem. */
+  escolherPreCriada(sala: ApiSalaPreCriadaDto): void {
+    const unidade = this.unidade();
+    if (!unidade) return;
+    this.preCriada.set(sala);
+    this.escolhendoSala.set(false);
+    this.local.set(chaveDoLocal(sala));
+    this.codigo.set(sala.codSala);
+    this.nomeDigitado.set(sala.sala);
+    this.andar.set(sala.andar || null);
+    this.tipo.set(String(sala.codTipoSala));
+    this.area.set(sala.area !== null ? String(sala.area).replace('.', ',') : '');
+    // Sem capacidade no RM, sai pela área (como na sala nova); sem carteiras, igual à capacidade.
+    this.capacidadeDigitada.set(sala.capacidade !== null ? String(sala.capacidade) : null);
+    this.carteirasDigitadas.set(sala.carteiras !== null ? String(sala.carteiras) : null);
+    this.anos.set(new Set(this.anoInicial(sala.faltam)));
+    this.mostrarErros.set(false);
+    this.erroDoRm.set(null);
+  }
+
+  /** Na escolha das salas da unidade: cadastrar uma sala que o RM ainda não tem. */
+  cadastrarNova(): void {
+    const unidade = this.unidade();
+    if (!unidade) return;
+    this.prepararSalaNova(unidade);
+    this.escolhendoSala.set(false);
+  }
+
+  /** Do formulário de volta para a escolha das salas da unidade. */
+  voltarParaSalas(): void {
+    this.escolhendoSala.set(true);
+    this.erroDoRm.set(null);
+  }
+
+  /** O formulário da sala nova com as sugestões: código, nome, sala de aula e o ano da tela. */
+  private prepararSalaNova(unidade: ApiSalaNovaUnidadeDto): void {
+    this.preCriada.set(null);
     const local = unidade.locais[0];
     this.local.set(local ? chaveDoLocal(local) : '');
     this.codigo.set(sugerirCodigo(local ? unidade.salas.filter((s) => chaveDoLocal(s) === chaveDoLocal(local)) : unidade.salas));
@@ -237,15 +358,22 @@ export class NovaSalaComponent {
     this.area.set('');
     this.capacidadeDigitada.set(null);
     this.carteirasDigitadas.set(null);
-    const sugerido = this.anoSugerido();
-    const ano = unidade.anos.includes(sugerido) ? sugerido : unidade.anos.at(-1);
-    this.anos.set(new Set(ano ? [ano] : []));
+    this.anos.set(new Set(this.anoInicial(unidade.anos)));
     this.mostrarErros.set(false);
     this.erroDoRm.set(null);
   }
 
+  /** O ano que já vem marcado: o da tela, se está entre os possíveis; senão, o último deles. */
+  private anoInicial(possiveis: string[]): string[] {
+    const sugerido = this.anoSugerido();
+    const ano = possiveis.includes(sugerido) ? sugerido : possiveis.at(-1);
+    return ano ? [ano] : [];
+  }
+
   trocarUnidade(): void {
     this.codFilial.set(null);
+    this.preCriada.set(null);
+    this.escolhendoSala.set(false);
     this.erroDoRm.set(null);
   }
 
@@ -293,21 +421,24 @@ export class NovaSalaComponent {
     if (this.criando()) return;
     this.mostrarErros.set(true);
     const unidade = this.unidade();
-    const local = this.localEscolhido();
+    const pre = this.preCriada();
+    // A pré-criada vai como o RM a tem (prédio, bloco e código do cadastro).
+    const local = pre ?? this.localEscolhido();
     if (!unidade || !local || Object.keys(this.erros()).length > 0) return;
 
     const pedido: SalaNovaPedido = {
       codFilial: unidade.codFilial,
       codPredio: local.codPredio,
       codBloco: local.codBloco,
-      codSala: this.codigo().trim().toUpperCase(),
+      codSala: pre ? pre.codSala : this.codigo().trim().toUpperCase(),
       descricao: this.nome().trim(),
       codTipoSala: Number(this.tipo()),
-      andar: this.andar()!,
+      andar: this.andar() ?? '',
       area: lerNumero(this.area()),
       capacidade: inteiroEntre(this.capacidade(), 1, MAXIMO_DE_LUGARES)!,
       carteiras: inteiroEntre(this.carteiras(), 0, MAXIMO_DE_LUGARES)!,
       anos: [...this.anos()].sort(),
+      existente: pre !== null,
     };
 
     this.criando.set(true);
@@ -329,11 +460,18 @@ export class NovaSalaComponent {
     const entrou = criada.anos.filter((a) => a.situacao !== 'falhou').map((a) => a.ano);
     const faltou = criada.anos.filter((a) => a.situacao === 'falhou');
     const onde = `${criada.sala} na ${this.nomeDaUnidade()}`;
+    const motivos = faltou.map((a) => `${a.ano}: ${a.erro ?? 'o RM não confirmou'}`).join(' · ');
+    if (this.preCriada()) {
+      // A pré-criada já estava no cadastro: só conta em que anos entrou.
+      if (faltou.length === 0) this.toast.success('Sala incluída', `${onde}, em ${entrou.join(' e ')}.`);
+      else if (entrou.length) this.toast.warning(`Sala incluída, mas fora de ${faltou.map((a) => a.ano).join(' e ')}`, `${onde} entrou em ${entrou.join(' e ')}. Não entrou em ${motivos}`);
+      else this.toast.warning('A sala não entrou em nenhum ano', `${onde}. Não entrou em ${motivos}`);
+      return;
+    }
     if (faltou.length === 0) {
       this.toast.success('Sala criada', `${onde}, em ${entrou.join(' e ')}.`);
       return;
     }
-    const motivos = faltou.map((a) => `${a.ano}: ${a.erro ?? 'o RM não confirmou'}`).join(' · ');
     this.toast.warning(
       entrou.length ? `Sala criada, mas fora de ${faltou.map((a) => a.ano).join(' e ')}` : 'Sala criada, mas sem ano letivo',
       `${onde} está no cadastro do RM${entrou.length ? ` e em ${entrou.join(' e ')}` : ''}. Não entrou em ${motivos}`,
@@ -342,6 +480,8 @@ export class NovaSalaComponent {
 
   private async abrir(): Promise<void> {
     this.codFilial.set(null);
+    this.preCriada.set(null);
+    this.escolhendoSala.set(false);
     this.erroDoRm.set(null);
     this.mostrarErros.set(false);
     await this.lerOpcoes();

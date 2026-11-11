@@ -66,11 +66,15 @@ export interface TransferenciaEmAndamento {
 
 /**
  * Texto da falha de gravação: o backend devolve a causa (ex.: "O RM não gravou o vínculo: ...") em
- * `message`; erro de validação do ASP.NET vem como ProblemDetails, com o texto em `title`.
+ * `message`. Erro de validação do ASP.NET vem como ProblemDetails, com o título em inglês ("One or
+ * more validation errors occurred.") e os campos em `errors`: a tela diz quais campos foram recusados.
  */
 export function motivoDaFalha(err: unknown): string {
-  const corpo = (err as { error?: { message?: string; title?: string } } | null)?.error;
-  return corpo?.message ?? corpo?.title ?? 'Não foi possível contatar o servidor.';
+  const corpo = (err as { error?: { message?: string; title?: string; errors?: Record<string, unknown> } } | null)?.error;
+  if (corpo?.message) return corpo.message;
+  const campos = Object.keys(corpo?.errors ?? {});
+  if (campos.length) return `O servidor recusou o pedido: ${campos.length === 1 ? 'o campo' : 'os campos'} ${campos.join(', ')} ${campos.length === 1 ? 'veio inválido' : 'vieram inválidos'}.`;
+  return corpo?.title ?? 'Não foi possível contatar o servidor.';
 }
 
 /** Turma a vincular; com `salaAtual`, ela está em outra sala e será movida. */

@@ -112,17 +112,48 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
     expect(celulas(1)).toEqual(['Centro', '1º andar', 'Sala 2', 'Sala de aula', '25 → 30', '28 → 33']);
   });
 
-  it('a sala que só o ano de destino tem (ex.: Nova sala) aparece com "Só em 2027" e sem como marcar', async () => {
-    const fixture = await criar(plano([sala(1), { ...sala(9, 'so-no-destino'), id: '1|2|200|1|1|1|9' }]));
+  it('só com o "Copiar de" já lista as salas dele, sem como marcar até escolher o "Para"', async () => {
+    // 2027 é o último ano do RM: o "Para" abre vazio.
+    anoLetivo.set('2027');
+    const fixture = await criar(plano([sala(1, 'sem-destino'), sala(2, 'sem-destino')]));
     const tela = fixture.componentInstance;
     const el = fixture.nativeElement as HTMLElement;
 
-    const nova = tela.grupos()[0].linhas.find((l) => l.nome === 'Sala 9')!;
-    expect([nova.estado, nova.selo.texto, nova.aGravar]).toEqual(['destino', 'Só em 2027', 0]);
-    expect(tela.grupos()[0].selecionaveis).toEqual([chave(1)]);
-    const linha = [...el.querySelectorAll('tr.ca-sala')].find((tr) => tr.textContent?.includes('Sala 9'))!;
-    expect(linha.querySelector('.ca-so-destino')?.textContent?.trim()).toBe('Só em 2027');
-    expect(linha.classList.contains('ca-sala--igual')).toBe(false);
+    expect([tela.anoOrigem(), tela.anoDestino()]).toEqual(['2027', '']);
+    expect(api.getPlanoCopiaAno).toHaveBeenCalledExactlyOnceWith('bruno', '2027', '');
+    expect(tela.grupos()[0].linhas.map((l) => [l.nome, l.estado, l.aGravar])).toEqual([
+      ['Sala 1', 'sem-destino', 0],
+      ['Sala 2', 'sem-destino', 0],
+    ]);
+    expect(tela.selecionaveis()).toEqual([]);
+    expect(tela.tudoIgual()).toBe(false);
+    expect(texto(fixture)).toContain('Escolha o ano em "Para" para marcar as salas que vão ser copiadas.');
+    expect(texto(fixture)).not.toContain('já estão iguais');
+    // A sala sem destino não fica apagada como "igual".
+    expect(el.querySelectorAll('tr.ca-sala--igual').length).toBe(0);
+
+    // Escolhido o "Para", relê com os dois anos e as salas ficam para marcar.
+    api.getPlanoCopiaAno.mockReturnValue(of(plano([sala(1), sala(2, 'ja-existe')])));
+    tela.escolherDestino('2026');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(api.getPlanoCopiaAno).toHaveBeenLastCalledWith('bruno', '2027', '2026');
+    expect(tela.selecionaveis()).toEqual([chave(1)]);
+    expect(texto(fixture)).not.toContain('Escolha o ano em "Para"');
+  });
+
+  it('sem o "Copiar de" não lê nada e pede o ano', async () => {
+    const fixture = await criar(plano([sala(1)]));
+    const tela = fixture.componentInstance;
+
+    tela.escolherOrigem('');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(api.getPlanoCopiaAno).toHaveBeenCalledTimes(1);
+    expect(tela.plano()).toBeNull();
+    expect(texto(fixture)).toContain('Escolha o ano');
   });
 
   it('trocar o ano relê as salas; o mesmo ano nos dois não lê nada', async () => {

@@ -116,8 +116,8 @@ export type ApiSituacaoCopiaAno =
   | 'ja-existe'
   | 'sem-periodo'
   | 'periodo-ambiguo'
-  /** Sala que só o ano de destino tem (ex.: criada pela Nova sala): a tela mostra, não há o que copiar. */
-  | 'so-no-destino'
+  /** Plano sem ano de destino (a pessoa ainda não escolheu o "Para"): a sala só é listada. */
+  | 'sem-destino'
   | 'criada'
   | 'atualizada'
   | 'falhou';
@@ -240,6 +240,31 @@ export interface ApiSalaNovaUnidadeDto {
   anos: string[];
   locais: ApiSalaNovaLocalDto[];
   salas: ApiSalaCadastradaDto[];
+  /** Salas do pedagógico que já estão no cadastro do RM e faltam em algum ano da unidade. */
+  preCriadas: ApiSalaPreCriadaDto[];
+}
+
+/**
+ * Sala pré-criada (OC_SAL_SALA_NOVA_OPCOES): do pedagógico, no cadastro do RM, mas fora de algum
+ * ano letivo da unidade. A Nova sala só a coloca nos anos, com os dados do cadastro.
+ */
+export interface ApiSalaPreCriadaDto {
+  codPredio: string;
+  codBloco: string;
+  codSala: string;
+  sala: string;
+  /** "T" (térreo) ou o número do andar. */
+  andar: string;
+  codTipoSala: number;
+  tipoSala: string;
+  area: number | null;
+  /** Do ano mais recente em que a sala já está (`anoDosNumeros`) ou, sem nenhum, do cadastro; null = o RM não tem. */
+  capacidade: number | null;
+  carteiras: number | null;
+  /** O ano de onde vieram capacidade e carteiras; null = do cadastro. */
+  anoDosNumeros: string | null;
+  jaEsta: string[];
+  faltam: string[];
 }
 
 export interface ApiTipoSalaDto {
@@ -268,6 +293,8 @@ export interface SalaNovaPedido {
   capacidade: number;
   carteiras: number;
   anos: string[];
+  /** Sala pré-criada: já está no cadastro, só ganha o registro dos anos (nome, andar, tipo e área do pedido não valem). */
+  existente: boolean;
 }
 
 /** Como a sala ficou em cada ano pedido: "incluida", "ja-existe" ou "falhou" (com o motivo). */

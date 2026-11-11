@@ -7,7 +7,7 @@
       'As turmas não vão junto: as de cada ano entram nas salas pela tela Salas → Turmas.'
     "
   >
-    <app-carregando [ativo]="lendo()" [texto]="'Lendo ' + anoOrigem() + ' e ' + anoDestino() + ' no RM...'" />
+    <app-carregando [ativo]="lendo()" [texto]="textoLendo()" />
 
     <div class="ca-barra">
       <div class="ca-escolhas">
@@ -50,8 +50,8 @@
     <div class="ca-corpo saea-scroll">
       @if (anoOrigem() && anoOrigem() === anoDestino()) {
         <app-empty-state icon="event_repeat" title="Escolha dois anos diferentes" description="O ano de destino precisa ser outro." />
-      } @else if (!anosValidos()) {
-        <app-empty-state icon="event" title="Escolha os anos" description="De qual ano para qual as salas vão ser copiadas." />
+      } @else if (!anoOrigem()) {
+        <app-empty-state icon="event" title="Escolha o ano" description="De qual ano as salas vão ser copiadas." />
       } @else if (erroLeitura()) {
         <app-empty-state icon="cloud_off" title="Não foi possível ler as salas" [description]="erroLeitura() ?? ''">
           <app-button action variant="secondary" (clicked)="tentarDeNovo()">Tentar de novo</app-button>
@@ -67,8 +67,13 @@
           <app-empty-state icon="meeting_room" [title]="'Nenhuma sala em ' + anoOrigem()" description="Não há salas para copiar nesse ano." />
         }
       } @else if (plano()) {
-        @if (tudoIgual()) {
-          <p class="ca-tudo-igual">
+        @if (semDestino() && !uiMode.readOnlyMode()) {
+          <p class="ca-aviso">
+            <span class="material-icons" aria-hidden="true">info</span>
+            Escolha o ano em "Para" para marcar as salas que vão ser copiadas.
+          </p>
+        } @else if (tudoIgual()) {
+          <p class="ca-aviso ca-aviso--ok">
             <span class="material-icons" aria-hidden="true">check_circle</span>
             {{ textoTudoIgual() }}
           </p>
@@ -113,7 +118,7 @@
                 <tr
                   class="ca-sala"
                   [class.ca-sala--marcada]="selecionadas().has(linha.chave)"
-                  [class.ca-sala--igual]="!linha.aGravar && !linha.erro && linha.estado !== 'destino'"
+                  [class.ca-sala--igual]="linha.estado === 'igual'"
                   [title]="linha.selo.texto"
                 >
                   <td class="ca-col-marca">
@@ -127,13 +132,7 @@
                   <td class="ca-cel-suave">{{ linha.unidade }}</td>
                   <td class="ca-cel-suave">{{ linha.andar }}</td>
                   <td>
-                    <span class="ca-nome">
-                      {{ linha.nome }}
-                      @if (linha.estado === 'destino') {
-                        <!-- Sala que só o ano de destino tem (ex.: criada pela Nova sala): nada a copiar. -->
-                        <span class="ca-so-destino">Só em {{ anoDestino() }}</span>
-                      }
-                    </span>
+                    <span class="ca-nome">{{ linha.nome }}</span>
                     @if (linha.erro) {
                       <span class="ca-erro">{{ linha.erro }}</span>
                     }
