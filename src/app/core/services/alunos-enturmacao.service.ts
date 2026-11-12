@@ -96,9 +96,7 @@ export class AlunosEnturmacaoService {
 
   /** Lê os alunos se ainda não vieram, falharam antes ou já estão velhos; com eles, as turmas e os pendentes. */
   garantir(ano: string, codFilial: number): void {
-    const atual = this.estado(ano, codFilial);
-    const lerAlunos = atual?.estado !== 'carregando' && !(atual?.estado === 'pronto' && Date.now() - atual.lidoEm < VALIDADE_MS);
-    if (lerAlunos) this.ler(ano, codFilial);
+    const lerAlunos = this.garantirAlunos(ano, codFilial);
     // Alunos relidos, turmas e pendentes relidos: alguém pode ter criado uma turma ou importado a
     // enturmação nesse meio-tempo.
     const turmas = this.turmas(ano, codFilial)?.estado;
@@ -107,6 +105,17 @@ export class AlunosEnturmacaoService {
     if (pendentes !== 'carregando' && (lerAlunos || pendentes === undefined || pendentes === 'erro')) this.lerPendentes(ano, codFilial);
     const importados = this.importados(ano, codFilial)?.estado;
     if (importados !== 'carregando' && (lerAlunos || importados === undefined || importados === 'erro')) this.lerImportados(ano, codFilial);
+  }
+
+  /**
+   * Só os alunos (sem turmas, pendentes e importados), se ainda não vieram, falharam antes ou já estão
+   * velhos: a Planta usa para pôr as fotos nas carteiras. Devolve se mandou ler.
+   */
+  garantirAlunos(ano: string, codFilial: number): boolean {
+    const atual = this.estado(ano, codFilial);
+    const lerAlunos = atual?.estado !== 'carregando' && !(atual?.estado === 'pronto' && Date.now() - atual.lidoEm < VALIDADE_MS);
+    if (lerAlunos) this.ler(ano, codFilial);
+    return lerAlunos;
   }
 
   /** A foto do aluno (data URL), se já chegou; null = sem foto ou ainda não veio. */

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-export type BadgeTone = 'success' | 'warning' | 'danger' | 'info';
+/** `neutral`: cinza, para o que está fora de uso (ex.: sala indisponível), distinto dos status de lotação. */
+export type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
 @Component({
   selector: 'app-badge',

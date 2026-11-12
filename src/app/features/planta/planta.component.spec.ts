@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { of, Subject } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { RegrasOcupacao } from '../../core/models';
-import { ApiSalaDoAnoDto } from '../../core/models/ocupacao-api.model';
+import { ApiAlunoEnturmacaoDto, ApiSalaDoAnoDto, ApiTurmaDto, ApiTurmaXSalaDto } from '../../core/models/ocupacao-api.model';
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
 import { RegrasService } from '../../core/services/regras.service';
 import { SalasService } from '../../core/services/salas.service';
@@ -48,6 +48,8 @@ describe('PlantaComponent: limite da regra de ocupação', () => {
             getTurmas: () => of([]),
             getAnosLetivos: () => of([]),
             transferirCarteira: transferir,
+            getAlunosEnturmacao: () => of([]),
+            getFotosEnturmacao: () => of({}),
           },
         },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
@@ -311,5 +313,116 @@ describe('PlantaComponent: limite da regra de ocupação', () => {
       expect(planta.pedidoJustificativaInfo()).toBeNull();
       expect(el.querySelector('.saea-carregando')).toBeNull();
     });
+  });
+});
+
+describe('PlantaComponent: fotos dos alunos nas carteiras', () => {
+  let getAlunos: ReturnType<typeof vi.fn>;
+
+  // Sala 1 de manhã: o 3º A (2 alunos) e o 3º A Semi-Manhã (1) dividem a sala; 12 carteiras.
+  const vinculo: ApiTurmaXSalaDto = {
+    ...sala('1', 12),
+    UNIDADE: 'CASJ',
+    ANOLETIVO: '2026',
+    CODTURMA: 'EF3A-M',
+    TURMA: '3º Ano A - Manhã',
+    TURNO: 'Manhã',
+    OCUPACAO: 3,
+    COMPOSICAO: 'EF3A-M (2) + EF3A-SM (1)',
+  };
+  const turma = (codTurma: string, nome: string, ocupacao: number): ApiTurmaDto => ({
+    ANOLETIVO: '2026',
+    IDPERLET: 222,
+    CODFILIAL: 2,
+    UNIDADE: 'CASJ',
+    SEGMENTO: 'Anos Iniciais',
+    CODTURMA: codTurma,
+    TURMA: nome,
+    TURNO: 'Manhã',
+    OCUPACAO: ocupacao,
+  });
+  const aluno = (ra: string, nome: string, codTurma: string | null): ApiAlunoEnturmacaoDto => ({
+    ra,
+    nome,
+    codFilial: 2,
+    segmento: 'Anos Iniciais',
+    codCurso: '2',
+    codHabilitacao: '3',
+    serie: '3º Ano - Ensino Fundamental - Manhã - EF I',
+    codTurma,
+    turno: 'M',
+    novo: false,
+    serieAnterior: null,
+    turmaAnterior: null,
+    dataMatricula: null,
+    obs: null,
+  });
+
+  function criar() {
+    // Fora de ordem; o Davi é do 3º B (outra sala) e a Eva ainda não tem turma.
+    getAlunos = vi.fn(() =>
+      of([aluno('3', 'Carla', 'EF3A-SM'), aluno('1', 'Ana', 'EF3A-M'), aluno('2', 'Bruno', 'EF3A-M'), aluno('4', 'Davi', 'EF3B-M'), aluno('5', 'Eva', null)]),
+    );
+    TestBed.configureTestingModule({
+      imports: [PlantaComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: OcupacaoApiService,
+          useValue: {
+            getSalasDoAno: () => of([sala('1', 12)]),
+            getTurmasXSalas: () => of([vinculo]),
+            getTurmas: () => of([turma('EF3A-M', '3º Ano A - Manhã', 2), turma('EF3A-SM', '3º Ano A - Semi-Manhã', 1)]),
+            getAnosLetivos: () => of([]),
+            getAlunosEnturmacao: getAlunos,
+            // O Bruno (RA 2) não tem foto: fica com as iniciais.
+            getFotosEnturmacao: (_ano: string, _filial: number, ras: string[]) =>
+              of(Object.fromEntries(ras.filter((ra) => ra !== '2').map((ra) => [ra, `data:image/jpeg;base64,` + ra]))),
+          },
+        },
+        { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
+        {
+          provide: RegrasService,
+          useValue: { regrasDaFilial: () => ({ areaPorAluno: 1.5, pctMaximoUtilizacao: 90, permitirExcesso: false }), carregarFiliais: () => {} },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(PlantaComponent);
+    fixture.detectChanges();
+    TestBed.tick();
+    fixture.detectChanges();
+    return { fixture, planta: fixture.componentInstance };
+  }
+
+  it('as carteiras ocupadas mostram os alunos das turmas da sala no turno, em ordem alfabética, com a foto', () => {
+    const { fixture, planta } = criar();
+
+    expect(getAlunos).toHaveBeenCalledWith(expect.any(String), 2);
+    const ocupadas = planta.deskSlots().filter((d) => d.aluno);
+    expect(ocupadas.map((d) => [d.kind, d.aluno!.nome])).toEqual([
+      ['aluno', 'Ana'],
+      ['aluno', 'Bruno'],
+      ['aluno', 'Carla'],
+    ]);
+    expect(ocupadas.map((d) => d.aluno!.foto)).toEqual(['data:image/jpeg;base64,1', null, 'data:image/jpeg;base64,3']);
+    expect(ocupadas[2].tooltip).toBe('Carla · RA 3 · 3º Ano A - Semi-Manhã');
+    // A 4ª carteira é vaga: sem aluno.
+    expect(planta.deskSlots()[3]).toMatchObject({ kind: 'vaga', aluno: null });
+    const el = fixture.nativeElement as HTMLElement;
+    // A foto ocupa a carteira inteira; sem foto, as iniciais.
+    expect([...el.querySelectorAll('.planta-desk--com-aluno img.planta-desk-foto')].map((i) => i.getAttribute('src'))).toEqual([
+      'data:image/jpeg;base64,1',
+      'data:image/jpeg;base64,3',
+    ]);
+    expect(el.querySelector('.planta-desk--com-aluno .planta-desk-iniciais')?.textContent?.trim()).toBe('B');
+  });
+
+  it('à tarde a sala não tem turma: nenhuma foto', () => {
+    const { fixture, planta } = criar();
+    planta.turno.set('tarde');
+    fixture.detectChanges();
+
+    expect(planta.deskSlots().some((d) => d.aluno)).toBe(false);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.planta-desk--com-aluno')).toBeNull();
   });
 });

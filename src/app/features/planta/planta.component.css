@@ -265,6 +265,30 @@
   color: #fff;
   border: 1px solid var(--saea-primary-strong);
 }
+/* Carteira com o aluno: a foto ocupa o quadro inteiro, sem borda, com os cantos da carteira. */
+.planta-desk--com-aluno {
+  padding: 0;
+  border: none;
+  overflow: hidden;
+}
+.planta-desk-foto {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Sem foto: as iniciais em branco no fundo da carteira ocupada, como na Pré-enturmação. */
+.planta-desk-iniciais {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.planta-fotos-aviso {
+  margin: var(--sp-3) 0 0;
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
 .planta-desk--vaga {
   background: var(--saea-chip-bg);
   color: var(--saea-ink-soft);

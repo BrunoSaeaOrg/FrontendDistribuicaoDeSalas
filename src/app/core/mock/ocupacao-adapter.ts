@@ -146,6 +146,7 @@ function criarSala(dto: ApiSalaDto): Sala {
     codBloco: dto.CODBLOCO,
     codPredio: dto.CODPREDIO,
     codSala: dto.CODSALA,
+    motivoIndisponivel: dto.MOTIVO?.trim() || null,
   };
 }
 

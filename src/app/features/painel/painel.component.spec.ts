@@ -1,11 +1,12 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ApiSalaDoAnoDto, ApiTurmaDto, ApiTurmaXSalaDto } from '../../core/models/ocupacao-api.model';
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
 import { RegrasService } from '../../core/services/regras.service';
+import { ToastService } from '../../core/services/toast.service';
 import { PainelComponent } from './painel.component';
 
 // Sala 17 do CASJ em 2026: 28 alunos de manhã e 24 à tarde, capacidade 30 e limite de 90%.
@@ -159,11 +160,119 @@ describe('PainelComponent: filtro de turno', () => {
 
   it('o filtro de status usa o status do turno escolhido', () => {
     const painel = criar().componentInstance;
-    painel.status.set('quase');
+    painel.status.set(['quase']);
     expect(painel.rows()).toHaveLength(1);
 
     // À tarde a Sala 17 tem 24 de 30: não está quase lotada.
     painel.turno.set('tarde');
     expect(painel.rows()).toHaveLength(0);
+  });
+
+  it('o filtro de status aceita vários status marcados; nenhum marcado mostra todas as salas', () => {
+    const painel = criar().componentInstance;
+    const todas = painel.rows().length;
+
+    painel.status.set(['excedida']);
+    expect(painel.rows()).toHaveLength(0);
+    painel.status.set(['excedida', 'quase']);
+    expect(painel.rows().map((r) => r.statusKey)).toEqual(['quase']);
+
+    painel.status.set([]);
+    expect(painel.rows()).toHaveLength(todas);
+  });
+});
+
+describe('PainelComponent: sala indisponível', () => {
+  let definir: ReturnType<typeof vi.fn>;
+
+  function criar(salas: ApiSalaDoAnoDto[], falhar = false) {
+    definir = vi.fn((req: { motivo: string }) =>
+      falhar ? throwError(() => ({ error: { message: 'O RM recusou.' } })) : of({ motivo: req.motivo.trim() || null }),
+    );
+    TestBed.configureTestingModule({
+      imports: [PainelComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: OcupacaoApiService,
+          useValue: {
+            getSalasDoAno: () => of(salas),
+            getTurmasXSalas: () => of([manha]),
+            getTurmas: () => of([turma('EF4A-M', '4º Ano A - Manhã', 'Manhã', 28)]),
+            getAnosLetivos: () => of([]),
+            definirIndisponibilidade: definir,
+          },
+        },
+        { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
+        { provide: RegrasService, useValue: { regrasDaFilial: () => ({ areaPorAluno: 1.5, pctMaximoUtilizacao: 90, permitirExcesso: false }), carregarFiliais: () => {} } },
+      ],
+    });
+    const fixture = TestBed.createComponent(PainelComponent);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  const emReforma: ApiSalaDoAnoDto = { ...sala, CODSALA: '18', SALA: 'Sala 18', MOTIVO: '  Em reforma até março.  ' };
+  const porNome = (painel: PainelComponent, nome: string) => painel.rows().find((r) => r.nome === nome)!;
+
+  it('a sala com motivo fica indisponível: status próprio no filtro, linha cinza, selo e motivo', () => {
+    const fixture = criar([sala, emReforma]);
+    const painel = fixture.componentInstance;
+
+    expect([porNome(painel, 'Sala 17').statusKey, porNome(painel, 'Sala 17').motivo]).toEqual(['quase', null]);
+    expect([porNome(painel, 'Sala 18').statusKey, porNome(painel, 'Sala 18').motivo]).toEqual(['indisponivel', 'Em reforma até março.']);
+    expect(painel.statusOptions.map((o) => o.label)).toContain('Indisponível');
+
+    painel.status.set(['indisponivel']);
+    expect(painel.rows().map((r) => r.nome)).toEqual(['Sala 18']);
+    fixture.detectChanges();
+    const linha = (fixture.nativeElement as HTMLElement).querySelector('tbody tr')!;
+    expect(linha.classList).toContain('painel-row--indisponivel');
+    expect(linha.textContent).toContain('Indisponível');
+    expect(linha.textContent).toContain('Em reforma até março.');
+    expect(linha.textContent).toContain('Alterar motivo');
+  });
+
+  it('marcar indisponível grava o motivo e a sala muda na hora; tornar disponível apaga o motivo', () => {
+    const fixture = criar([sala]);
+    const painel = fixture.componentInstance;
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('tbody tr')!.textContent).toContain('Marcar indisponível');
+
+    painel.abrirMotivo(painel.rows()[0]);
+    expect([painel.dialogoMotivo(), painel.motivo()]).toEqual([true, '']);
+    painel.motivo.set('Interditada para pintura');
+    painel.salvarMotivo();
+
+    expect(definir).toHaveBeenCalledWith(
+      expect.objectContaining({ codUsuario: 'bruno', codFilial: 2, codBloco: '1', codPredio: '1', codSala: '17', motivo: 'Interditada para pintura' }),
+    );
+    expect([painel.rows()[0].statusKey, painel.rows()[0].motivo]).toEqual(['indisponivel', 'Interditada para pintura']);
+    expect(painel.dialogoMotivo()).toBe(false);
+
+    // Reaberto, vem com o motivo de agora; "Tornar disponível" apaga.
+    painel.abrirMotivo(painel.rows()[0]);
+    expect(painel.motivo()).toBe('Interditada para pintura');
+    painel.tornarDisponivel();
+    expect(definir).toHaveBeenLastCalledWith(expect.objectContaining({ codSala: '17', motivo: '' }));
+    expect([painel.rows()[0].statusKey, painel.rows()[0].motivo]).toEqual(['quase', null]);
+  });
+
+  it('sem motivo não grava; se o RM recusa, avisa e a sala fica como estava', () => {
+    const fixture = criar([sala], true);
+    const painel = fixture.componentInstance;
+    const perigo = vi.spyOn(TestBed.inject(ToastService), 'danger');
+
+    painel.abrirMotivo(painel.rows()[0]);
+    painel.motivo.set('   ');
+    painel.salvarMotivo();
+    expect(definir).not.toHaveBeenCalled();
+
+    painel.motivo.set('Interditada');
+    painel.salvarMotivo();
+    expect(perigo).toHaveBeenCalledWith('Não foi possível gravar', 'O RM recusou.');
+    expect(painel.rows()[0].motivo).toBeNull();
+    // O diálogo continua aberto, com o motivo, para tentar de novo.
+    expect([painel.dialogoMotivo(), painel.motivo()]).toEqual([true, 'Interditada']);
   });
 });

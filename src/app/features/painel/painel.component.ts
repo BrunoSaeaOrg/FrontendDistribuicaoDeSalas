@@ -1,9 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import {
+  SaeaButtonComponent,
+  SaeaDialogComponent,
+  SaeaDialogFooterDirective,
+  SaeaTruncateComponent,
+} from '@sistemas-saea/saea-design-system';
 import { nomeDoAndar, Turno, unidadeNoFiltro } from '../../core/models';
-import { SalasService } from '../../core/services/salas.service';
-import { BadgeTone } from '../../shared/ui/badge/badge.component';
+import { motivoDaFalha, SalasService } from '../../core/services/salas.service';
+import { ToastService } from '../../core/services/toast.service';
+import { UiModeService } from '../../core/services/ui-mode.service';
+import { BadgeComponent, BadgeTone } from '../../shared/ui/badge/badge.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
@@ -45,18 +53,29 @@ interface PainelRow {
   /** Manhã e Tarde, nessa ordem. */
   periodos: PeriodoCell[];
   /**
-   * Status da sala no turno do filtro ou, em "Todos os turnos", no mais cheio (o pior dos dois).
-   * Não tem coluna própria (as letras de Turmas mostram cada turno): serve ao filtro de Status.
+   * Status da sala no turno do filtro ou, em "Todos os turnos", no mais cheio (o pior dos dois);
+   * "indisponivel" quando a sala está indisponível no ano. Não tem coluna própria (as letras de
+   * Turmas mostram cada turno): serve ao filtro de Status.
    */
   statusKey: string;
   turnoChips: TurnoChip[];
+  /** Por que a sala está indisponível no ano (MOTIVO do PRJ4087040); null = disponível. */
+  motivo: string | null;
 }
+
+/** Tamanho do campo MOTIVO no PRJ4087040 (varchar 500). */
+export const TAMANHO_MOTIVO = 500;
 
 @Component({
   selector: 'app-painel',
   standalone: true,
   imports: [
     FormsModule,
+    SaeaButtonComponent,
+    SaeaDialogComponent,
+    SaeaDialogFooterDirective,
+    SaeaTruncateComponent,
+    BadgeComponent,
     CardComponent,
     CarregandoComponent,
     EmptyStateComponent,
@@ -71,11 +90,16 @@ interface PainelRow {
 export class PainelComponent {
   private readonly salasService = inject(SalasService);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
+  /** Só quem edita marca a sala como indisponível (ou disponível de novo). */
+  readonly uiMode = inject(UiModeService);
+  readonly tamanhoMotivo = TAMANHO_MOTIVO;
 
   /** Unidades marcadas (cada uma é uma filial do RM, ex.: "CASJ 1"); nenhuma = todas. */
   readonly unidades = signal<string[]>([]);
   readonly turno = signal('todas');
-  readonly status = signal('todas');
+  /** Status marcados no filtro (Disponível, Quase lotada, Excedida); nenhum = todos. */
+  readonly status = signal<string[]>([]);
   readonly busca = signal('');
 
   /**
@@ -109,11 +133,12 @@ export class PainelComponent {
     { value: 'manha', label: 'Manhã' },
     { value: 'tarde', label: 'Tarde' },
   ];
-  readonly statusOptions: SelectOption[] = [
-    { value: 'todas', label: 'Todos os status' },
+  /** Os status do filtro, com checkbox: marcar vários mostra as salas de qualquer um deles. */
+  readonly statusOptions: MultiSelectOption[] = [
     { value: 'disponivel', label: 'Disponível' },
     { value: 'quase', label: 'Quase lotada' },
     { value: 'excedida', label: 'Excedida' },
+    { value: 'indisponivel', label: 'Indisponível' },
   ];
 
   /** Turno do filtro; undefined em "Todos os turnos" (vale o turno mais cheio de cada sala). */
@@ -178,8 +203,10 @@ export class PainelComponent {
         carteiras: s.carteiras,
         capacidade: cap,
         periodos,
-        statusKey: this.salasService.statusInfo(s, turno).key,
+        // Indisponível no ano vale mais que a lotação: é o status que o filtro mostra.
+        statusKey: s.motivoIndisponivel ? 'indisponivel' : this.salasService.statusInfo(s, turno).key,
         turnoChips,
+        motivo: s.motivoIndisponivel?.trim() || null,
       };
     });
   });
@@ -198,7 +225,7 @@ export class PainelComponent {
         return chip?.hasTurma;
       });
     }
-    if (status !== 'todas') rows = rows.filter((r) => r.statusKey === status);
+    if (status.length > 0) rows = rows.filter((r) => status.includes(r.statusKey));
     if (busca) {
       rows = rows.filter(
         (r) => r.nome.toLowerCase().includes(busca) || r.unidadeNome.toLowerCase().includes(busca),
@@ -215,5 +242,59 @@ export class PainelComponent {
 
   verPlanta(row: PainelRow): void {
     this.router.navigate(['planta'], { queryParams: { unidade: row.unidadeId, sala: row.id } });
+  }
+
+  // ------------------------------------------------------------- indisponibilidade ---
+
+  /** A sala do diálogo do motivo (aberto quando não é null). */
+  readonly salaDoMotivo = signal<PainelRow | null>(null);
+  /** O saea-dialog abre e fecha por aqui ([(open)]); fechar limpa a sala. */
+  readonly dialogoMotivo = signal(false);
+  readonly motivo = signal('');
+  readonly gravandoMotivo = signal(false);
+
+  readonly tituloMotivo = computed(() => `Sala indisponível · ${this.salaDoMotivo()?.nome ?? ''}`);
+
+  /** Abre o diálogo da sala: com o motivo de agora, se ela já está indisponível. */
+  abrirMotivo(row: PainelRow): void {
+    this.salaDoMotivo.set(row);
+    this.motivo.set(row.motivo ?? '');
+    this.dialogoMotivo.set(true);
+  }
+
+  fecharMotivo(): void {
+    if (this.gravandoMotivo()) return;
+    this.dialogoMotivo.set(false);
+    this.salaDoMotivo.set(null);
+  }
+
+  /** Grava o motivo: a sala fica indisponível no ano letivo em uso. */
+  salvarMotivo(): void {
+    const motivo = this.motivo().trim();
+    if (motivo) this.gravarMotivo(motivo);
+  }
+
+  /** Apaga o motivo: a sala volta a ficar disponível no ano. */
+  tornarDisponivel(): void {
+    this.gravarMotivo('');
+  }
+
+  private gravarMotivo(motivo: string): void {
+    const row = this.salaDoMotivo();
+    const sala = row && this.salasService.salas().find((s) => s.id === row.id);
+    if (!row || !sala || this.gravandoMotivo()) return;
+    this.gravandoMotivo.set(true);
+    this.salasService.definirIndisponibilidade(sala, motivo).subscribe({
+      next: (gravado) => {
+        this.gravandoMotivo.set(false);
+        this.fecharMotivo();
+        if (gravado) this.toast.success(`${row.nome} está indisponível`, `Em ${this.anoLetivo()}: ${gravado}`);
+        else this.toast.success(`${row.nome} está disponível de novo`, `Em ${this.anoLetivo()}.`);
+      },
+      error: (err) => {
+        this.gravandoMotivo.set(false);
+        this.toast.danger('Não foi possível gravar', motivoDaFalha(err));
+      },
+    });
   }
 }

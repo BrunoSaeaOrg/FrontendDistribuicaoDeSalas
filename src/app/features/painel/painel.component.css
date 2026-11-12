@@ -195,6 +195,99 @@
   cursor: pointer;
   white-space: nowrap;
 }
+/* A ação de indisponibilidade fica ao lado do "Ver planta", mais discreta. */
+.painel-link--suave {
+  color: var(--saea-ink-soft);
+  font-weight: 500;
+}
+.painel-link--suave:hover {
+  color: var(--saea-ink);
+}
+.painel-acoes {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+}
+
+/*
+ * Sala indisponível no ano: a linha em cinza (os status de lotação são verde, laranja e vermelho),
+ * o selo "Indisponível" e o motivo embaixo do nome.
+ */
+.painel-row--indisponivel td {
+  background: color-mix(in srgb, var(--saea-ink-faint) 14%, transparent);
+}
+.painel-indisp {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: var(--sp-1);
+  font-weight: 400;
+}
+.painel-indisp-motivo {
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+
+/* O diálogo do motivo: o mesmo campo de várias linhas da justificativa da Planta. */
+.painel-motivo-texto {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+}
+.painel-motivo-campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.painel-motivo-rotulo {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--saea-ink);
+}
+.painel-motivo-obrigatorio {
+  margin-left: 2px;
+  color: var(--saea-danger);
+}
+/* Só para leitor de tela: quem vê tem o "*". */
+.painel-so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.painel-motivo-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 96px;
+  resize: vertical;
+  font-size: var(--fs-md, var(--fs-sm));
+  font-family: var(--font-body);
+  line-height: 1.4;
+  color: var(--saea-ink);
+  background: var(--saea-surface);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3) var(--sp-4);
+  outline: none;
+  transition:
+    border-color var(--dur-short) var(--ease-out),
+    box-shadow var(--dur-short) var(--ease-out);
+}
+.painel-motivo-textarea:focus {
+  border-color: var(--saea-primary);
+  box-shadow: var(--saea-focus-ring);
+}
+.painel-motivo-ajuda {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
 
 /* No layout mobile, chips de unidade e "Ver planta" com a altura mínima de toque. */
 @media (max-width: 880px) {

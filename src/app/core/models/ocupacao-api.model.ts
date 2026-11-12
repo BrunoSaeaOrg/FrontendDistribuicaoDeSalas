@@ -15,6 +15,11 @@ export interface ApiSalaDto {
   CAPACIDADE: number;
   CAPACIDADEMAXIMA: number;
   AREA: number;
+  /**
+   * Por que a sala está indisponível no ano (MOTIVO do PRJ4087040); vazio = disponível. Só vem de
+   * OC_SAL_SALAS_ANO, quando a API.OC.SAL.PERIO traz a coluna.
+   */
+  MOTIVO?: string | null;
 }
 
 /**
@@ -216,23 +221,30 @@ export interface ApiEnturmacaoImportadoDto {
 }
 
 /** Situação do registro no MD de enturmação que ainda não foi importado: IMPORTADO 0 ou 2. */
-export type ApiSituacaoEnturmacao = 'pendente' | 'requer-revisao';
-
 /**
- * Aluno da tela Enturmação (OC_SAL_ENTUR_PARA_IMPORTAR): o registro dele no MD está Pendente ou
- * Requer Revisão. Nome e série vêm da pré-enturmação; null = fora da matrícula do ano na unidade.
+ * Aluno da tela Enturmação (OC_SAL_ENTUR_PARA_IMPORTAR): está numa turma da pré-enturmação e
+ * pendente de importação (Requer Revisão fica de fora). Nome e série vêm da pré-enturmação.
  */
 export interface ApiEnturmacaoParaImportarDto {
   ra: string;
-  nome: string | null;
+  nome: string;
   /** "5º Ano - Ensino Fundamental - Manhã - EF I". */
-  serie: string | null;
+  serie: string;
   codTurma: string;
-  /** "3º Ano A - Manhã"; fora do cadastro de turmas, o código. */
+  /** "3º Ano A - Manhã". */
   nomeTurma: string;
-  situacao: ApiSituacaoEnturmacao;
-  /** O motivo da revisão, quando há (OBS do registro). */
-  obs: string | null;
+}
+
+/**
+ * O que a FV de importação ("EDU - Enturmação") fez com os alunos enviados (OC_SAL_ENTUR_IMPORTAR):
+ * importado, requer-revisao (com o motivo em obs) ou pendente (a FV ainda não passou por ele).
+ */
+export interface ApiEnturmacaoImportacaoDto {
+  /** false = passou do tempo de espera e o RM ainda está processando. */
+  concluido: boolean;
+  alunos: { ra: string; situacao: 'importado' | 'requer-revisao' | 'pendente'; obs: string | null }[];
+  /** O que a FV registrou na execução ("Alunos enturmados" / "Alunos NÃO enturmados"); null = sem mensagem. */
+  logDaFv?: string | null;
 }
 
 /**

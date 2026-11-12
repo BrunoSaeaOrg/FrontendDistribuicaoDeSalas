@@ -13,23 +13,21 @@ import { EnturmacaoComponent } from './enturmacao.component';
 const TERCEIRO = '3º Ano - Ensino Fundamental - Manhã - EF I';
 const QUINTO = '5º Ano - Ensino Fundamental - Manhã - EF I';
 
-const aluno = (ra: string, nome: string | null, codTurma: string, extra: Partial<ApiEnturmacaoParaImportarDto> = {}): ApiEnturmacaoParaImportarDto => ({
+const aluno = (ra: string, nome: string, codTurma: string, extra: Partial<ApiEnturmacaoParaImportarDto> = {}): ApiEnturmacaoParaImportarDto => ({
   ra,
   nome,
-  serie: nome === null ? null : TERCEIRO,
+  serie: TERCEIRO,
   codTurma,
   nomeTurma: `Turma ${codTurma}`,
-  situacao: 'pendente',
-  obs: null,
   ...extra,
 });
 
-// Fora de ordem, como o back manda. O RA 9 saiu da unidade no ano: vem sem nome nem série.
+// Fora de ordem, como o back manda: só os pendentes numa turma da pré-enturmação.
 const ALUNOS = [
   aluno('3', 'Carla', 'EF3A-M'),
   aluno('1', 'Ana', 'EF3A-M'),
-  aluno('2', 'Bruno', 'EF5A-M', { serie: QUINTO, situacao: 'requer-revisao', obs: 'Duas matrículas no ano.' }),
-  aluno('9', null, 'EF3B-M'),
+  aluno('2', 'Bruno', 'EF5A-M', { serie: QUINTO }),
+  aluno('9', 'Davi', 'EF3B-M'),
 ];
 
 const UNIDADES: Unidade[] = [
@@ -41,6 +39,7 @@ describe('EnturmacaoComponent', () => {
   let fixture: ComponentFixture<EnturmacaoComponent>;
   let tela: EnturmacaoComponent;
   let getLista: ReturnType<typeof vi.fn>;
+  let importar: ReturnType<typeof vi.fn>;
   let confirmar: ReturnType<typeof vi.fn>;
   let toast: { info: ReturnType<typeof vi.fn>; success: ReturnType<typeof vi.fn>; warning: ReturnType<typeof vi.fn>; danger: ReturnType<typeof vi.fn> };
   const anoLetivo = signal('2027');
@@ -48,6 +47,7 @@ describe('EnturmacaoComponent', () => {
   function montar(resposta: () => Observable<ApiEnturmacaoParaImportarDto[]> = () => of(ALUNOS)): void {
     anoLetivo.set('2027');
     getLista = vi.fn(resposta);
+    importar = vi.fn();
     confirmar = vi.fn(async () => true);
     toast = { info: vi.fn(), success: vi.fn(), warning: vi.fn(), danger: vi.fn() };
     TestBed.configureTestingModule({
@@ -57,6 +57,7 @@ describe('EnturmacaoComponent', () => {
           useValue: {
             getParaImportarEnturmacao: getLista,
             getFotosEnturmacao: vi.fn(() => of({})),
+            importarEnturmacao: importar,
           },
         },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'fulano' }) } },
@@ -89,26 +90,20 @@ describe('EnturmacaoComponent', () => {
 
   const nomes = () => tela.visiveis().map((a) => a.nome);
 
-  it('só lê ao escolher a unidade; a lista vem em ordem alfabética, com as abas contando cada situação', () => {
+  it('só lê ao escolher a unidade; a lista vem em ordem alfabética, com a série sem o nível e o turno', () => {
     montar();
     expect(getLista).not.toHaveBeenCalled();
 
     abrir();
 
     expect(getLista).toHaveBeenCalledWith('fulano', '2027', 2);
-    expect(nomes()).toEqual(['Ana', 'Bruno', 'Carla', 'Sem matrícula ativa no ano']);
-    expect(tela.abas().map((t) => t.label)).toEqual(['Todos (4)', 'Pendentes (3)', 'Requer revisão (1)']);
-    const semMatricula = tela.visiveis().find((a) => a.id === '9')!;
-    expect([semMatricula.semMatricula, semMatricula.serie]).toEqual([true, '—']);
+    expect(nomes()).toEqual(['Ana', 'Bruno', 'Carla', 'Davi']);
+    expect(tela.visiveis().map((a) => a.serie)).toEqual(['3º Ano', '5º Ano', '3º Ano', '3º Ano']);
   });
 
-  it('a aba, a busca (sem acento, ou RA) e a série filtram; as abas contam dentro da série', () => {
+  it('a busca (sem acento, ou RA) e a série filtram', () => {
     montar();
     abrir();
-
-    tela.escolherAba('requer-revisao');
-    expect(nomes()).toEqual(['Bruno']);
-    tela.escolherAba('todos');
 
     tela.busca.set('CÁRLA');
     expect(nomes()).toEqual(['Carla']);
@@ -118,8 +113,7 @@ describe('EnturmacaoComponent', () => {
 
     expect(tela.serieOptions().map((o) => o.label)).toEqual(['Todas as séries', '3º Ano - Ensino Fundamental', '5º Ano - Ensino Fundamental']);
     tela.selecionarSerie('3º Ano - Ensino Fundamental');
-    expect(nomes()).toEqual(['Ana', 'Carla']);
-    expect(tela.abas().map((t) => t.label)).toEqual(['Todos (2)', 'Pendentes (2)', 'Requer revisão (0)']);
+    expect(nomes()).toEqual(['Ana', 'Carla', 'Davi']);
   });
 
   it('a turma filtra; as turmas listadas são as da série, e trocar para outra série solta a turma', () => {
@@ -134,12 +128,11 @@ describe('EnturmacaoComponent', () => {
     ]);
     tela.selecionarTurma('EF3A-M');
     expect(nomes()).toEqual(['Ana', 'Carla']);
-    expect(tela.abas().map((t) => t.label)).toEqual(['Todos (2)', 'Pendentes (2)', 'Requer revisão (0)']);
 
     // A turma é do 3º ano: continua escolhida na série dela.
     tela.selecionarSerie('3º Ano - Ensino Fundamental');
     expect(tela.turma()).toBe('EF3A-M');
-    expect(tela.turmaOptions().map((o) => o.value)).toEqual(['', 'EF3A-M']);
+    expect(tela.turmaOptions().map((o) => o.value)).toEqual(['', 'EF3A-M', 'EF3B-M']);
 
     // No 5º ano ela não existe: volta para todas as turmas.
     tela.selecionarSerie('5º Ano - Ensino Fundamental');
@@ -147,49 +140,89 @@ describe('EnturmacaoComponent', () => {
     expect(nomes()).toEqual(['Bruno']);
   });
 
-  it('marca um a um, todos os da lista pelo cabeçalho ou todos os pendentes; o resumo conta alunos e turmas', () => {
+  it('marca um a um ou todos os da lista pelo cabeçalho (que também desmarca); o resumo conta alunos e turmas', () => {
     montar();
     abrir();
     expect(tela.resumoDaSelecao()).toBe('Nenhum aluno marcado');
 
     tela.definirMarcado('1', true);
     expect(tela.resumoDaSelecao()).toBe('1 aluno marcado · 1 turma');
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Limpar seleção');
 
     tela.limparMarcados();
-    tela.marcarPendentes();
-    // Os que requerem revisão ficam de fora.
-    expect(tela.alunosMarcados().map((a) => a.id)).toEqual(['1', '3', '9']);
-    expect(tela.resumoDaSelecao()).toBe('3 alunos marcados · 2 turmas');
+    tela.alternarVisiveis(true);
+    expect(tela.alunosMarcados().map((a) => a.id)).toEqual(['1', '2', '3', '9']);
+    expect(tela.resumoDaSelecao()).toBe('4 alunos marcados · 3 turmas');
+    tela.alternarVisiveis(false);
+    expect(tela.resumoDaSelecao()).toBe('Nenhum aluno marcado');
 
-    tela.limparMarcados();
-    tela.escolherAba('requer-revisao');
+    // Com a turma filtrada, o cabeçalho marca só os dela.
+    tela.selecionarTurma('EF3A-M');
     tela.alternarVisiveis(true);
     expect(tela.todosVisiveisMarcados()).toBe(true);
-    expect(tela.alunosMarcados().map((a) => a.id)).toEqual(['2']);
+    expect(tela.alunosMarcados().map((a) => a.id)).toEqual(['1', '3']);
   });
 
-  it('importar confirma antes e, por enquanto, só avisa que nada foi enviado ao RM', async () => {
+  it('importar confirma, manda os marcados para a FV, avisa como ficou cada grupo e relê a lista', async () => {
     montar();
     abrir();
     tela.definirMarcado('1', true);
     tela.definirMarcado('2', true);
+    tela.definirMarcado('3', true);
+    importar.mockReturnValueOnce(
+      of({
+        concluido: true,
+        alunos: [
+          { ra: '1', situacao: 'importado', obs: null },
+          { ra: '2', situacao: 'requer-revisao', obs: 'Aluno(a) já possui turma.' },
+          { ra: '3', situacao: 'pendente', obs: null },
+        ],
+      }),
+    );
 
     await tela.importar();
 
     expect(confirmar).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'Importar 2 alunos para a matrícula?',
-        description: 'Cada aluno entra na turma de destino (2 turmas). 1 deles requer revisão: confira a observação antes.',
+        title: 'Importar 3 alunos para a matrícula?',
+        description:
+          'A FV de enturmação do RM grava a turma de destino na matrícula de cada aluno (2 turmas) e o matricula nas ' +
+          'disciplinas dela. Não dá para desfazer por esta tela.',
       }),
     );
-    expect(toast.info).toHaveBeenCalledWith('A importação ainda não está ligada ao RM', 'Nada foi enviado: os alunos continuam pendentes.');
-    // Continuam na lista e marcados.
-    expect(tela.alunosMarcados().map((a) => a.id)).toEqual(['1', '2']);
+    expect(importar).toHaveBeenCalledWith('fulano', '2027', 2, ['1', '2', '3']);
+    expect(toast.success).toHaveBeenCalledWith('1 aluno importado', 'Já estão na matrícula, na turma de destino.');
+    // Quem foi para revisão sai da lista (como na pré-enturmação): o aviso leva o motivo e o que fazer.
+    expect(toast.warning).toHaveBeenCalledWith(
+      '1 aluno requer revisão',
+      'Aluno(a) já possui turma. Saíram desta lista: confira a matrícula no RM e mova de novo na Pré-enturmação.',
+    );
+    expect(toast.info).toHaveBeenCalledWith('1 aluno continua pendente', 'A FV não chegou a processar. Tente importar de novo.');
+    // Relê a lista (a FV mudou os registros) e a seleção começa do zero.
+    expect(getLista).toHaveBeenCalledTimes(2);
+    expect([tela.importando(), tela.marcados().size]).toEqual([false, 0]);
+  });
 
-    toast.info.mockClear();
+  it('cancelar não importa; sem concluir, avisa que o RM ainda está importando; erro avisa a causa e relê', async () => {
+    montar();
+    abrir();
+    tela.definirMarcado('1', true);
+
     confirmar.mockResolvedValueOnce(false);
     await tela.importar();
-    expect(toast.info).not.toHaveBeenCalled();
+    expect(importar).not.toHaveBeenCalled();
+
+    importar.mockReturnValueOnce(of({ concluido: false, alunos: [{ ra: '1', situacao: 'pendente', obs: null }] }));
+    await tela.importar();
+    expect(toast.info).toHaveBeenCalledWith('O RM ainda está importando', 'Recarregue a lista em alguns instantes para ver como ficou cada aluno.');
+    expect(toast.success).not.toHaveBeenCalled();
+
+    tela.definirMarcado('1', true);
+    importar.mockReturnValueOnce(throwError(() => ({ error: { message: 'O RM não importou a enturmação: Violação de chave' } })));
+    await tela.importar();
+    expect(toast.danger).toHaveBeenCalledWith('Não foi possível importar', 'O RM não importou a enturmação: Violação de chave');
+    expect(getLista).toHaveBeenCalledTimes(3);
   });
 
   it('sem marcados, o botão de importar fica desligado e importar não pergunta nada', async () => {
@@ -225,7 +258,7 @@ describe('EnturmacaoComponent', () => {
   it('trocar de unidade relê e limpa os filtros e os marcados', () => {
     montar();
     abrir();
-    tela.escolherAba('pendente');
+    tela.selecionarTurma('EF3A-M');
     tela.busca.set('ana');
     tela.definirMarcado('1', true);
 
@@ -233,6 +266,6 @@ describe('EnturmacaoComponent', () => {
     TestBed.tick();
 
     expect(getLista).toHaveBeenLastCalledWith('fulano', '2027', 13);
-    expect([tela.aba(), tela.busca(), tela.marcados().size]).toEqual(['todos', '', 0]);
+    expect([tela.turma(), tela.busca(), tela.marcados().size]).toEqual(['', '', 0]);
   });
 });

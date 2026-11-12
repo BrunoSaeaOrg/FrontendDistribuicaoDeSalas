@@ -57,12 +57,8 @@
   color: var(--saea-ink-soft);
 }
 
-.en-abas {
-  flex-shrink: 0;
-  margin-top: var(--sp-2);
-}
-
 .en-corpo {
+  margin-top: var(--sp-2);
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: auto;
@@ -72,7 +68,7 @@
 /* A tabela no estilo da Sala por Ano Letivo. */
 .en-tabela {
   width: 100%;
-  min-width: 860px;
+  min-width: 640px;
   border-collapse: collapse;
   font-size: var(--fs-sm);
 }
@@ -112,11 +108,6 @@
   font-weight: 600;
   color: var(--saea-ink);
 }
-.en-nome--sem-matricula {
-  font-weight: 500;
-  font-style: italic;
-  color: var(--saea-ink-soft);
-}
 .en-ra {
   display: block;
   font-family: var(--font-mono);
@@ -132,10 +123,6 @@
   margin-right: var(--sp-2);
   font-family: var(--font-mono);
   color: var(--saea-ink);
-}
-.en-obs {
-  min-width: 160px;
-  color: var(--saea-ink-soft);
 }
 .en-sem-resultado {
   padding: var(--sp-8) var(--sp-4) !important;

@@ -11,7 +11,15 @@
       (selectedChange)="selecionarUnidades($event)"
     />
     <app-select label="Turno" [ngModel]="turno()" (ngModelChange)="turno.set($event)" [options]="turnoOptions" />
-    <app-select label="Status" [ngModel]="status()" (ngModelChange)="status.set($event)" [options]="statusOptions" />
+    <app-multi-select
+      label="Status"
+      todas="Todos os status"
+      placeholder="Todos os status"
+      [nenhumaEhTodas]="true"
+      [options]="statusOptions"
+      [selected]="status()"
+      (selectedChange)="status.set($event)"
+    />
     <app-input label="Buscar sala" placeholder="Nome da sala..." [ngModel]="busca()" (ngModelChange)="busca.set($event)" />
   </div>
 
@@ -64,14 +72,23 @@
           </thead>
           <tbody>
             @for (row of rows(); track row.id) {
-              <tr>
+              <!-- Sala indisponível no ano: a linha em cinza, com o selo e o motivo embaixo do nome. -->
+              <tr [class.painel-row--indisponivel]="!!row.motivo">
                 <td>
                   <span class="painel-inline">
                     <span class="painel-unit-dot" [style.background]="row.unidadeCor"></span>{{ row.unidadeNome }}
                   </span>
                 </td>
                 <td class="painel-cell-soft">{{ row.andar }}</td>
-                <td class="painel-cell-strong">{{ row.nome }}</td>
+                <td class="painel-cell-strong">
+                  {{ row.nome }}
+                  @if (row.motivo) {
+                    <span class="painel-indisp">
+                      <app-badge tone="neutral">Indisponível</app-badge>
+                      <saea-truncate class="painel-indisp-motivo" [maxWidth]="260">{{ row.motivo }}</saea-truncate>
+                    </span>
+                  }
+                </td>
                 <td class="painel-cell-soft">{{ row.tipo }}</td>
                 <td>{{ row.carteiras }}</td>
                 <td>{{ row.capacidade }}</td>
@@ -96,7 +113,14 @@
                   </div>
                 </td>
                 <td class="painel-cell-action">
-                  <button type="button" class="painel-link" (click)="verPlanta(row)">Ver planta ›</button>
+                  <span class="painel-acoes">
+                    @if (uiMode.editorMode()) {
+                      <button type="button" class="painel-link painel-link--suave" (click)="abrirMotivo(row)">
+                        {{ row.motivo ? 'Alterar motivo' : 'Marcar indisponível' }}
+                      </button>
+                    }
+                    <button type="button" class="painel-link" (click)="verPlanta(row)">Ver planta ›</button>
+                  </span>
                 </td>
               </tr>
             }
@@ -105,4 +129,57 @@
       </div>
     }
   </app-card>
+
+  <!-- Marcar a sala como indisponível no ano letivo, com o motivo, ou deixá-la disponível de novo. -->
+  <saea-dialog
+    [(open)]="dialogoMotivo"
+    eyebrow="Painel"
+    [title]="tituloMotivo()"
+    [width]="480"
+    [closable]="!gravandoMotivo()"
+    [closeOnBackdrop]="!gravandoMotivo()"
+    [closeOnEsc]="!gravandoMotivo()"
+  >
+    @if (salaDoMotivo(); as sala) {
+      <p class="painel-motivo-texto">
+        {{ sala.unidadeNome }} · {{ anoLetivo() }}. A sala fica indisponível só neste ano letivo, e o motivo aparece no
+        Painel para todos.
+      </p>
+      <div class="painel-motivo-campo">
+        <label class="painel-motivo-rotulo" for="painel-motivo">
+          Motivo
+          <span class="painel-motivo-obrigatorio" aria-hidden="true">*</span>
+          <span class="painel-so-leitor">(obrigatório)</span>
+        </label>
+        <textarea
+          id="painel-motivo"
+          class="painel-motivo-textarea"
+          rows="4"
+          required
+          aria-required="true"
+          aria-describedby="painel-motivo-ajuda"
+          placeholder="Ex.: em reforma até março"
+          [maxLength]="tamanhoMotivo"
+          [readOnly]="gravandoMotivo()"
+          [ngModel]="motivo()"
+          (ngModelChange)="motivo.set($event)"
+        ></textarea>
+        <div class="painel-motivo-ajuda" id="painel-motivo-ajuda">
+          <span>Para deixar a sala disponível, use "Tornar disponível".</span>
+          <span>{{ motivo().length }}/{{ tamanhoMotivo }}</span>
+        </div>
+      </div>
+    }
+    <div saeaDialogFooter>
+      <button saea-button variant="ghost" type="button" [disabled]="gravandoMotivo()" (click)="fecharMotivo()">Cancelar</button>
+      @if (salaDoMotivo()?.motivo) {
+        <button saea-button variant="secondary" type="button" icon="event_available" [disabled]="gravandoMotivo()" (click)="tornarDisponivel()">
+          Tornar disponível
+        </button>
+      }
+      <button saea-button type="button" icon="block" [loading]="gravandoMotivo()" [disabled]="!motivo().trim()" (click)="salvarMotivo()">
+        {{ salaDoMotivo()?.motivo ? 'Salvar motivo' : 'Marcar indisponível' }}
+      </button>
+    </div>
+  </saea-dialog>
 </div>

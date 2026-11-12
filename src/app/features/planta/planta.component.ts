@@ -1,7 +1,8 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { AlunosEnturmacaoService } from '../../core/services/alunos-enturmacao.service';
 import { RegrasService } from '../../core/services/regras.service';
 import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
@@ -24,6 +25,18 @@ interface DeskSlot {
   tooltip: string;
   /** Posição além do limite da regra de ocupação (só existe quando a filial deixa exceder ou a sala já passou). */
   acimaDoLimite: boolean;
+  /** O aluno sentado nesta carteira (nas ocupadas, quando os alunos da sala já chegaram). */
+  aluno: AlunoNaCarteira | null;
+}
+
+/** Um aluno da sala no turno, sentado numa carteira ocupada. */
+interface AlunoNaCarteira {
+  ra: string;
+  nome: string;
+  /** A turma da matrícula ("3º Ano A - Manhã"). */
+  turma: string;
+  /** A foto (data URL); null = ainda não veio ou não tem (o avatar mostra as iniciais). */
+  foto: string | null;
 }
 
 const TURNOS: Turno[] = ['manha', 'tarde'];
@@ -53,6 +66,7 @@ export const TAMANHO_JUSTIFICATIVA = 500;
 export class PlantaComponent {
   private readonly salasService = inject(SalasService);
   private readonly regrasService = inject(RegrasService);
+  private readonly alunosService = inject(AlunosEnturmacaoService);
   private readonly route = inject(ActivatedRoute);
   readonly uiMode = inject(UiModeService);
 
@@ -250,6 +264,37 @@ export class PlantaComponent {
       .join('; ');
   });
 
+  /** Os alunos da unidade da sala no ano (a leitura da pré-enturmação): carregando, prontos ou com erro. */
+  private readonly estadoAlunos = computed(() => {
+    const sala = this.sala();
+    return sala ? this.alunosService.estado(this.anoLetivo(), sala.codFilial) : undefined;
+  });
+
+  /** "Ana Clara Souza" → "AS": as iniciais na carteira de quem não tem foto. */
+  iniciais(nome: string): string {
+    const partes = nome.split(/\s+/).filter(Boolean);
+    return ((partes[0]?.[0] ?? '') + (partes.length > 1 ? partes[partes.length - 1][0] : '')).toUpperCase();
+  }
+
+  /** Os alunos da unidade ainda estão vindo do RM: as carteiras ocupadas ficam com o ícone até lá. */
+  readonly carregandoAlunos = computed(() => this.estadoAlunos()?.estado === 'carregando');
+
+  /**
+   * Os alunos da sala no turno: os das turmas e subturmas dela naquele turno, pela turma da
+   * matrícula, em ordem alfabética. Não há no RM a carteira de cada aluno: eles sentam nas carteiras
+   * ocupadas na ordem da grade.
+   */
+  private readonly alunosDaSala = computed(() => {
+    const sala = this.sala();
+    const estado = this.estadoAlunos();
+    if (!sala || estado?.estado !== 'pronto') return [];
+    const turmas = new Map(this.salasService.turmasNoTurno(sala, this.turno()).map((t) => [t.codTurma, t.nomeProprio]));
+    return estado.alunos
+      .filter((a) => a.codTurma !== null && turmas.has(a.codTurma))
+      .map((a) => ({ ra: a.ra, nome: a.nome, turma: turmas.get(a.codTurma!)! }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  });
+
   readonly plantaPct = computed(() => {
     const sala = this.sala();
     const cap = this.capacidade();
@@ -272,6 +317,8 @@ export class PlantaComponent {
     const pct = this.regraDaSala()?.pctMaximoUtilizacao ?? 90;
     const alunos = this.alunosAtuais();
     const totalSlots = Math.max(cap, capNorm, alunos);
+    const sentados = this.alunosDaSala();
+    const ano = this.anoLetivo();
     const slots: DeskSlot[] = [];
     for (let i = 0; i < totalSlots; i++) {
       let kind: DeskKind;
@@ -308,7 +355,13 @@ export class PlantaComponent {
       }
       const acimaDoLimite = i >= limite && kind !== 'bloqueado' && kind !== 'excedente';
       if (acimaDoLimite && kind !== 'espaco') tooltip += ` (acima do limite de ${pct}%)`;
-      slots.push({ index: i, kind, icon, tooltip, acimaDoLimite });
+      // Nas posições ocupadas (com carteira ou além delas), o aluno da vez, com a foto.
+      const doAluno = i < alunos ? sentados[i] : undefined;
+      const aluno: AlunoNaCarteira | null = doAluno
+        ? { ...doAluno, foto: this.alunosService.foto(ano, sala.codFilial, doAluno.ra) }
+        : null;
+      if (aluno) tooltip = `${aluno.nome} · RA ${aluno.ra} · ${aluno.turma}${kind === 'excedente' ? ' (sem carteira)' : ''}`;
+      slots.push({ index: i, kind, icon, tooltip, acimaDoLimite, aluno });
     }
     return slots;
   });
@@ -456,6 +509,19 @@ export class PlantaComponent {
     effect(() => {
       const campo = this.campoJustificativa();
       if (campo && this.pedidoJustificativa()) campo.nativeElement.focus();
+    });
+    // Os alunos da unidade da sala (a mesma leitura da Pré-enturmação, guardada por alguns minutos).
+    effect(() => {
+      const sala = this.sala();
+      const ano = this.anoLetivo();
+      if (sala && this.salasService.anoCarregado() === ano) untracked(() => this.alunosService.garantirAlunos(ano, sala.codFilial));
+    });
+    // As fotos de quem está sentado (só as que ainda não vieram; a grade não espera por elas).
+    effect(() => {
+      const sala = this.sala();
+      const ras = this.alunosDaSala().slice(0, this.alunosAtuais()).map((a) => a.ra);
+      const ano = this.anoLetivo();
+      if (sala && ras.length > 0) untracked(() => this.alunosService.fotosPara(ano, sala.codFilial, ras));
     });
   }
 

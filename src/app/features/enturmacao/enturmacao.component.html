@@ -2,9 +2,9 @@
   <app-card
     class="saea-card-fill saea-carregavel"
     title="Enturmação"
-    subtitle="Alunos movidos na pré-enturmação que ainda não estão na matrícula. Marque quem vai e importe."
+    subtitle="Alunos que estão numa turma da pré-enturmação e ainda não estão na matrícula. Marque quem vai e importe."
   >
-    <app-carregando [ativo]="carregando()" texto="Lendo os alunos para importar no RM..." [estimativaMs]="estimativa()" />
+    <app-carregando [ativo]="esperando()" [texto]="textoDaEspera()" [estimativaMs]="estimativaDaEspera()" />
 
     <!-- Ano, unidade, série e busca à esquerda; marcar e importar à direita (como em Sala por Ano Letivo). -->
     <div class="en-barra">
@@ -48,26 +48,25 @@
           @if (alunosMarcados().length > 0) {
             <app-button variant="ghost" (clicked)="limparMarcados()">Limpar seleção</app-button>
           }
-          <app-button class="en-marcar-pendentes" variant="secondary" [disabled]="!temPendentesVisiveis()" (clicked)="alternarPendentes()">
-            {{ pendentesMarcados() ? 'Desmarcar os pendentes' : 'Marcar os pendentes' }}
-          </app-button>
-          <app-button class="en-importar" [disabled]="alunosMarcados().length === 0" (clicked)="importar()">
+          <app-button
+            class="en-importar"
+            [disabled]="alunosMarcados().length === 0 || importando()"
+            [loading]="importando()"
+            loadingText="Importando..."
+            (clicked)="importar()"
+          >
             <span class="material-icons" aria-hidden="true">download</span> {{ textoImportar() }}
           </app-button>
         </div>
       }
     </div>
 
-    @if (temAlunos()) {
-      <saea-tabs class="en-abas" ariaLabel="Situação" [tabs]="abas()" [active]="aba()" (activeChange)="escolherAba($event)" />
-    }
-
     <div class="en-corpo saea-scroll">
       @if (codFilial() === null) {
         <app-empty-state
           icon="download"
           title="Escolha a unidade"
-          description="Aparecem os alunos pendentes e os que requerem revisão, para você marcar e importar."
+          description="Aparecem os alunos que estão numa turma da pré-enturmação e ainda não foram importados."
         />
       } @else if (comErro()) {
         <app-empty-state icon="cloud_off" title="Não foi possível ler os alunos para importar" description="O RM não respondeu. Tente de novo.">
@@ -77,7 +76,7 @@
         <app-empty-state
           icon="task_alt"
           title="Nenhum aluno para importar"
-          [description]="'Em ' + anoLetivo() + ', ninguém desta unidade está pendente nem requer revisão.'"
+          [description]="'Em ' + anoLetivo() + ', nenhum aluno desta unidade está numa turma da pré-enturmação esperando importação.'"
         />
       } @else if (temAlunos()) {
         <table class="en-tabela">
@@ -95,8 +94,6 @@
               <th>Aluno</th>
               <th>Série</th>
               <th>Turma de destino</th>
-              <th>Situação</th>
-              <th>Observação</th>
             </tr>
           </thead>
           <tbody>
@@ -107,9 +104,9 @@
                 </td>
                 <td>
                   <div class="en-aluno">
-                    <saea-avatar [name]="a.semMatricula ? null : a.nome" [src]="foto(a)" [size]="32" />
+                    <saea-avatar [name]="a.nome" [src]="foto(a)" [size]="32" />
                     <div>
-                      <span class="en-nome" [class.en-nome--sem-matricula]="a.semMatricula">{{ a.nome }}</span>
+                      <span class="en-nome">{{ a.nome }}</span>
                       <span class="en-ra">RA {{ a.id }}</span>
                     </div>
                   </div>
@@ -119,18 +116,10 @@
                   <span class="en-turma-codigo">{{ a.codTurma }}</span>
                   <span class="en-cel-suave">{{ a.nomeTurma }}</span>
                 </td>
-                <td>
-                  @if (a.situacao === 'requer-revisao') {
-                    <app-badge tone="warning">Requer revisão</app-badge>
-                  } @else {
-                    <app-badge tone="info">Pendente</app-badge>
-                  }
-                </td>
-                <td class="en-obs">{{ a.obs ?? '—' }}</td>
               </tr>
             } @empty {
               <tr>
-                <td colspan="6" class="en-sem-resultado">Nenhum aluno com esse filtro.</td>
+                <td colspan="4" class="en-sem-resultado">Nenhum aluno com esse filtro.</td>
               </tr>
             }
           </tbody>

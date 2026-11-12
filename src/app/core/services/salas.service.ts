@@ -1,8 +1,6 @@
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
-import { catchError, concatMap, finalize, firstValueFrom, forkJoin, from, map, of, toArray } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { finalize, firstValueFrom, forkJoin, from, map, Observable, tap } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
-import { linhasDeAlunos, logAlunosPorSala } from '../debug/log-alunos-por-sala';
 import { filiaisDasRespostas, fundirSalasEApi, juntarFiliais, nomesDasUnidades } from '../mock/ocupacao-adapter';
 import {
   Sala,
@@ -273,11 +271,6 @@ export class SalasService {
   private carregarAnos(codUsuario: string): void {
     this.ocupacaoApi.getAnosLetivos(codUsuario).subscribe({
       next: (anos) => {
-        // DEBUG temporário: os períodos letivos como vieram do back (um por período, com o IDPERLET).
-        if (!environment.production) {
-          console.log('[debug] OC_SAL_ANOS — períodos letivos (IDPERLET, ANO e as colunas que a consulta trouxer):', anos);
-          console.table(anos);
-        }
         // O back já manda em ordem; o ano se repete quando tem mais de um período (um por filial).
         const lista = [...new Set(anos.map((a) => a.ANO))];
         if (lista.length === 0) return;
@@ -286,35 +279,10 @@ export class SalasService {
           const corrente = Number(anoCorrente());
           this.selecionarAno(lista.filter((a) => Number(a) <= corrente).at(-1) ?? lista[0]);
         }
-        // DEBUG temporário: alunos de cada sala e turma, em todos os anos e filiais.
-        if (!environment.production) this.logarAlunosPorSala(codUsuario, lista);
       },
       // Sem a lista, o seletor fica só com o ano em uso.
       error: () => {},
     });
-  }
-
-  /**
-   * DEBUG temporário: lê as turmas e os vínculos de cada ano, um ano por vez para não somar carga
-   * no RM, e mostra tudo junto no console (ver log-alunos-por-sala.ts). Roda uma vez por login.
-   */
-  private logarAlunosPorSala(codUsuario: string, anos: string[]): void {
-    from(anos)
-      .pipe(
-        concatMap((ano) =>
-          forkJoin([
-            this.ocupacaoApi.getTurmas(codUsuario, ano),
-            this.ocupacaoApi.getTurmasXSalas(codUsuario, ano),
-            // Só para o nome das salas: sem ele, a sala aparece pelos códigos.
-            this.ocupacaoApi.getSalasDoAno(codUsuario, ano).pipe(catchError(() => of([]))),
-          ]).pipe(map(([turmas, vinculos, salas]) => ({ ano, linhas: linhasDeAlunos(turmas, vinculos, salas) }))),
-        ),
-        toArray(),
-      )
-      .subscribe({
-        next: logAlunosPorSala,
-        error: (err) => console.warn('[alunos por sala] Não foi possível montar o log:', err),
-      });
   }
 
   unidade(id: string): Unidade | undefined {
@@ -570,6 +538,29 @@ export class SalasService {
         },
         error: (err) => this.toast.danger(tituloFalha, motivoDaFalha(err)),
       });
+  }
+
+  /**
+   * Marca a sala como indisponível no ano em uso, com o motivo, ou, com o motivo vazio, volta a
+   * deixá-la disponível. Gravado no RM, a sala muda na tela na hora (sem reler as salas).
+   */
+  definirIndisponibilidade(sala: Sala, motivo: string): Observable<string | null> {
+    return this.ocupacaoApi
+      .definirIndisponibilidade({
+        codUsuario: this.authService.currentUser()?.username ?? '',
+        ano: this._anoLetivo(),
+        codFilial: sala.codFilial,
+        codBloco: sala.codBloco,
+        codPredio: sala.codPredio,
+        codSala: sala.codSala,
+        motivo: motivo.trim(),
+      })
+      .pipe(
+        map((res) => res.motivo?.trim() || null),
+        tap((gravado) =>
+          this._salas.update((list) => list.map((s) => (s.id === sala.id ? { ...s, motivoIndisponivel: gravado } : s))),
+        ),
+      );
   }
 
   adicionarCarteiras(salaId: string, quantidade: number): void {

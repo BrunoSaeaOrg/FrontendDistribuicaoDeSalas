@@ -115,6 +115,7 @@
               @for (desk of deskSlots(); track desk.index) {
                 <div
                   class="planta-desk planta-desk--{{ desk.kind }}"
+                  [class.planta-desk--com-aluno]="!!desk.aluno"
                   [class.planta-desk--acima]="desk.acimaDoLimite"
                   [class.planta-desk--draggable]="desk.kind === 'vaga' && uiMode.editorMode() && !transferindo()"
                   [title]="desk.kind === 'vaga' && uiMode.editorMode() ? 'Arraste para mover esta carteira para outra sala' : desk.tooltip"
@@ -122,10 +123,22 @@
                   (dragstart)="onDeskDragStart(desk, $event)"
                   (dragend)="onDeskDragEnd()"
                 >
-                  <span class="material-icons planta-desk-icon">{{ desk.icon }}</span>
+                  <!-- Carteira ocupada: a foto do aluno (sem foto, as iniciais); antes de os alunos chegarem, o ícone. -->
+                  @if (desk.aluno; as aluno) {
+                    @if (aluno.foto) {
+                      <img class="planta-desk-foto" [src]="aluno.foto" alt="" />
+                    } @else {
+                      <span class="planta-desk-iniciais" aria-hidden="true">{{ iniciais(aluno.nome) }}</span>
+                    }
+                  } @else {
+                    <span class="material-icons planta-desk-icon">{{ desk.icon }}</span>
+                  }
                 </div>
               }
             </div>
+            @if (carregandoAlunos()) {
+              <p class="planta-fotos-aviso" role="status">Carregando os alunos para mostrar as fotos nas carteiras...</p>
+            }
           </div>
         </div>
       </app-card>

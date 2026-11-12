@@ -32,6 +32,8 @@ export interface Sala {
   codBloco: string;
   codPredio: string;
   codSala: string;
+  /** Por que a sala está indisponível no ano em uso (MOTIVO do PRJ4087040); vazio/ausente = disponível. */
+  motivoIndisponivel?: string | null;
 }
 
 /** ANDAR do RM por extenso: "T" é o térreo e os outros vêm só com o número ("1" → "1º andar"). */

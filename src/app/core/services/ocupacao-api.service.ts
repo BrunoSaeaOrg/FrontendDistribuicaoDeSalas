@@ -7,6 +7,7 @@ import {
   ApiAnoLetivoDto,
   ApiCopiaAnoPlanoDto,
   ApiCopiaSalaResultadoDto,
+  ApiEnturmacaoImportacaoDto,
   ApiEnturmacaoImportadoDto,
   ApiEnturmacaoParaImportarDto,
   ApiEnturmacaoPendenteDto,
@@ -108,6 +109,19 @@ export class OcupacaoApiService {
       CODUSUARIO: codUsuario,
       ANO: ano,
       CODFILIAL: String(codFilial),
+    });
+  }
+
+  /**
+   * Importa os alunos para a matrícula pela FV "EDU - Enturmação" do RM (só no TTESTE, por enquanto).
+   * O back espera a FV terminar (até 2 min) e devolve como ficou cada aluno.
+   */
+  importarEnturmacao(codUsuario: string, ano: string, codFilial: number, ras: readonly string[]): Observable<ApiEnturmacaoImportacaoDto> {
+    return this.http.post<ApiEnturmacaoImportacaoDto>(`${this.baseUrl}/OC_SAL_ENTUR_IMPORTAR`, {
+      CODUSUARIO: codUsuario,
+      ANO: ano,
+      CODFILIAL: String(codFilial),
+      RAS: ras,
     });
   }
 
@@ -245,6 +259,30 @@ export class OcupacaoApiService {
       QUANTIDADE: request.quantidade,
       ANO: request.ano,
       ...(request.justificativa ? { JUSTIFICATIVA: request.justificativa } : {}),
+    });
+  }
+
+  /**
+   * Marca a sala como indisponível no ano, com o motivo (MOTIVO do PRJ4087040, até 500 caracteres),
+   * ou, com o motivo vazio, volta a deixá-la disponível. Devolve o motivo gravado (null = disponível).
+   */
+  definirIndisponibilidade(request: {
+    codUsuario: string;
+    ano: string;
+    codFilial: number;
+    codBloco: string;
+    codPredio: string;
+    codSala: string;
+    motivo: string;
+  }): Observable<{ motivo: string | null }> {
+    return this.http.post<{ motivo: string | null }>(`${this.baseUrl}/OC_SAL_SALA_INDISPONIBILIDADE`, {
+      CODUSUARIO: request.codUsuario,
+      ANO: request.ano,
+      CODFILIAL: String(request.codFilial),
+      CODBLOCO: request.codBloco,
+      CODPREDIO: request.codPredio,
+      CODSALA: request.codSala,
+      MOTIVO: request.motivo,
     });
   }
 
