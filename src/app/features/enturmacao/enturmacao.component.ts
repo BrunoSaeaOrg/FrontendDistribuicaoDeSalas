@@ -9,6 +9,7 @@ import { AlunosEnturmacaoService } from '../../core/services/alunos-enturmacao.s
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
 import { motivoDaFalha, SalasService } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
+import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
@@ -56,6 +57,7 @@ export interface AlunoParaImportar {
     SaeaAvatarComponent,
     SaeaCheckboxComponent,
     SaeaInputComponent,
+    BadgeComponent,
     ButtonComponent,
     CardComponent,
     CarregandoComponent,

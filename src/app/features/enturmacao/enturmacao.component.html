@@ -94,6 +94,7 @@
               <th>Aluno</th>
               <th>Série</th>
               <th>Turma de destino</th>
+              <th>Situação</th>
             </tr>
           </thead>
           <tbody>
@@ -116,10 +117,12 @@
                   <span class="en-turma-codigo">{{ a.codTurma }}</span>
                   <span class="en-cel-suave">{{ a.nomeTurma }}</span>
                 </td>
+                <!-- Todos aqui estão numa turma da pré-enturmação e ainda não foram importados: pendentes. -->
+                <td><app-badge tone="info">Pendente</app-badge></td>
               </tr>
             } @empty {
               <tr>
-                <td colspan="4" class="en-sem-resultado">Nenhum aluno com esse filtro.</td>
+                <td colspan="5" class="en-sem-resultado">Nenhum aluno com esse filtro.</td>
               </tr>
             }
           </tbody>

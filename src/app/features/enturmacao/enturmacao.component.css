@@ -68,7 +68,7 @@
 /* A tabela no estilo da Sala por Ano Letivo. */
 .en-tabela {
   width: 100%;
-  min-width: 640px;
+  min-width: 720px;
   border-collapse: collapse;
   font-size: var(--fs-sm);
 }

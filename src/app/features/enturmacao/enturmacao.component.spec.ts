@@ -99,6 +99,10 @@ describe('EnturmacaoComponent', () => {
     expect(getLista).toHaveBeenCalledWith('fulano', '2027', 2);
     expect(nomes()).toEqual(['Ana', 'Bruno', 'Carla', 'Davi']);
     expect(tela.visiveis().map((a) => a.serie)).toEqual(['3º Ano', '5º Ano', '3º Ano', '3º Ano']);
+    // Estão numa turma da pré-enturmação, mas ainda não foram importados: cada linha mostra Pendente.
+    fixture.detectChanges();
+    const situacoes = [...(fixture.nativeElement as HTMLElement).querySelectorAll('tbody app-badge')].map((b) => b.textContent?.trim());
+    expect(situacoes).toEqual(['Pendente', 'Pendente', 'Pendente', 'Pendente']);
   });
 
   it('a busca (sem acento, ou RA) e a série filtram', () => {
