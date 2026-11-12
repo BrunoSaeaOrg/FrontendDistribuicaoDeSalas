@@ -288,6 +288,14 @@ export class VincularAlunosComponent {
     return estado?.estado === 'pronto' ? estado.porRa : new Map();
   });
 
+  /** Os já importados para a matrícula (RA → turma do registro no MD): a etiqueta "Importado" no destino. */
+  private readonly importadosNoRm = computed<ReadonlyMap<string, string>>(() => {
+    const filial = this.codFilial();
+    if (filial === null || this.carregandoSalas()) return new Map();
+    const estado = this.alunosService.importados(this.anoLetivo(), filial);
+    return estado?.estado === 'pronto' ? estado.porRa : new Map();
+  });
+
   private readonly alunosDaUnidade = computed<AlunoDaTela[]>(() => {
     const estado = this.estadoAlunos();
     if (estado?.estado !== 'pronto') return [];
@@ -595,6 +603,14 @@ export class VincularAlunosComponent {
   /** A última tentativa de mover este aluno não gravou (ele voltou para onde estava): o motivo (null = não falhou). */
   falhaDe(aluno: AlunoDaTela): string | null {
     return this.falhas().get(aluno.id) ?? null;
+  }
+
+  /**
+   * O aluno já está na matrícula na turma em que a tela o mostra: o último registro dele no MD de
+   * enturmação está como Importado, com essa turma, e não há movimento novo por cima.
+   */
+  importado(aluno: AlunoDaTela): boolean {
+    return !aluno.gravadoNoRm && this.importadosNoRm().get(aluno.id) === this.turmaAtual(aluno);
   }
 
   /** Abre os dados do aluno embaixo da linha dele (fecha o que estava aberto); clicar de novo fecha. */

@@ -1,6 +1,6 @@
 <div class="va-page saea-carregavel">
   <div class="va-topo">
-    <h1>Vincular aluno à turma</h1>
+    <h1>Pré-enturmação</h1>
     <div class="va-filtros">
       <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" />
       <app-select
@@ -321,6 +321,11 @@
               <span class="va-cartao-ra">RA {{ a.id }}</span>
               @if (anterior(a); as deOnde) {
                 <span class="va-cartao-de">{{ deOnde }}</span>
+              }
+              @if (importado(a)) {
+                <span class="va-cartao-veio va-cartao-veio--importado" title="Já está na matrícula nesta turma">
+                  <span class="material-icons" aria-hidden="true">check_circle</span>Importado
+                </span>
               }
               @if (falhaDe(a); as motivo) {
                 <span class="va-cartao-veio va-cartao-veio--falhou" [title]="motivo">

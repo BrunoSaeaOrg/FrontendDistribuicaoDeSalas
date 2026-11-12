@@ -110,9 +110,12 @@ describe('VincularAlunosComponent (lado a lado)', () => {
   let getTurmas: ReturnType<typeof vi.fn>;
   let getFotos: ReturnType<typeof vi.fn>;
   let getPendentes: ReturnType<typeof vi.fn>;
+  let getImportados: ReturnType<typeof vi.fn>;
   let salvarNoRm: ReturnType<typeof vi.fn>;
   /** O MD de enturmação do "RM": RA → turma dos movimentos pendentes. */
   let gravadosNoRm: Map<string, string>;
+  /** O MD de enturmação do "RM": RA → turma dos registros importados (já na matrícula). */
+  let importadosNoRm: Map<string, string>;
   /**
    * O que o "RM" responde a cada movimento. Sem regra, grava como pendente; a turma vazia desfaz o
    * movimento ainda não importado, e o aluno volta para a turma da matrícula.
@@ -135,6 +138,8 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     gravadosNoRm = new Map();
     respostaDoRm = (m) => ({ ...m, situacao: m.codTurma === '' ? 'na-matricula' : 'pendente', motivo: null });
     getPendentes = vi.fn(() => of([...gravadosNoRm].map(([ra, codTurma]) => ({ ra, codTurma }))));
+    importadosNoRm = new Map();
+    getImportados = vi.fn(() => of([...importadosNoRm].map(([ra, codTurma]) => ({ ra, codTurma }))));
     salvarNoRm = vi.fn((_usuario: string, _ano: string, _filial: number, movimentos: { ra: string; codTurma: string }[]) => {
       const resultados = movimentos.map((m) => respostaDoRm(m));
       resultados.filter((r) => r.situacao === 'pendente').forEach((r) => gravadosNoRm.set(r.ra, r.codTurma));
@@ -150,6 +155,7 @@ describe('VincularAlunosComponent (lado a lado)', () => {
             getTurmasEnturmacao: getTurmas,
             getFotosEnturmacao: getFotos,
             getPendentesEnturmacao: getPendentes,
+            getImportadosEnturmacao: getImportados,
             salvarEnturmacao: salvarNoRm,
           },
         },
@@ -678,6 +684,38 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(salvarNoRm).toHaveBeenCalledWith('fulano', '2026', 2, [{ ra: '1', codTurma: '' }]);
     tela.escolherTurma('destino', 'EF3A-M');
     expect(nomes('destino')).toEqual(['Ana', 'Bruno']);
+  });
+
+  it('no destino, o aluno já importado para a turma ganha a etiqueta "Importado"; movido de novo, perde', () => {
+    montar();
+    // Ana foi importada para o 3º A. O registro importado do Davi é do 3º A, mas a matrícula dele está
+    // no 3º B (mudaram direto no RM): a etiqueta só vale na turma em que o aluno está.
+    importadosNoRm.set('1', 'EF3A-M').set('4', 'EF3A-M');
+    abrir();
+
+    expect(getImportados).toHaveBeenCalledWith('fulano', '2026', 2);
+    const importados = () => tela.destino()!.alunos.filter((a) => tela.importado(a)).map((a) => a.nome);
+    expect(importados()).toEqual(['Ana']);
+    fixture.detectChanges();
+    const etiquetas = (fixture.nativeElement as HTMLElement).querySelectorAll('.va-painel')[1].querySelectorAll('.va-cartao-veio--importado');
+    expect([...etiquetas].map((e) => e.closest('.va-cartao')!.querySelector('.va-cartao-nome')!.textContent!.trim())).toEqual(['Ana']);
+    tela.escolherTurma('destino', 'EF3B-M');
+    expect(importados()).toEqual([]);
+
+    // Movida para o 3º B, fica pendente: sem a etiqueta.
+    tela.escolherTurma('destino', 'EF3A-M');
+    tela.alternarAluno('destino', '1');
+    tela.moverMarcadosPara('EF3B-M');
+    tela.escolherTurma('destino', 'EF3B-M');
+    expect(tela.destino()!.alunos.map((a) => a.nome)).toContain('Ana');
+    expect(importados()).toEqual([]);
+
+    // De volta à turma da matrícula, o back deixa o registro como Importado: a etiqueta volta.
+    respostaDoRm = (m) => ({ ...m, situacao: m.codTurma === 'EF3A-M' ? 'na-matricula' : 'pendente', motivo: null });
+    tela.alternarAluno('destino', '1');
+    tela.moverMarcadosPara('EF3A-M');
+    tela.escolherTurma('destino', 'EF3A-M');
+    expect(importados()).toEqual(['Ana']);
   });
 
   it('tirar da turma o aluno com movimento salvo e sem turma na matrícula desfaz o movimento no RM', () => {

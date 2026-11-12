@@ -1,0 +1,141 @@
+<div class="en-page">
+  <app-card
+    class="saea-card-fill saea-carregavel"
+    title="Enturmação"
+    subtitle="Alunos movidos na pré-enturmação que ainda não estão na matrícula. Marque quem vai e importe."
+  >
+    <app-carregando [ativo]="carregando()" texto="Lendo os alunos para importar no RM..." [estimativaMs]="estimativa()" />
+
+    <!-- Ano, unidade, série e busca à esquerda; marcar e importar à direita (como em Sala por Ano Letivo). -->
+    <div class="en-barra">
+      <div class="en-escolhas">
+        <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" />
+        <app-select
+          label="Unidade"
+          [ngModel]="codFilial() === null ? '' : '' + codFilial()"
+          (ngModelChange)="selecionarUnidade($event)"
+          [options]="unidadeOptions()"
+          [disabled]="carregandoSalas()"
+        />
+        <app-select
+          label="Série"
+          [ngModel]="serie()"
+          (ngModelChange)="selecionarSerie($event)"
+          [options]="serieOptions()"
+          [disabled]="!temAlunos()"
+        />
+        <app-select
+          label="Turma"
+          [ngModel]="turma()"
+          (ngModelChange)="selecionarTurma($event)"
+          [options]="turmaOptions()"
+          [disabled]="!temAlunos()"
+        />
+        <saea-input
+          class="en-buscar"
+          type="search"
+          icon="search"
+          label="Buscar aluno"
+          placeholder="Nome ou RA"
+          [value]="busca()"
+          (valueChange)="busca.set($event)"
+          [disabled]="!temAlunos()"
+        />
+      </div>
+      @if (temAlunos()) {
+        <div class="en-acao">
+          <span class="en-dica" aria-live="polite">{{ resumoDaSelecao() }}</span>
+          @if (alunosMarcados().length > 0) {
+            <app-button variant="ghost" (clicked)="limparMarcados()">Limpar seleção</app-button>
+          }
+          <app-button class="en-marcar-pendentes" variant="secondary" [disabled]="!temPendentesVisiveis()" (clicked)="alternarPendentes()">
+            {{ pendentesMarcados() ? 'Desmarcar os pendentes' : 'Marcar os pendentes' }}
+          </app-button>
+          <app-button class="en-importar" [disabled]="alunosMarcados().length === 0" (clicked)="importar()">
+            <span class="material-icons" aria-hidden="true">download</span> {{ textoImportar() }}
+          </app-button>
+        </div>
+      }
+    </div>
+
+    @if (temAlunos()) {
+      <saea-tabs class="en-abas" ariaLabel="Situação" [tabs]="abas()" [active]="aba()" (activeChange)="escolherAba($event)" />
+    }
+
+    <div class="en-corpo saea-scroll">
+      @if (codFilial() === null) {
+        <app-empty-state
+          icon="download"
+          title="Escolha a unidade"
+          description="Aparecem os alunos pendentes e os que requerem revisão, para você marcar e importar."
+        />
+      } @else if (comErro()) {
+        <app-empty-state icon="cloud_off" title="Não foi possível ler os alunos para importar" description="O RM não respondeu. Tente de novo.">
+          <app-button action variant="secondary" (clicked)="tentarDeNovo()">Tentar de novo</app-button>
+        </app-empty-state>
+      } @else if (pronto() && !temAlunos()) {
+        <app-empty-state
+          icon="task_alt"
+          title="Nenhum aluno para importar"
+          [description]="'Em ' + anoLetivo() + ', ninguém desta unidade está pendente nem requer revisão.'"
+        />
+      } @else if (temAlunos()) {
+        <table class="en-tabela">
+          <thead>
+            <tr>
+              <th class="en-col-marca">
+                <saea-checkbox
+                  ariaLabel="Marcar todos os alunos da lista"
+                  [checked]="todosVisiveisMarcados()"
+                  [indeterminate]="visiveisEmParte()"
+                  [disabled]="visiveis().length === 0"
+                  (checkedChange)="alternarVisiveis($event)"
+                />
+              </th>
+              <th>Aluno</th>
+              <th>Série</th>
+              <th>Turma de destino</th>
+              <th>Situação</th>
+              <th>Observação</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (a of visiveis(); track a.id) {
+              <tr [class.en-linha--marcada]="marcado(a.id)">
+                <td class="en-col-marca">
+                  <saea-checkbox [ariaLabel]="'Marcar ' + a.nome" [checked]="marcado(a.id)" (checkedChange)="definirMarcado(a.id, $event)" />
+                </td>
+                <td>
+                  <div class="en-aluno">
+                    <saea-avatar [name]="a.semMatricula ? null : a.nome" [src]="foto(a)" [size]="32" />
+                    <div>
+                      <span class="en-nome" [class.en-nome--sem-matricula]="a.semMatricula">{{ a.nome }}</span>
+                      <span class="en-ra">RA {{ a.id }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td class="en-cel-suave">{{ a.serie }}</td>
+                <td>
+                  <span class="en-turma-codigo">{{ a.codTurma }}</span>
+                  <span class="en-cel-suave">{{ a.nomeTurma }}</span>
+                </td>
+                <td>
+                  @if (a.situacao === 'requer-revisao') {
+                    <app-badge tone="warning">Requer revisão</app-badge>
+                  } @else {
+                    <app-badge tone="info">Pendente</app-badge>
+                  }
+                </td>
+                <td class="en-obs">{{ a.obs ?? '—' }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="en-sem-resultado">Nenhum aluno com esse filtro.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  </app-card>
+</div>

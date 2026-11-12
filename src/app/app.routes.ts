@@ -50,7 +50,7 @@ export const routes: Routes = [
     path: 'salas-por-ano',
     canActivate: [authGuard],
     loadComponent: () => import('./features/copiar-ano/copiar-ano.component').then((m) => m.CopiarAnoComponent),
-    data: { breadcrumb: 'Salas por ano' },
+    data: { breadcrumb: 'Sala por Ano Letivo' },
   },
   // Endereço antigo da tela (Copiar ano letivo).
   { path: 'copiar-ano', redirectTo: 'salas-por-ano', pathMatch: 'full' },
@@ -63,7 +63,14 @@ export const routes: Routes = [
           canActivate: [authGuard],
           loadComponent: () =>
             import('./features/vincular-alunos/vincular-alunos.component').then((m) => m.VincularAlunosComponent),
-          data: { breadcrumb: 'Vincular aluno à turma' },
+          data: { breadcrumb: 'Pré-enturmação' },
+        },
+        // Os alunos da pré-enturmação que a secretaria importa para a matrícula.
+        {
+          path: 'enturmacao',
+          canActivate: [authGuard],
+          loadComponent: () => import('./features/enturmacao/enturmacao.component').then((m) => m.EnturmacaoComponent),
+          data: { breadcrumb: 'Enturmação' },
         },
       ]
     : []),

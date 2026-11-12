@@ -507,16 +507,25 @@ li[draggable='true'] .va-cartao:active {
   font-size: 11px;
   font-weight: 600;
 }
-/* A última tentativa de salvar falhou: o motivo fica na dica e no detalhe. */
-.va-cartao-veio--falhou {
+.va-cartao-veio--falhou,
+.va-cartao-veio--importado {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+.va-cartao-veio--falhou .material-icons,
+.va-cartao-veio--importado .material-icons {
+  font-size: 13px;
+}
+/* A última tentativa de salvar falhou: o motivo fica na dica e no detalhe. */
+.va-cartao-veio--falhou {
   background: color-mix(in srgb, var(--saea-danger) 12%, transparent);
   color: var(--saea-danger);
 }
-.va-cartao-veio--falhou .material-icons {
-  font-size: 13px;
+/* Já está na matrícula nesta turma (o registro no MD de enturmação está como Importado). Cores do saea-badge de sucesso. */
+.va-cartao-veio--importado {
+  background: color-mix(in srgb, var(--saea-success) 12%, transparent);
+  color: var(--saea-success);
 }
 .va-cartao-check {
   position: absolute;

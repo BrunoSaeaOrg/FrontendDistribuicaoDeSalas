@@ -206,6 +206,36 @@ export interface ApiEnturmacaoPendenteDto {
 }
 
 /**
+ * Aluno cujo último registro no MD de enturmação está como Importado, isto é, já está na matrícula
+ * (OC_SAL_ENTUR_IMPORTADOS; na API.OC.ENTUR.BAS, IMPORTADO = "Importado").
+ */
+export interface ApiEnturmacaoImportadoDto {
+  ra: string;
+  /** A turma do registro importado. */
+  codTurma: string;
+}
+
+/** Situação do registro no MD de enturmação que ainda não foi importado: IMPORTADO 0 ou 2. */
+export type ApiSituacaoEnturmacao = 'pendente' | 'requer-revisao';
+
+/**
+ * Aluno da tela Enturmação (OC_SAL_ENTUR_PARA_IMPORTAR): o registro dele no MD está Pendente ou
+ * Requer Revisão. Nome e série vêm da pré-enturmação; null = fora da matrícula do ano na unidade.
+ */
+export interface ApiEnturmacaoParaImportarDto {
+  ra: string;
+  nome: string | null;
+  /** "5º Ano - Ensino Fundamental - Manhã - EF I". */
+  serie: string | null;
+  codTurma: string;
+  /** "3º Ano A - Manhã"; fora do cadastro de turmas, o código. */
+  nomeTurma: string;
+  situacao: ApiSituacaoEnturmacao;
+  /** O motivo da revisão, quando há (OBS do registro). */
+  obs: string | null;
+}
+
+/**
  * Resultado de cada aluno em OC_SAL_ENTUR_SALVAR: "pendente" = gravado no MD, falta importar;
  * "na-matricula" = voltou para a turma da matrícula (nada a importar); "falhou", com o motivo.
  */

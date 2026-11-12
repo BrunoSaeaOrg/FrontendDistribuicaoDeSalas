@@ -96,7 +96,7 @@ describe('sugestões da sala nova', () => {
   });
 });
 
-describe('NovaSalaComponent (Salas por ano → Nova sala)', () => {
+describe('NovaSalaComponent (Sala por Ano Letivo → Nova sala)', () => {
   let api: { getOpcoesSalaNova: ReturnType<typeof vi.fn>; criarSala: ReturnType<typeof vi.fn> };
   let toast: { success: ReturnType<typeof vi.fn>; warning: ReturnType<typeof vi.fn> };
   let carregarFiliais: ReturnType<typeof vi.fn>;

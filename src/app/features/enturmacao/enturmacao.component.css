@@ -1,0 +1,144 @@
+/*
+ * Mesmo esqueleto da Sala por Ano Letivo (copiar-ano.component.css): um app-card que ocupa a altura
+ * do conteúdo, a barra de filtros e ações no topo e a tabela rolando por dentro.
+ */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.en-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.en-page > app-card.saea-card-fill {
+  min-height: 420px;
+}
+
+/* Filtros à esquerda, marcar e importar à direita. */
+.en-barra {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-3) var(--sp-5);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--saea-border);
+}
+.en-escolhas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-3);
+}
+.en-escolhas app-select {
+  min-width: 160px;
+}
+.en-buscar {
+  width: 240px;
+}
+.en-acao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.en-acao .material-icons {
+  font-size: 18px;
+}
+.en-dica {
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+}
+
+.en-abas {
+  flex-shrink: 0;
+  margin-top: var(--sp-2);
+}
+
+.en-corpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+/* A tabela no estilo da Sala por Ano Letivo. */
+.en-tabela {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.en-tabela th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: var(--sp-3) var(--sp-2);
+  color: var(--saea-ink-faint);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--saea-surface);
+  border-bottom: 1px solid var(--saea-border);
+}
+.en-tabela td {
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--saea-border);
+  vertical-align: middle;
+}
+.en-col-marca {
+  width: 36px;
+}
+.en-linha--marcada td {
+  background: color-mix(in srgb, var(--saea-primary) 7%, transparent);
+}
+
+.en-aluno {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.en-nome {
+  display: block;
+  font-weight: 600;
+  color: var(--saea-ink);
+}
+.en-nome--sem-matricula {
+  font-weight: 500;
+  font-style: italic;
+  color: var(--saea-ink-soft);
+}
+.en-ra {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+/* Série e nome da turma: texto de apoio. */
+.en-cel-suave {
+  color: var(--saea-ink-soft);
+  white-space: nowrap;
+}
+.en-turma-codigo {
+  margin-right: var(--sp-2);
+  font-family: var(--font-mono);
+  color: var(--saea-ink);
+}
+.en-obs {
+  min-width: 160px;
+  color: var(--saea-ink-soft);
+}
+.en-sem-resultado {
+  padding: var(--sp-8) var(--sp-4) !important;
+  text-align: center;
+  color: var(--saea-ink-soft);
+}

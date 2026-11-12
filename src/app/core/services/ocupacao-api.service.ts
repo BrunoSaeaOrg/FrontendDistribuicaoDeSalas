@@ -7,6 +7,8 @@ import {
   ApiAnoLetivoDto,
   ApiCopiaAnoPlanoDto,
   ApiCopiaSalaResultadoDto,
+  ApiEnturmacaoImportadoDto,
+  ApiEnturmacaoParaImportarDto,
   ApiEnturmacaoPendenteDto,
   ApiEnturmacaoResultadoDto,
   ApiRegraDto,
@@ -82,6 +84,27 @@ export class OcupacaoApiService {
   /** Movimentos gravados no MD de enturmação que ainda não entraram na matrícula (rápido: não relê os alunos). */
   getPendentesEnturmacao(codUsuario: string, ano: string, codFilial: number): Observable<ApiEnturmacaoPendenteDto[]> {
     return this.http.post<ApiEnturmacaoPendenteDto[]>(`${this.baseUrl}/OC_SAL_ENTUR_PENDENTES`, {
+      CODUSUARIO: codUsuario,
+      ANO: ano,
+      CODFILIAL: String(codFilial),
+    });
+  }
+
+  /** Alunos cujo último registro no MD de enturmação está como Importado (já entraram na matrícula). */
+  getImportadosEnturmacao(codUsuario: string, ano: string, codFilial: number): Observable<ApiEnturmacaoImportadoDto[]> {
+    return this.http.post<ApiEnturmacaoImportadoDto[]>(`${this.baseUrl}/OC_SAL_ENTUR_IMPORTADOS`, {
+      CODUSUARIO: codUsuario,
+      ANO: ano,
+      CODFILIAL: String(codFilial),
+    });
+  }
+
+  /**
+   * Os alunos para a secretaria importar (tela Enturmação): Pendentes e Requer Revisão no MD de
+   * enturmação. A primeira leitura de uma unidade espera a dos alunos (de 15 s a 1 min).
+   */
+  getParaImportarEnturmacao(codUsuario: string, ano: string, codFilial: number): Observable<ApiEnturmacaoParaImportarDto[]> {
+    return this.http.post<ApiEnturmacaoParaImportarDto[]>(`${this.baseUrl}/OC_SAL_ENTUR_PARA_IMPORTAR`, {
       CODUSUARIO: codUsuario,
       ANO: ano,
       CODFILIAL: String(codFilial),

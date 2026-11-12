@@ -26,7 +26,7 @@ const sala = (n: number, situacao: ApiSituacaoCopiaAno = 'copiar', codFilial = 2
 
 const plano = (salas: ApiCopiaSalaDto[]): ApiCopiaAnoPlanoDto => ({ salas });
 
-describe('CopiarAnoComponent (Salas por ano)', () => {
+describe('CopiarAnoComponent (Sala por Ano Letivo)', () => {
   const anoLetivo = signal('2026');
   const somenteLeitura = signal(false);
   let api: {
@@ -89,7 +89,7 @@ describe('CopiarAnoComponent (Salas por ano)', () => {
       'Centro 1: Sala 1 (Nova em 2027), Sala 2 (Igual)',
       'Centro 2: Sala 5 (Nova em 2027)',
     ]);
-    expect(texto(fixture)).toContain('Salas por ano');
+    expect(texto(fixture)).toContain('Sala por Ano Letivo');
     expect(api.copiarSalasDoAno).not.toHaveBeenCalled();
   });
 
