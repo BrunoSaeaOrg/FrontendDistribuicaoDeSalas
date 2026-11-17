@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { Turno } from '../models';
 import {
   ApiAlunoEnturmacaoDto,
   ApiAnoLetivoDto,
@@ -263,8 +264,9 @@ export class OcupacaoApiService {
   }
 
   /**
-   * Marca a sala como indisponível no ano, com o motivo (MOTIVO do PRJ4087040, até 500 caracteres),
-   * ou, com o motivo vazio, volta a deixá-la disponível. Devolve o motivo gravado (null = disponível).
+   * Marca a sala como indisponível num turno do ano, com o motivo, ou, com o motivo vazio, deixa o
+   * turno disponível de novo. O MOTIVO do PRJ4087040 (até 500 caracteres) tem uma linha por turno;
+   * devolve o MOTIVO inteiro que ficou gravado (null = disponível nos dois turnos).
    */
   definirIndisponibilidade(request: {
     codUsuario: string;
@@ -273,6 +275,7 @@ export class OcupacaoApiService {
     codBloco: string;
     codPredio: string;
     codSala: string;
+    turno: Turno;
     motivo: string;
   }): Observable<{ motivo: string | null }> {
     return this.http.post<{ motivo: string | null }>(`${this.baseUrl}/OC_SAL_SALA_INDISPONIBILIDADE`, {
@@ -282,6 +285,7 @@ export class OcupacaoApiService {
       CODBLOCO: request.codBloco,
       CODPREDIO: request.codPredio,
       CODSALA: request.codSala,
+      TURNO: request.turno === 'manha' ? 'MANHA' : 'TARDE',
       MOTIVO: request.motivo,
     });
   }

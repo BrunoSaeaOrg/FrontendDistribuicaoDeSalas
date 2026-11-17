@@ -72,8 +72,9 @@
           </thead>
           <tbody>
             @for (row of rows(); track row.id) {
-              <!-- Sala indisponível no ano: a linha em cinza, com o selo e o motivo embaixo do nome. -->
-              <tr [class.painel-row--indisponivel]="!!row.motivo">
+              <!-- Indisponibilidade (marcada em Salas → Turmas, por turno): o selo e o motivo embaixo do
+                   nome; a linha fica cinza quando o turno do filtro (ou, sem filtro, os dois) está indisponível. -->
+              <tr [class.painel-row--indisponivel]="row.linhaIndisponivel">
                 <td>
                   <span class="painel-inline">
                     <span class="painel-unit-dot" [style.background]="row.unidadeCor"></span>{{ row.unidadeNome }}
@@ -82,10 +83,10 @@
                 <td class="painel-cell-soft">{{ row.andar }}</td>
                 <td class="painel-cell-strong">
                   {{ row.nome }}
-                  @if (row.motivo) {
+                  @if (row.indisponivel; as indisp) {
                     <span class="painel-indisp">
-                      <app-badge tone="neutral">Indisponível</app-badge>
-                      <saea-truncate class="painel-indisp-motivo" [maxWidth]="260">{{ row.motivo }}</saea-truncate>
+                      <app-badge tone="neutral">{{ indisp.selo }}</app-badge>
+                      <saea-truncate class="painel-indisp-motivo" [maxWidth]="260" [label]="indisp.motivo">{{ indisp.motivo }}</saea-truncate>
                     </span>
                   }
                 </td>
@@ -100,7 +101,8 @@
                   >{{ p.alunos ?? '—' }}</td>
                 }
                 <td>
-                  <!-- O status de cada turno é a cor da letra; o rótulo diz o mesmo em texto (leitor de tela). -->
+                  <!-- O status de cada turno é a cor da letra; o rótulo diz o mesmo em texto (leitor de tela).
+                       Turno indisponível: o calendário com X no lugar da letra (a dica diz o turno e o motivo). -->
                   <div class="painel-chips">
                     @for (chip of row.turnoChips; track chip.turno) {
                       <span
@@ -108,19 +110,12 @@
                         role="img"
                         [attr.aria-label]="chip.rotulo"
                         [title]="chip.turma"
-                      >{{ chip.label }}</span>
+                      >@if (chip.indisponivel) {<span class="material-icons painel-turno-chip-icone" aria-hidden="true">event_busy</span>} @else {{{ chip.label }}}</span>
                     }
                   </div>
                 </td>
                 <td class="painel-cell-action">
-                  <span class="painel-acoes">
-                    @if (uiMode.editorMode()) {
-                      <button type="button" class="painel-link painel-link--suave" (click)="abrirMotivo(row)">
-                        {{ row.motivo ? 'Alterar motivo' : 'Marcar indisponível' }}
-                      </button>
-                    }
-                    <button type="button" class="painel-link" (click)="verPlanta(row)">Ver planta ›</button>
-                  </span>
+                  <button type="button" class="painel-link" (click)="verPlanta(row)">Ver planta ›</button>
                 </td>
               </tr>
             }
@@ -129,57 +124,4 @@
       </div>
     }
   </app-card>
-
-  <!-- Marcar a sala como indisponível no ano letivo, com o motivo, ou deixá-la disponível de novo. -->
-  <saea-dialog
-    [(open)]="dialogoMotivo"
-    eyebrow="Painel"
-    [title]="tituloMotivo()"
-    [width]="480"
-    [closable]="!gravandoMotivo()"
-    [closeOnBackdrop]="!gravandoMotivo()"
-    [closeOnEsc]="!gravandoMotivo()"
-  >
-    @if (salaDoMotivo(); as sala) {
-      <p class="painel-motivo-texto">
-        {{ sala.unidadeNome }} · {{ anoLetivo() }}. A sala fica indisponível só neste ano letivo, e o motivo aparece no
-        Painel para todos.
-      </p>
-      <div class="painel-motivo-campo">
-        <label class="painel-motivo-rotulo" for="painel-motivo">
-          Motivo
-          <span class="painel-motivo-obrigatorio" aria-hidden="true">*</span>
-          <span class="painel-so-leitor">(obrigatório)</span>
-        </label>
-        <textarea
-          id="painel-motivo"
-          class="painel-motivo-textarea"
-          rows="4"
-          required
-          aria-required="true"
-          aria-describedby="painel-motivo-ajuda"
-          placeholder="Ex.: em reforma até março"
-          [maxLength]="tamanhoMotivo"
-          [readOnly]="gravandoMotivo()"
-          [ngModel]="motivo()"
-          (ngModelChange)="motivo.set($event)"
-        ></textarea>
-        <div class="painel-motivo-ajuda" id="painel-motivo-ajuda">
-          <span>Para deixar a sala disponível, use "Tornar disponível".</span>
-          <span>{{ motivo().length }}/{{ tamanhoMotivo }}</span>
-        </div>
-      </div>
-    }
-    <div saeaDialogFooter>
-      <button saea-button variant="ghost" type="button" [disabled]="gravandoMotivo()" (click)="fecharMotivo()">Cancelar</button>
-      @if (salaDoMotivo()?.motivo) {
-        <button saea-button variant="secondary" type="button" icon="event_available" [disabled]="gravandoMotivo()" (click)="tornarDisponivel()">
-          Tornar disponível
-        </button>
-      }
-      <button saea-button type="button" icon="block" [loading]="gravandoMotivo()" [disabled]="!motivo().trim()" (click)="salvarMotivo()">
-        {{ salaDoMotivo()?.motivo ? 'Salvar motivo' : 'Marcar indisponível' }}
-      </button>
-    </div>
-  </saea-dialog>
 </div>

@@ -249,7 +249,7 @@
   outline: 2px solid var(--saea-primary-strong);
   outline-offset: 2px;
 }
-/* A ordem dos nomes: mostra a de agora (A→Z ou Z→A); um clique inverte. Da altura dos campos. */
+/* O botão "Filtros" de cada lado (abre a ordenação e os filtros do lado). Da altura dos campos. */
 .va-ordem {
   flex-shrink: 0;
   display: inline-flex;
@@ -271,9 +271,108 @@
   font-size: 18px;
   color: var(--saea-ink-soft);
 }
-.va-ordem:hover {
+.va-ordem:hover,
+.va-ordem[aria-expanded='true'] {
   border-color: var(--saea-primary);
 }
+/* Com filtro ligado: o contorno na cor da marca e o número de filtros num círculo. */
+.va-filtros-botao--ativo {
+  border-color: var(--saea-primary);
+  color: var(--saea-primary-strong);
+}
+.va-filtros-botao--ativo .material-icons {
+  color: var(--saea-primary-strong);
+}
+.va-filtros-qtd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--saea-primary-strong);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* O menu "Filtros": a ordenação em dois botões lado a lado, os dois campos e "Limpar filtros". */
+.va-filtros-menu {
+  width: 280px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--saea-surface);
+  color: var(--saea-ink);
+  box-shadow: var(--elev-3), 0 0 0 1px var(--saea-border);
+  font-family: var(--font-body);
+}
+.va-filtros-campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.va-filtros-rotulo {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--saea-ink);
+}
+.va-filtros-ordem {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--saea-surface-sunken);
+}
+.va-filtros-opcao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 36px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: none;
+  color: var(--saea-ink-soft);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.va-filtros-opcao .material-icons {
+  font-size: 16px;
+}
+.va-filtros-opcao--ativa {
+  background: var(--saea-surface);
+  color: var(--saea-primary-strong);
+  box-shadow: var(--elev-1);
+}
+.va-filtros-opcao:focus-visible,
+.va-filtros-limpar:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 1px;
+}
+.va-filtros-limpar {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--saea-primary-strong);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.va-filtros-limpar:disabled {
+  color: var(--saea-ink-faint);
+  cursor: default;
+}
+
 .va-ordem:focus-visible,
 .va-marcar-todos:focus-visible {
   outline: 2px solid var(--saea-primary-strong);
@@ -387,6 +486,16 @@ li[draggable='true'] .va-cartao:active {
 }
 .va-cartao--arrastando {
   opacity: 0.45;
+}
+/* Enturmado: travado na turma. Sem mão de arrastar e sem o destaque de quem dá para marcar. */
+.va-cartao--travado,
+.va-cartao--travado:hover {
+  cursor: default;
+  border-color: var(--saea-border);
+}
+.va-linha-travado {
+  font-size: 18px;
+  color: var(--saea-ink-faint);
 }
 .va-cartao--recente {
   background: color-mix(in srgb, var(--saea-primary) 7%, var(--saea-surface));
@@ -508,14 +617,21 @@ li[draggable='true'] .va-cartao:active {
   font-weight: 600;
 }
 .va-cartao-veio--falhou,
-.va-cartao-veio--importado {
+.va-cartao-veio--importado,
+.va-cartao-veio--inconsistente {
   display: inline-flex;
   align-items: center;
   gap: 3px;
 }
 .va-cartao-veio--falhou .material-icons,
-.va-cartao-veio--importado .material-icons {
+.va-cartao-veio--importado .material-icons,
+.va-cartao-veio--inconsistente .material-icons {
   font-size: 13px;
+}
+/* A FV de importação recusou (último registro no MD como Inconsistente): aviso em laranja, o motivo na dica. */
+.va-cartao-veio--inconsistente {
+  background: color-mix(in srgb, var(--saea-warning) 14%, transparent);
+  color: var(--saea-warning);
 }
 /* A última tentativa de salvar falhou: o motivo fica na dica e no detalhe. */
 .va-cartao-veio--falhou {
@@ -998,7 +1114,8 @@ li[draggable='true'] .va-cartao:active {
   font-weight: 600;
 }
 .va-previa-obs,
-.va-previa-falha {
+.va-previa-falha,
+.va-previa-inconsistente {
   margin: 0;
   padding: 6px 10px;
   border-radius: 10px;
@@ -1019,6 +1136,13 @@ li[draggable='true'] .va-cartao:active {
 }
 .va-previa-falha strong {
   color: var(--saea-danger);
+}
+/* A FV de importação recusou (Inconsistente no RM): aviso em laranja, como a etiqueta do cartão. */
+.va-previa-inconsistente {
+  background: color-mix(in srgb, var(--saea-warning) 12%, var(--saea-surface));
+}
+.va-previa-inconsistente strong {
+  color: var(--saea-warning);
 }
 .va-previa-fechar {
   align-self: flex-end;

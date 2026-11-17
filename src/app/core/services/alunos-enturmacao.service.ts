@@ -21,6 +21,15 @@ export type EstadoPendentes =
  */
 export type EstadoImportados = EstadoPendentes;
 
+/**
+ * Aluno cujo último registro no MD está como Inconsistente (a FV de importação recusou): a turma em
+ * que ele não conseguiu entrar (vazia se o registro veio sem) e o motivo que a FV escreveu.
+ */
+export interface Inconsistencia {
+  codTurma: string;
+  motivo: string | null;
+}
+
 /** As turmas do cadastro no ano da unidade: o destino da tela. */
 export type EstadoTurmas =
   | { estado: 'carregando' }
@@ -43,6 +52,19 @@ export interface SelecaoDaTela {
   serie: string;
   origemId: string | null;
   destinoId: string | null;
+  /** Os filtros do menu "Filtros" de cada lado (a origem e o destino têm os seus). */
+  filtros?: Readonly<Record<'origem' | 'destino', FiltrosDoLado>>;
+}
+
+/** Novo (entrou por processo seletivo) ou veterano; vazio = os dois. */
+export type TipoDeAluno = '' | 'novo' | 'veterano';
+
+/** Os filtros de um lado da Pré-enturmação. */
+export interface FiltrosDoLado {
+  /** A turma do ano anterior; vazio = todas. */
+  turmaAnterior: string;
+  /** Novo ou veterano; vazio = os dois. */
+  tipoAluno: TipoDeAluno;
 }
 
 /**
@@ -63,6 +85,8 @@ export class AlunosEnturmacaoService {
   private readonly _estados = signal<ReadonlyMap<string, EstadoAlunos>>(new Map());
   private readonly _pendentes = signal<ReadonlyMap<string, EstadoPendentes>>(new Map());
   private readonly _importados = signal<ReadonlyMap<string, EstadoImportados>>(new Map());
+  /** Os Inconsistentes de cada "ano|filial" (RA → turma e motivo), da mesma leitura dos importados. */
+  private readonly _inconsistentes = signal<ReadonlyMap<string, ReadonlyMap<string, Inconsistencia>>>(new Map());
   private readonly _turmas = signal<ReadonlyMap<string, EstadoTurmas>>(new Map());
   /** Fotos que chegaram, por "ano|filial" e RA. */
   private readonly _fotos = signal<ReadonlyMap<string, ReadonlyMap<string, string>>>(new Map());
@@ -88,6 +112,11 @@ export class AlunosEnturmacaoService {
 
   importados(ano: string, codFilial: number): EstadoImportados | undefined {
     return this._importados().get(chave(ano, codFilial));
+  }
+
+  /** Os alunos cujo último registro está como Inconsistente; vazio enquanto a leitura não chega. */
+  inconsistentes(ano: string, codFilial: number): ReadonlyMap<string, Inconsistencia> {
+    return this._inconsistentes().get(chave(ano, codFilial)) ?? new Map();
   }
 
   turmas(ano: string, codFilial: number): EstadoTurmas | undefined {
@@ -191,7 +220,14 @@ export class AlunosEnturmacaoService {
       return;
     }
     this.api.getImportadosEnturmacao(usuario, ano, codFilial).subscribe({
-      next: (lista) => this.definirImportados(k, { estado: 'pronto', porRa: new Map(lista.map((i) => [i.ra, i.codTurma])) }),
+      next: (lista) => {
+        const importados = lista.filter((i) => i.situacao !== 'requer-revisao');
+        const inconsistentes = lista.filter((i) => i.situacao === 'requer-revisao');
+        this.definirImportados(k, { estado: 'pronto', porRa: new Map(importados.map((i) => [i.ra, i.codTurma])) });
+        this._inconsistentes.update((m) =>
+          new Map(m).set(k, new Map(inconsistentes.map((i) => [i.ra, { codTurma: i.codTurma ?? '', motivo: i.obs?.trim() || null }]))),
+        );
+      },
       error: () => {
         if (anterior?.estado !== 'pronto') this.definirImportados(k, { estado: 'erro' });
       },
@@ -221,7 +257,10 @@ export class AlunosEnturmacaoService {
     const porRa = new Map(atual?.estado === 'pronto' ? atual.porRa : []);
     const jaImportados = this._importados().get(k);
     const importados = new Map(jaImportados?.estado === 'pronto' ? jaImportados.porRa : []);
+    // Gravado de novo, o registro deixa de ser Inconsistente (o back o põe como pendente ou importado).
+    const inconsistentes = new Map(this._inconsistentes().get(k) ?? []);
     resultados.forEach((r) => {
+      if (r.situacao !== 'falhou') inconsistentes.delete(r.ra);
       if (r.situacao === 'pendente') {
         porRa.set(r.ra, r.codTurma);
         importados.delete(r.ra);
@@ -231,6 +270,7 @@ export class AlunosEnturmacaoService {
       }
     });
     this.definirPendentes(k, { estado: 'pronto', porRa });
+    this._inconsistentes.update((m) => new Map(m).set(k, inconsistentes));
     // Lendo ainda (ou sem leitura): a leitura em curso traz o que vale.
     if (jaImportados?.estado === 'pronto') this.definirImportados(k, { estado: 'pronto', porRa: importados });
   }

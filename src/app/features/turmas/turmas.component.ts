@@ -2,14 +2,19 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
+  SaeaButtonComponent,
+  SaeaDialogComponent,
+  SaeaDialogFooterDirective,
   SaeaSpinnerComponent,
   SaeaTagComponent,
   SaeaTooltipDirective,
   SaeaTruncateComponent,
 } from '@sistemas-saea/saea-design-system';
-import { SalasService } from '../../core/services/salas.service';
+import { motivoDaFalha, SalasService } from '../../core/services/salas.service';
+import { ToastService } from '../../core/services/toast.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
-import { nomeDoAndar, Turno, TurmaVinculada, unidadeNoFiltro } from '../../core/models';
+import { espacoParaMotivo, nomeDoAndar, Turno, TurmaVinculada, unidadeNoFiltro } from '../../core/models';
+import { AlertComponent } from '../../shared/ui/alert/alert.component';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
@@ -17,7 +22,7 @@ import { CarregandoComponent } from '../../shared/ui/carregando/carregando.compo
 import { ConfirmDialogService } from '../../shared/ui/confirm-dialog/confirm-dialog.service';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
 import { InputComponent } from '../../shared/ui/input/input.component';
-import { MultiSelectComponent, MultiSelectOption } from '../../shared/ui/multi-select/multi-select.component';
+import { MultiSelectAcao, MultiSelectComponent, MultiSelectOption } from '../../shared/ui/multi-select/multi-select.component';
 import { SelectComponent, SelectOption } from '../../shared/ui/select/select.component';
 
 /** Turma que dá para vincular numa célula: sem sala, ou em outra sala (vincular a move). */
@@ -72,7 +77,32 @@ interface TurmaCell {
   vinculando: { atual: number; total: number } | null;
   /** Turma que o RM está liberando: o spinner fica no lugar do "Liberar" dela. */
   liberando: string | null;
+  /** Por que o turno está indisponível no ano; null = disponível. Indisponível, não há turma para vincular. */
+  motivoIndisponivel: string | null;
+  /** No fim do seletor: marcar o turno como indisponível, ou alterar o motivo e torná-lo disponível. */
+  acoes: MultiSelectAcao[];
+  /** O RM está gravando o motivo do turno: o spinner fica no lugar do seletor. */
+  gravandoMotivo: boolean;
+  /** Texto do botão do seletor: o motivo, se o turno está indisponível. */
+  textoDoSeletor: string;
 }
+
+/** O turno que o diálogo do motivo está marcando (ou alterando). */
+interface AlvoDoMotivo {
+  salaId: string;
+  sala: string;
+  unidade: string;
+  turno: Turno;
+  /** O motivo gravado; null = o turno está disponível e vai ser marcado agora. */
+  motivoAtual: string | null;
+  /** Turmas vinculadas no turno: continuam na sala, e o diálogo avisa. */
+  turmas: string[];
+  /** Quantos caracteres cabem no motivo deste turno (o campo do RM é dos dois turnos). */
+  limite: number;
+}
+
+/** Valores das ações do seletor de cada turno. */
+type AcaoDoTurno = 'indisponivel' | 'motivo' | 'disponivel';
 
 interface TurmaRow {
   id: string;
@@ -89,6 +119,20 @@ interface TurmaRow {
 const TURNOS: Turno[] = ['manha', 'tarde'];
 
 const NOME_TURNO: Record<Turno, string> = { manha: 'manhã', tarde: 'tarde' };
+
+const ROTULO_TURNO: Record<Turno, string> = { manha: 'Manhã', tarde: 'Tarde' };
+
+/** "a manhã" / "a tarde", para as frases do diálogo e dos avisos. */
+const O_TURNO: Record<Turno, string> = { manha: 'a manhã', tarde: 'a tarde' };
+
+function acoesDoTurno(turno: Turno, indisponivel: boolean): MultiSelectAcao[] {
+  return indisponivel
+    ? [
+        { value: 'motivo' satisfies AcaoDoTurno, label: 'Alterar motivo', icon: 'edit' },
+        { value: 'disponivel' satisfies AcaoDoTurno, label: `Tornar ${NOME_TURNO[turno]} disponível`, icon: 'event_available' },
+      ]
+    : [{ value: 'indisponivel' satisfies AcaoDoTurno, label: `Marcar ${NOME_TURNO[turno]} como indisponível`, icon: 'block' }];
+}
 
 /** Colunas que dá para ordenar clicando no cabeçalho. */
 type ColunaOrdem = 'sala' | 'carteiras';
@@ -135,6 +179,7 @@ function emChips<T>(lista: T[], aberta: boolean, rotulo: (item: T) => string): L
   imports: [
     FormsModule,
     NgTemplateOutlet,
+    AlertComponent,
     BadgeComponent,
     ButtonComponent,
     CardComponent,
@@ -143,6 +188,9 @@ function emChips<T>(lista: T[], aberta: boolean, rotulo: (item: T) => string): L
     InputComponent,
     MultiSelectComponent,
     SelectComponent,
+    SaeaButtonComponent,
+    SaeaDialogComponent,
+    SaeaDialogFooterDirective,
     SaeaSpinnerComponent,
     SaeaTagComponent,
     SaeaTooltipDirective,
@@ -155,6 +203,7 @@ function emChips<T>(lista: T[], aberta: boolean, rotulo: (item: T) => string): L
 export class TurmasComponent {
   private readonly salasService = inject(SalasService);
   private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly toast = inject(ToastService);
   readonly uiMode = inject(UiModeService);
 
   /** Unidades marcadas (cada uma é uma filial do RM, ex.: "CASJ 1"); nenhuma = todas. */
@@ -231,6 +280,7 @@ export class TurmasComponent {
     const segmento = this.segmento();
     const serie = this.serie();
     const gravando = this.salasService.gravando();
+    const gravandoMotivo = this.gravandoMotivo();
     const selecao = this.selecao();
     const abertas = this.listasAbertas();
     let list = this.salasService.salas();
@@ -257,11 +307,13 @@ export class TurmasComponent {
         const chave = `${s.id}|${turno}`;
         const turmas = this.salasService.turmasNoTurno(s, turno);
         const alunos = this.salasService.alunosNoTurno(s, turno);
-        // Primeiro as turmas sem sala; depois as que estão em outra sala.
-        const opcoes: OpcaoTurma[] = [
-          ...this.salasService.turmasLivresPara(s, turno),
-          ...this.salasService.turmasEmOutraSalaPara(s, turno),
-        ].map((t) => ({
+        const motivoIndisponivel = this.salasService.motivoIndisponivel(s, turno);
+        // Primeiro as turmas sem sala; depois as que estão em outra sala. Turno indisponível não recebe turma.
+        const opcoes: OpcaoTurma[] = (
+          motivoIndisponivel
+            ? []
+            : [...this.salasService.turmasLivresPara(s, turno), ...this.salasService.turmasEmOutraSalaPara(s, turno)]
+        ).map((t) => ({
           valor: valorDaTurma(t),
           codTurma: t.codTurma,
           idPerlet: t.idPerlet,
@@ -306,6 +358,16 @@ export class TurmasComponent {
           vinculando:
             daCelula && !daCelula.codTurma ? { atual: daCelula.atual ?? 1, total: daCelula.total ?? 1 } : null,
           liberando: daCelula?.codTurma ?? null,
+          motivoIndisponivel,
+          acoes: acoesDoTurno(turno, !!motivoIndisponivel),
+          gravandoMotivo: gravandoMotivo === chave,
+          textoDoSeletor: motivoIndisponivel
+            ? motivoIndisponivel
+            : turmas.length > 0 || selecionadas.length > 0
+              ? 'Adicionar turma...'
+              : opcoes.length > 0
+                ? 'Vincular turmas...'
+                : 'Nenhuma turma para vincular',
         };
       });
       return {
@@ -424,5 +486,93 @@ export class TurmasComponent {
       cell,
       falhas.map((t) => t.valor),
     );
+  }
+
+  // ------------------------------------------------------------- indisponibilidade ---
+
+  /** O turno do diálogo do motivo. */
+  readonly alvoDoMotivo = signal<AlvoDoMotivo | null>(null);
+  /** O saea-dialog abre e fecha por aqui ([(open)]). */
+  readonly dialogoMotivo = signal(false);
+  readonly motivo = signal('');
+  /** Célula (salaId|turno) cujo motivo o RM está gravando; null = nenhuma. */
+  readonly gravandoMotivo = signal<string | null>(null);
+
+  readonly tituloMotivo = computed(() => {
+    const alvo = this.alvoDoMotivo();
+    return alvo ? `${ROTULO_TURNO[alvo.turno]} indisponível · ${alvo.sala}` : '';
+  });
+  /** "a manhã" / "a tarde", para o texto do diálogo. */
+  readonly oTurno = computed(() => O_TURNO[this.alvoDoMotivo()?.turno ?? 'manha']);
+
+  /** Uma ação do fim do seletor do turno. */
+  aoEscolherAcao(row: TurmaRow, cell: TurmaCell, acao: string): void {
+    if (acao === 'disponivel') void this.confirmarDisponivel(row, cell);
+    else this.abrirMotivo(row, cell);
+  }
+
+  /** Abre o diálogo do turno: com o motivo de agora, se ele já está indisponível. */
+  abrirMotivo(row: TurmaRow, cell: TurmaCell): void {
+    const sala = this.salasService.sala(row.id);
+    if (!sala) return;
+    this.alvoDoMotivo.set({
+      salaId: row.id,
+      sala: row.nome,
+      unidade: row.unidadeNome,
+      turno: cell.turno,
+      motivoAtual: cell.motivoIndisponivel,
+      turmas: cell.turmas.map((t) => t.nomeProprio),
+      limite: espacoParaMotivo(sala.indisponivel ?? {}, cell.turno),
+    });
+    this.motivo.set(cell.motivoIndisponivel ?? '');
+    this.dialogoMotivo.set(true);
+  }
+
+  fecharMotivo(): void {
+    if (this.gravandoMotivo()) return;
+    this.dialogoMotivo.set(false);
+    this.alvoDoMotivo.set(null);
+  }
+
+  /** Grava o motivo: o turno fica indisponível no ano letivo em uso. */
+  salvarMotivo(): void {
+    const alvo = this.alvoDoMotivo();
+    const motivo = this.motivo().trim();
+    if (alvo && motivo) this.gravarMotivo(alvo.salaId, alvo.turno, motivo, true);
+  }
+
+  /** Pelo diálogo: apaga o motivo e o turno volta a ficar disponível. */
+  tornarDisponivel(): void {
+    const alvo = this.alvoDoMotivo();
+    if (alvo) this.gravarMotivo(alvo.salaId, alvo.turno, '', true);
+  }
+
+  /** Pelo seletor: confirma antes, porque o motivo gravado se perde. */
+  private async confirmarDisponivel(row: TurmaRow, cell: TurmaCell): Promise<void> {
+    const ok = await this.confirmDialog.confirm({
+      title: `Tornar ${NOME_TURNO[cell.turno]} disponível?`,
+      description: `${row.nome} volta a receber turmas no turno da ${NOME_TURNO[cell.turno]} em ${this.anoLetivo()}, e o motivo "${cell.motivoIndisponivel}" é apagado.`,
+      confirmLabel: 'Tornar disponível',
+    });
+    if (ok) this.gravarMotivo(row.id, cell.turno, '', false);
+  }
+
+  private gravarMotivo(salaId: string, turno: Turno, motivo: string, peloDialogo: boolean): void {
+    const sala = this.salasService.sala(salaId);
+    if (!sala || this.gravandoMotivo()) return;
+    this.gravandoMotivo.set(`${salaId}|${turno}`);
+    this.salasService.definirIndisponibilidade(sala, turno, motivo).subscribe({
+      next: (gravado) => {
+        this.gravandoMotivo.set(null);
+        if (peloDialogo) this.fecharMotivo();
+        const titulo = `${sala.nome}, ${NOME_TURNO[turno]}`;
+        if (gravado[turno]) this.toast.success(`${titulo}: indisponível`, `Em ${this.anoLetivo()}: ${gravado[turno]}`);
+        else this.toast.success(`${titulo}: disponível de novo`, `Em ${this.anoLetivo()}.`);
+      },
+      error: (err) => {
+        this.gravandoMotivo.set(null);
+        this.toast.danger('Não foi possível gravar', motivoDaFalha(err));
+      },
+    });
   }
 }

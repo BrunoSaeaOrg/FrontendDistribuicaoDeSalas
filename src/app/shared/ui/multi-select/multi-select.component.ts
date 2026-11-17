@@ -10,6 +10,7 @@ import {
   Injector,
   input,
   model,
+  output,
   signal,
   viewChild,
 } from '@angular/core';
@@ -22,6 +23,16 @@ export interface MultiSelectOption {
   hint?: string;
   /** Opções do mesmo grupo ficam juntas, sob o título do grupo, na ordem em que aparecem. */
   group?: string;
+}
+
+/** Botão no fim da lista: não é opção marcável, dispara `acao` com o valor. */
+export interface MultiSelectAcao {
+  value: string;
+  label: string;
+  /** Nome do ícone do Material (ex.: "block"). */
+  icon?: string;
+  /** Linha menor abaixo do rótulo. */
+  hint?: string;
 }
 
 /** Altura máxima da lista: abaixo disso de espaço livre sob o campo, ela abre para cima. */
@@ -42,6 +53,9 @@ let nextId = 0;
  *
  * Com `todas` (ex.: "Todas as unidades"), a primeira linha marca ou desmarca todas as opções, e o
  * botão mostra os nomes das marcadas (até duas; depois, "N selecionadas").
+ *
+ * `acoes` são botões no fim da lista, depois das opções (ex.: "Marcar manhã como indisponível"):
+ * não marcam nada; fecham a lista e saem em `acao` com o valor.
  */
 @Component({
   selector: 'app-multi-select',
@@ -76,7 +90,7 @@ let nextId = 0;
           [class.ms-gatilho--marcado]="resumoMarcado()"
           [disabled]="disabled()"
           [attr.popovertarget]="listaId"
-          [attr.title]="dicaDoBotao()"
+          [attr.title]="dica() || dicaDoBotao()"
         >
           <span class="ms-gatilho-texto">{{ resumo() }}</span>
           <span class="ms-seta" aria-hidden="true">▾</span>
@@ -130,6 +144,23 @@ let nextId = 0;
             </saea-checkbox>
           }
         }
+        @if (acoes().length > 0) {
+          <div class="ms-acoes" [class.ms-acoes--separadas]="options().length > 0">
+            @for (item of acoes(); track item.value) {
+              <button type="button" class="ms-acao" (click)="escolherAcao(item.value)">
+                @if (item.icon) {
+                  <span class="material-icons ms-acao-icone" aria-hidden="true">{{ item.icon }}</span>
+                }
+                <span class="ms-acao-texto">
+                  <span class="ms-rotulo">{{ item.label }}</span>
+                  @if (item.hint) {
+                    <span class="ms-dica">{{ item.hint }}</span>
+                  }
+                </span>
+              </button>
+            }
+          </div>
+        }
       }
     </div>
   `,
@@ -160,6 +191,12 @@ export class MultiSelectComponent {
   readonly nenhumaEhTodas = input(false);
   /** Valores marcados, na ordem em que foram marcados. */
   readonly selected = model<string[]>([]);
+  /** Botões no fim da lista (ver `MultiSelectAcao`). */
+  readonly acoes = input<MultiSelectAcao[]>([]);
+  /** Dica do botão (title); sem ela, os nomes das marcadas. */
+  readonly dica = input('');
+  /** O valor da ação clicada; a lista já fechou. */
+  readonly acao = output<string>();
 
   private readonly campo = viewChild.required<ElementRef<HTMLElement>>('campo');
   private readonly gatilho = viewChild.required<ElementRef<HTMLButtonElement>>('gatilho');
@@ -272,10 +309,16 @@ export class MultiSelectComponent {
     window.addEventListener('resize', this.fechar);
   }
 
-  /** Aberta, o foco vai para a primeira opção (Tab percorre as outras). */
+  /** Fecha a lista (o foco volta ao botão) e avisa qual ação foi escolhida. */
+  escolherAcao(valor: string): void {
+    this.fechar();
+    this.acao.emit(valor);
+  }
+
+  /** Aberta, o foco vai para a primeira opção, ou para a primeira ação se não houver opção (Tab percorre as outras). */
   aoAbrir(evento: Event): void {
     if ((evento as ToggleEvent).newState === 'open') {
-      this.lista().nativeElement.querySelector<HTMLInputElement>('input')?.focus();
+      this.lista().nativeElement.querySelector<HTMLElement>('input, .ms-acao')?.focus();
     }
   }
 

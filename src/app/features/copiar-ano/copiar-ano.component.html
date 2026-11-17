@@ -3,7 +3,7 @@
     class="saea-card-fill saea-carregavel"
     title="Sala por Ano Letivo"
     [subtitle]="
-      'Marque as salas e copie de um ano para o outro, com as carteiras e a capacidade de cada sala. ' +
+      'Marque as salas e copie para outro ano letivo, com as carteiras e a capacidade de cada sala. ' +
       'As turmas não vão junto: as de cada ano entram nas salas pela tela Salas → Turmas.'
     "
   >
@@ -11,7 +11,7 @@
 
     <div class="ca-barra">
       <div class="ca-escolhas">
-        <!-- Sempre na tela: sem lista ainda (lendo pela 1ª vez, anos inválidos), fica desativado. -->
+        <!-- Sempre na tela: sem lista ainda (lendo pela 1ª vez, sem ano), fica desativado. -->
         <app-multi-select
           class="ca-unidade-escolha"
           label="Unidade"
@@ -23,11 +23,7 @@
           (selectedChange)="escolherUnidades($event)"
           [disabled]="copiando() || !plano()"
         />
-        <div class="ca-anos">
-          <app-select label="Copiar de" [ngModel]="anoOrigem()" (ngModelChange)="escolherOrigem($event)" [options]="anoOptions()" />
-          <span class="material-icons ca-seta" aria-hidden="true">arrow_forward</span>
-          <app-select label="Para" [ngModel]="anoDestino()" (ngModelChange)="escolherDestino($event)" [options]="anoOptions()" />
-        </div>
+        <app-select class="ca-ano" label="Ano letivo" [ngModel]="anoOrigem()" (ngModelChange)="escolherOrigem($event)" [options]="anoOptions()" />
       </div>
       <div class="ca-acao">
         @if (uiMode.readOnlyMode()) {
@@ -37,7 +33,8 @@
             <span class="material-icons" aria-hidden="true">add</span> Nova sala
           </app-button>
           @if (temSalas()) {
-            <app-button [disabled]="!podeCopiar()" [loading]="copiando()" [loadingText]="textoProgresso()" (clicked)="copiar()">
+            <!-- Abre o card que pergunta para qual ano copiar. -->
+            <app-button [disabled]="!podeCopiar()" [loading]="copiando()" [loadingText]="textoProgresso()" (clicked)="abrirCopia()">
               <span class="material-icons" aria-hidden="true">event_repeat</span> {{ textoBotao() }}
             </app-button>
           }
@@ -45,12 +42,10 @@
       </div>
     </div>
 
-    <app-nova-sala [(open)]="novaSalaAberta" [anoSugerido]="anoDestino()" (criada)="aoCriarSala($event)" />
+    <app-nova-sala [(open)]="novaSalaAberta" [anoSugerido]="anoSeguinte()" (criada)="aoCriarSala($event)" />
 
     <div class="ca-corpo saea-scroll">
-      @if (anoOrigem() && anoOrigem() === anoDestino()) {
-        <app-empty-state icon="event_repeat" title="Escolha dois anos diferentes" description="O ano de destino precisa ser outro." />
-      } @else if (!anoOrigem()) {
+      @if (!anoOrigem()) {
         <app-empty-state icon="event" title="Escolha o ano" description="De qual ano as salas vão ser copiadas." />
       } @else if (erroLeitura()) {
         <app-empty-state icon="cloud_off" title="Não foi possível ler as salas" [description]="erroLeitura() ?? ''">
@@ -67,17 +62,6 @@
           <app-empty-state icon="meeting_room" [title]="'Nenhuma sala em ' + anoOrigem()" description="Não há salas para copiar nesse ano." />
         }
       } @else if (plano()) {
-        @if (semDestino() && !uiMode.readOnlyMode()) {
-          <p class="ca-aviso">
-            <span class="material-icons" aria-hidden="true">info</span>
-            Escolha o ano em "Para" para marcar as salas que vão ser copiadas.
-          </p>
-        } @else if (tudoIgual()) {
-          <p class="ca-aviso ca-aviso--ok">
-            <span class="material-icons" aria-hidden="true">check_circle</span>
-            {{ textoTudoIgual() }}
-          </p>
-        }
         <table class="ca-tabela">
           <thead>
             <tr>
@@ -106,26 +90,20 @@
                 </td>
                 <td colspan="6">
                   <b>{{ grupo.titulo }}</b>
+                  <span class="ca-qtd">{{ grupo.linhas.length }} {{ grupo.linhas.length === 1 ? 'sala' : 'salas' }}</span>
+                  <!-- A unidade ficou de fora da última cópia (sem período letivo no ano escolhido). -->
                   @if (grupo.motivo) {
                     <span class="ca-motivo">{{ grupo.motivo }}</span>
-                  } @else {
-                    <span class="ca-qtd">{{ grupo.linhas.length }} {{ grupo.linhas.length === 1 ? 'sala' : 'salas' }}</span>
                   }
                 </td>
               </tr>
               @for (linha of grupo.linhas; track linha.chave) {
-                <!-- A dica da linha diz o que a cópia faz com a sala (nova, muda, igual, não gravou). -->
-                <tr
-                  class="ca-sala"
-                  [class.ca-sala--marcada]="selecionadas().has(linha.chave)"
-                  [class.ca-sala--igual]="linha.estado === 'igual'"
-                  [title]="linha.selo.texto"
-                >
+                <tr class="ca-sala" [class.ca-sala--marcada]="selecionadas().has(linha.chave)">
                   <td class="ca-col-marca">
                     <saea-checkbox
                       [ariaLabel]="'Marcar ' + linha.nome"
                       [checked]="selecionadas().has(linha.chave)"
-                      [disabled]="!linha.aGravar || uiMode.readOnlyMode() || copiando()"
+                      [disabled]="uiMode.readOnlyMode() || copiando()"
                       (checkedChange)="marcar(linha.chave, $event)"
                     />
                   </td>
@@ -148,4 +126,34 @@
       }
     </div>
   </app-card>
+
+  <!-- Copiar: o card pergunta para qual ano vão as salas marcadas. -->
+  <saea-dialog
+    [(open)]="dialogoCopiar"
+    eyebrow="Sala por Ano Letivo"
+    [title]="tituloCopiar()"
+    [width]="440"
+    [closable]="!copiando()"
+    [closeOnBackdrop]="!copiando()"
+    [closeOnEsc]="!copiando()"
+  >
+    <p class="ca-copiar-texto">
+      Vão as carteiras e a capacidade de cada sala. As turmas não vão junto: as de cada ano entram nas salas pela tela
+      Salas → Turmas.
+    </p>
+    <app-select
+      class="ca-copiar-ano"
+      label="Para qual ano?"
+      [ngModel]="anoDestino()"
+      (ngModelChange)="anoDestino.set($event)"
+      [options]="anoDestinoOptions()"
+      [disabled]="copiando()"
+    />
+    <div saeaDialogFooter>
+      <button saea-button variant="ghost" type="button" [disabled]="copiando()" (click)="fecharCopia()">Cancelar</button>
+      <button saea-button type="button" icon="event_repeat" [loading]="copiando()" [disabled]="!podeConfirmar()" (click)="copiar()">
+        {{ copiando() ? textoProgresso() : anoDestino() ? 'Copiar para ' + anoDestino() : 'Copiar' }}
+      </button>
+    </div>
+  </saea-dialog>
 </div>

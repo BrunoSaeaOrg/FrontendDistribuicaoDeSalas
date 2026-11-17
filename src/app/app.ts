@@ -26,7 +26,7 @@ const NAV_ITEMS: SidePanelItem[] = [
   ...(environment.telaVincularAlunos
     ? [
         { icon: 'person_add', label: 'Pré-enturmação', description: 'Mover alunos entre as turmas da sala.', route: 'vincular-alunos' },
-        { icon: 'download', label: 'Enturmação', description: 'Importar para a matrícula os alunos pendentes.', route: 'enturmacao' },
+        { icon: 'group_add', label: 'Enturmação', description: 'Enturmar na matrícula os alunos pendentes e ver a situação de cada um.', route: 'enturmacao' },
       ]
     : []),
 ];

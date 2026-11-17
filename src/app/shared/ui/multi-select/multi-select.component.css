@@ -183,8 +183,55 @@
   color: var(--saea-ink-soft);
 }
 
+/*
+ * Ações no fim da lista: botões de linha inteira, separados das opções por uma linha. Ficam presas
+ * no rodapé enquanto a lista rola: com muitas opções, não precisa rolar até o fim para achá-las.
+ */
+.ms-acoes {
+  position: sticky;
+  bottom: calc(-1 * var(--sp-1));
+  background: var(--saea-surface);
+}
+.ms-acoes--separadas {
+  border-top: 1px solid var(--saea-border);
+  margin-top: var(--sp-1);
+  padding-top: var(--sp-1);
+}
+.ms-acao {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  color: var(--saea-ink);
+  cursor: pointer;
+  transition: background var(--dur-micro) var(--ease-out);
+}
+.ms-acao:hover {
+  background: var(--saea-surface-sunken);
+}
+.ms-acao:focus-visible {
+  outline: 2px solid var(--saea-primary);
+  outline-offset: -2px;
+}
+.ms-acao-icone {
+  font-size: 18px;
+  color: var(--saea-ink-soft);
+}
+.ms-acao-texto {
+  min-width: 0;
+}
+
 @media (max-width: 880px) {
-  .ms-opcao ::ng-deep .saea-checkbox__label {
+  .ms-opcao ::ng-deep .saea-checkbox__label,
+  .ms-acao {
     min-height: var(--touch-min);
   }
 }

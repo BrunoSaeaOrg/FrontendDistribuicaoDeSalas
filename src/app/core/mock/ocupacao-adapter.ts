@@ -1,4 +1,4 @@
-import { Sala, Turno, TurmaLivre, Unidade } from '../models';
+import { lerMotivos, Sala, Turno, TurmaLivre, Unidade } from '../models';
 import { ApiSalaDto, ApiTurmaDto, ApiTurmaXSalaDto } from '../models/ocupacao-api.model';
 
 const CORES_UNIDADE = [
@@ -146,7 +146,7 @@ function criarSala(dto: ApiSalaDto): Sala {
     codBloco: dto.CODBLOCO,
     codPredio: dto.CODPREDIO,
     codSala: dto.CODSALA,
-    motivoIndisponivel: dto.MOTIVO?.trim() || null,
+    indisponivel: lerMotivos(dto.MOTIVO),
   };
 }
 

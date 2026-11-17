@@ -17,6 +17,7 @@
         [options]="serieOptions()"
         [disabled]="!prontos()"
       />
+      <!-- Turma anterior e tipo de aluno ficam no menu "Filtros" de cada lado. -->
     </div>
   </div>
 
@@ -121,15 +122,21 @@
         [value]="buscaDe(p.lado)"
         (valueChange)="buscar(p.lado, $event)"
       />
-      @let ordem = ordemDe(p.lado);
+      <!-- Ordenação, turma anterior e tipo de aluno, num menu só deste lado; o número diz quantos filtros estão ligados. -->
+      @let qtdFiltros = qtdFiltrosDe(p.lado);
       <button
         type="button"
-        class="va-ordem"
-        (click)="alternarOrdem(p.lado)"
-        [attr.aria-label]="ordem === 'az' ? 'Nomes de A a Z. Inverter para Z a A' : 'Nomes de Z a A. Inverter para A a Z'"
-        [saeaTooltip]="ordem === 'az' ? 'Inverter para Z a A' : 'Inverter para A a Z'"
+        class="va-ordem va-filtros-botao"
+        [class.va-filtros-botao--ativo]="qtdFiltros > 0"
+        aria-haspopup="dialog"
+        [attr.aria-expanded]="filtrosAbertos()?.lado === p.lado"
+        [attr.aria-label]="'Filtros' + (qtdFiltros > 0 ? ' (' + qtdFiltros + ' ' + (qtdFiltros === 1 ? 'ligado' : 'ligados') + ')' : '')"
+        (click)="alternarFiltros(p.lado, $event)"
       >
-        <span class="material-icons" aria-hidden="true">sort_by_alpha</span>{{ ordem === 'az' ? 'A→Z' : 'Z→A' }}
+        <span class="material-icons" aria-hidden="true">tune</span>Filtros
+        @if (qtdFiltros > 0) {
+          <span class="va-filtros-qtd" aria-hidden="true">{{ qtdFiltros }}</span>
+        }
       </button>
       @let marcacao = estadoMarcarTodos(p.lado);
       <button
@@ -139,7 +146,7 @@
         [attr.aria-checked]="marcacao"
         [attr.aria-label]="p.busca ? 'Marcar os encontrados' : 'Marcar todos'"
         [saeaTooltip]="(marcacao === 'true' ? 'Desmarcar ' : 'Marcar ') + (p.busca ? 'os encontrados' : 'todos')"
-        [disabled]="p.visiveis.length === 0"
+        [disabled]="selecionaveis(p.lado).length === 0"
         (click)="alternarTodos(p.lado)"
       >
         <span class="va-marcar-caixa" aria-hidden="true">
@@ -195,8 +202,13 @@
       <p class="va-painel-vazio">{{ p.lado === 'origem' ? 'Nenhum aluno sem turma neste período.' : 'Nenhum aluno nesta turma.' }}</p>
     } @else if (p.visiveis.length === 0) {
       <p class="va-painel-vazio">
-        Nenhum aluno com "{{ p.busca }}".
-        <button type="button" class="va-limpar-busca" (click)="buscar(p.lado, '')">Limpar a busca</button>
+        @if (p.busca) {
+          Nenhum aluno com "{{ p.busca }}"{{ p.filtrado ? ' nesses filtros' : '' }}.
+          <button type="button" class="va-limpar-busca" (click)="buscar(p.lado, '')">Limpar a busca</button>
+        } @else {
+          Nenhum aluno nesses filtros.
+          <button type="button" class="va-limpar-busca" (click)="limparFiltros(p.lado)">Limpar os filtros</button>
+        }
       </p>
     } @else if (p.lado === 'origem') {
       <!--
@@ -215,17 +227,22 @@
             [class.va-linha--recente]="recemMovidos().has(a.id)"
             [class.va-linha--arrastando]="arrastando(a.id)"
             [class.va-linha--aberta]="extras.length > 0 && detalheAberto() === a.id"
-            [draggable]="podeMover()"
+            [draggable]="podeMover() && !travado(a)"
             (dragstart)="iniciarArrasto(p.lado, a.id, $event)"
             (dragend)="terminarArrasto()"
           >
             <div class="va-linha-topo">
-              <saea-checkbox
-                class="va-linha-marca"
-                [checked]="marcado(p.lado, a.id)"
-                (checkedChange)="definirMarcado(p.lado, a.id, $event)"
-                [ariaLabel]="'Marcar ' + a.nome"
-              />
+              <!-- O enturmado não se move: sem a caixa de marcar, um cadeado no lugar. -->
+              @if (travado(a)) {
+                <span class="material-icons va-linha-marca va-linha-travado" title="Já está na matrícula nesta turma: não dá para mover">lock</span>
+              } @else {
+                <saea-checkbox
+                  class="va-linha-marca"
+                  [checked]="marcado(p.lado, a.id)"
+                  (checkedChange)="definirMarcado(p.lado, a.id, $event)"
+                  [ariaLabel]="'Marcar ' + a.nome"
+                />
+              }
               @if (foto(a); as src) {
                 <button
                   type="button"
@@ -266,6 +283,11 @@
                         <span class="material-icons" aria-hidden="true">error</span>não salvou
                       </span>
                     }
+                    @if (inconsistenteDe(a); as motivo) {
+                      <span class="va-cartao-veio va-cartao-veio--inconsistente" [title]="motivo">
+                        <span class="material-icons" aria-hidden="true">warning</span>Inconsistente
+                      </span>
+                    }
                     @if (extras.length > 0) {
                       <span class="material-icons va-linha-seta" aria-hidden="true">expand_more</span>
                     }
@@ -302,14 +324,19 @@
     } @else {
       <ul class="va-grade" role="list">
         @for (a of p.visiveis; track a.id) {
-          <li [draggable]="podeMover()" (dragstart)="iniciarArrasto(p.lado, a.id, $event)" (dragend)="terminarArrasto()">
+          <!-- O enturmado fica travado: não arrasta, não marca (o clique não faz nada) e não sai da turma. -->
+          @let preso = travado(a);
+          <li [draggable]="podeMover() && !preso" (dragstart)="iniciarArrasto(p.lado, a.id, $event)" (dragend)="terminarArrasto()">
             <button
               type="button"
               class="va-cartao"
               [class.va-cartao--marcado]="marcado(p.lado, a.id)"
               [class.va-cartao--recente]="recemMovidos().has(a.id)"
               [class.va-cartao--arrastando]="arrastando(a.id)"
-              [attr.aria-pressed]="marcado(p.lado, a.id)"
+              [class.va-cartao--travado]="preso"
+              [attr.aria-pressed]="preso ? null : marcado(p.lado, a.id)"
+              [attr.aria-disabled]="preso || null"
+              [attr.title]="preso ? 'Já está na matrícula nesta turma: não dá para mover' : null"
               (click)="alternarAluno(p.lado, a.id)"
             >
               @if (foto(a); as src) {
@@ -324,12 +351,17 @@
               }
               @if (importado(a)) {
                 <span class="va-cartao-veio va-cartao-veio--importado" title="Já está na matrícula nesta turma">
-                  <span class="material-icons" aria-hidden="true">check_circle</span>Importado
+                  <span class="material-icons" aria-hidden="true">check_circle</span>Enturmado
                 </span>
               }
               @if (falhaDe(a); as motivo) {
                 <span class="va-cartao-veio va-cartao-veio--falhou" [title]="motivo">
                   <span class="material-icons" aria-hidden="true">error</span>não salvou
+                </span>
+              }
+              @if (inconsistenteDe(a); as motivo) {
+                <span class="va-cartao-veio va-cartao-veio--inconsistente" [title]="motivo">
+                  <span class="material-icons" aria-hidden="true">warning</span>Inconsistente
                 </span>
               }
               @if (marcado(p.lado, a.id)) {
@@ -391,8 +423,65 @@
       @if (falhaDe(pa); as motivo) {
         <p class="va-previa-falha"><strong>Não salvou:</strong> {{ motivo }}</p>
       }
+      @if (inconsistenteDe(pa); as motivo) {
+        <p class="va-previa-inconsistente"><strong>Inconsistente:</strong> {{ motivo }}</p>
+      }
       <button type="button" class="va-previa-fechar" (click)="fecharPrevia()">Fechar</button>
     </aside>
+  </ng-template>
+}
+
+<!--
+  O menu "Filtros" de um lado, embaixo do botão: a ordenação (A→Z ou Z→A) e os filtros de turma
+  anterior e tipo de aluno, que valem só para aquele lado. Muda na hora; fecha clicando fora ou com Esc.
+-->
+@if (filtrosAbertos(); as aberto) {
+  <ng-template
+    cdkConnectedOverlay
+    [cdkConnectedOverlayOrigin]="aberto.botao"
+    [cdkConnectedOverlayOpen]="true"
+    [cdkConnectedOverlayPositions]="posicoesDosFiltros"
+    [cdkConnectedOverlayPush]="true"
+    [cdkConnectedOverlayViewportMargin]="8"
+    (attach)="focarFiltros()"
+    (overlayOutsideClick)="cliqueForaDosFiltros($event)"
+    (overlayKeydown)="teclaNosFiltros($event)"
+  >
+    @let lado = aberto.lado;
+    <div class="va-filtros-menu" role="dialog" [attr.aria-label]="lado === 'origem' ? 'Filtros da origem' : 'Filtros do destino'">
+      <div class="va-filtros-campo">
+        <span class="va-filtros-rotulo" id="va-filtros-ordem">Ordenação</span>
+        <div class="va-filtros-ordem" role="radiogroup" aria-labelledby="va-filtros-ordem">
+          @for (o of ORDENS; track o.valor) {
+            <button
+              type="button"
+              role="radio"
+              class="va-filtros-opcao"
+              [class.va-filtros-opcao--ativa]="ordemDe(lado) === o.valor"
+              [attr.aria-checked]="ordemDe(lado) === o.valor"
+              (click)="definirOrdem(lado, o.valor)"
+            >
+              <span class="material-icons" aria-hidden="true">{{ o.icone }}</span>{{ o.rotulo }}
+            </button>
+          }
+        </div>
+      </div>
+      <app-select
+        label="Turma anterior"
+        [ngModel]="turmaAnteriorDe(lado)"
+        (ngModelChange)="filtrarTurmaAnterior(lado, $event)"
+        [options]="turmaAnteriorOptions()"
+      />
+      <app-select
+        label="Tipo de aluno"
+        [ngModel]="tipoAlunoDe(lado)"
+        (ngModelChange)="filtrarTipoAluno(lado, $event)"
+        [options]="tipoAlunoOptions()"
+      />
+      <button type="button" class="va-filtros-limpar" [disabled]="qtdFiltrosDe(lado) === 0" (click)="limparFiltros(lado)">
+        Limpar filtros
+      </button>
+    </div>
   </ng-template>
 }
 

@@ -1,3 +1,5 @@
+import type { MotivosPorTurno } from './indisponibilidade';
+
 export type Turno = 'manha' | 'tarde';
 
 export interface TurmaVinculada {
@@ -32,8 +34,11 @@ export interface Sala {
   codBloco: string;
   codPredio: string;
   codSala: string;
-  /** Por que a sala está indisponível no ano em uso (MOTIVO do PRJ4087040); vazio/ausente = disponível. */
-  motivoIndisponivel?: string | null;
+  /**
+   * Turnos em que a sala está indisponível no ano em uso, com o motivo de cada um (lido do MOTIVO
+   * do PRJ4087040, uma linha por turno); turno ausente = disponível.
+   */
+  indisponivel?: MotivosPorTurno;
 }
 
 /** ANDAR do RM por extenso: "T" é o térreo e os outros vêm só com o número ("1" → "1º andar"). */

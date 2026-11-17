@@ -6,9 +6,10 @@ import { AuthService } from '../../core/auth/auth.service';
 import { Sala, TurmaLivre, TurmaVinculada, Turnos, Unidade } from '../../core/models';
 import { ApiAlunoEnturmacaoDto, ApiEnturmacaoResultadoDto, ApiTurmaEnturmacaoDto } from '../../core/models/ocupacao-api.model';
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
+import { AlunosEnturmacaoService } from '../../core/services/alunos-enturmacao.service';
 import { SalasService } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
-import { VincularAlunosComponent } from './vincular-alunos.component';
+import { SEM_TURMA_ANTERIOR, VincularAlunosComponent } from './vincular-alunos.component';
 
 const turma = (codTurma: string, nome: string): TurmaVinculada => ({
   nome,
@@ -116,6 +117,8 @@ describe('VincularAlunosComponent (lado a lado)', () => {
   let gravadosNoRm: Map<string, string>;
   /** O MD de enturmação do "RM": RA → turma dos registros importados (já na matrícula). */
   let importadosNoRm: Map<string, string>;
+  /** O MD de enturmação do "RM": RA → turma e motivo dos registros Inconsistentes (a FV recusou). */
+  let inconsistentesNoRm: Map<string, { codTurma: string; obs: string | null }>;
   /**
    * O que o "RM" responde a cada movimento. Sem regra, grava como pendente; a turma vazia desfaz o
    * movimento ainda não importado, e o aluno volta para a turma da matrícula.
@@ -139,7 +142,14 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     respostaDoRm = (m) => ({ ...m, situacao: m.codTurma === '' ? 'na-matricula' : 'pendente', motivo: null });
     getPendentes = vi.fn(() => of([...gravadosNoRm].map(([ra, codTurma]) => ({ ra, codTurma }))));
     importadosNoRm = new Map();
-    getImportados = vi.fn(() => of([...importadosNoRm].map(([ra, codTurma]) => ({ ra, codTurma }))));
+    inconsistentesNoRm = new Map();
+    // Como o back: os importados e, na mesma lista, os Inconsistentes com a situação e o motivo.
+    getImportados = vi.fn(() =>
+      of([
+        ...[...importadosNoRm].map(([ra, codTurma]) => ({ ra, codTurma })),
+        ...[...inconsistentesNoRm].map(([ra, r]) => ({ ra, codTurma: r.codTurma, situacao: 'requer-revisao' as const, obs: r.obs })),
+      ]),
+    );
     salvarNoRm = vi.fn((_usuario: string, _ano: string, _filial: number, movimentos: { ra: string; codTurma: string }[]) => {
       const resultados = movimentos.map((m) => respostaDoRm(m));
       resultados.filter((r) => r.situacao === 'pendente').forEach((r) => gravadosNoRm.set(r.ra, r.codTurma));
@@ -566,16 +576,17 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(tela.todosMarcados('origem')).toBe(false);
     expect(tela.estadoMarcarTodos('origem')).toBe('mixed');
 
-    // A lista fica sempre de A a Z: a Júlia, recém-movida, entra no lugar dela no alfabeto. O botão inverte.
+    // A lista fica sempre de A a Z: a Júlia, recém-movida, entra no lugar dela no alfabeto. A ordenação
+    // do menu "Filtros" inverte só aquele lado.
     tela.definirMarcado('origem', '9', false);
     tela.definirMarcado('origem', '10', true);
     tela.moverMarcados('origem');
     expect(tela.ordemDe('destino')).toBe('az');
     expect(visiveis('destino')).toEqual(['1', '2', '10']);
-    tela.alternarOrdem('destino');
-    expect(tela.ordemDe('destino')).toBe('za');
+    tela.definirOrdem('destino', 'za');
+    expect([tela.ordemDe('destino'), tela.ordemDe('origem')]).toEqual(['za', 'az']);
     expect(visiveis('destino')).toEqual(['10', '2', '1']);
-    tela.alternarOrdem('destino');
+    tela.definirOrdem('destino', 'az');
     expect(visiveis('destino')).toEqual(['1', '2', '10']);
   });
 
@@ -686,7 +697,166 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(nomes('destino')).toEqual(['Ana', 'Bruno']);
   });
 
-  it('no destino, o aluno já importado para a turma ganha a etiqueta "Importado"; movido de novo, perde', () => {
+  describe('filtros de turma anterior e tipo de aluno', () => {
+    // No 3º ano: Ana e Bruno no 3º A, Carla (nova) também; sem turma, Ivo, Júlia (nova) e Mia, que
+    // tem duas matrículas no ano anterior. Kátia é do 4º ano: não entra nas opções do 3º.
+    const COM_ANTERIOR = [
+      aluno('1', 'Ana', 'EF3A-M', { turmaAnterior: 'EF2A-M' }),
+      aluno('2', 'Bruno', 'EF3A-M', { turmaAnterior: 'EF2B-M' }),
+      aluno('3', 'Carla', 'EF3A-M', { novo: true }),
+      aluno('9', 'Ivo', null, { turmaAnterior: 'EF2A-M' }),
+      aluno('10', 'Júlia', null, { novo: true }),
+      aluno('13', 'Mia', null, { turmaAnterior: 'EF2B-M / EF2C-T' }),
+      aluno('11', 'Kátia', 'EF4A-M', { codHabilitacao: '4', serie: QUARTO, turmaAnterior: 'EF3A-M' }),
+    ];
+    const visiveis = (lado: 'origem' | 'destino') => (lado === 'origem' ? tela.origem() : tela.destino())!.visiveis.map((a) => a.nome);
+
+    it('as opções são as turmas anteriores e os tipos da série, com quantos alunos têm cada um', () => {
+      montar(() => of(COM_ANTERIOR));
+      abrir();
+
+      expect(tela.turmaAnteriorOptions().map((o) => o.label)).toEqual([
+        'Todas as turmas',
+        'EF2A-M (2)',
+        'EF2B-M (2)',
+        'EF2C-T (1)',
+        'Sem turma anterior (2)',
+      ]);
+      expect(tela.tipoAlunoOptions().map((o) => o.label)).toEqual(['Todos os tipos', 'Novos (2)', 'Veteranos (4)']);
+      fixture.detectChanges();
+      // No topo ficam só ano, unidade e série: a turma anterior e o tipo foram para o menu de cada lado.
+      const rotulos = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.va-filtros label')].map((l) => l.textContent?.trim());
+      expect(rotulos).toEqual(['Ano letivo', 'Unidade', 'Série']);
+    });
+
+    it('cada lado tem o botão "Filtros" no lugar do A→Z; ele abre a ordenação, a turma anterior e o tipo de aluno', () => {
+      montar(() => of(COM_ANTERIOR));
+      abrir();
+      fixture.detectChanges();
+      const paineis = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll('.va-painel')];
+      const botoes = paineis().map((p) => p.querySelector<HTMLButtonElement>('.va-filtros-botao')!);
+      expect(botoes.map((b) => b.textContent?.trim())).toEqual(['tuneFiltros', 'tuneFiltros']);
+      expect(paineis().some((p) => /A→Z|Z→A/.test(p.querySelector('.va-painel-topo')!.textContent!))).toBe(false);
+
+      botoes[1].click();
+      fixture.detectChanges();
+      expect(tela.filtrosAbertos()?.lado).toBe('destino');
+      expect(botoes[1].getAttribute('aria-expanded')).toBe('true');
+      const menu = document.querySelector('.va-filtros-menu')!;
+      expect(menu.getAttribute('aria-label')).toBe('Filtros do destino');
+      expect(menu.querySelector('.va-filtros-rotulo')!.textContent?.trim()).toBe('Ordenação');
+      expect([...menu.querySelectorAll('label')].map((l) => l.textContent?.trim())).toEqual(['Turma anterior', 'Tipo de aluno']);
+      expect([...menu.querySelectorAll('[role="radio"]')].map((r) => [r.textContent?.trim(), r.getAttribute('aria-checked')])).toEqual([
+        ['arrow_downwardA → Z', 'true'],
+        ['arrow_upwardZ → A', 'false'],
+      ]);
+
+      // Z → A no menu do destino inverte só o destino; um filtro ligado aparece em número no botão.
+      menu.querySelectorAll<HTMLButtonElement>('[role="radio"]')[1].click();
+      tela.filtrarTipoAluno('destino', 'veterano');
+      fixture.detectChanges();
+      expect([tela.ordemDe('destino'), tela.ordemDe('origem')]).toEqual(['za', 'az']);
+      expect(visiveis('destino')).toEqual(['Bruno', 'Ana']);
+      expect(botoes[1].querySelector('.va-filtros-qtd')?.textContent?.trim()).toBe('1');
+      expect(botoes[0].querySelector('.va-filtros-qtd')).toBeNull();
+
+      // Clicar de novo no botão fecha.
+      botoes[1].click();
+      fixture.detectChanges();
+      expect(tela.filtrosAbertos()).toBeNull();
+    });
+
+    it('cada lado filtra só a si; com duas matrículas, vale qualquer uma; a contagem da turma não muda', () => {
+      montar(() => of(COM_ANTERIOR));
+      abrir();
+
+      tela.filtrarTurmaAnterior('origem', 'EF2A-M');
+      expect([visiveis('origem'), visiveis('destino')]).toEqual([['Ivo'], ['Ana', 'Bruno', 'Carla']]);
+      // A turma continua com todos: o filtro só muda o que aparece.
+      expect(nomes('origem')).toEqual(['Ivo', 'Júlia', 'Mia']);
+      tela.filtrarTurmaAnterior('destino', 'EF2A-M');
+      expect([visiveis('origem'), visiveis('destino')]).toEqual([['Ivo'], ['Ana']]);
+
+      tela.filtrarTurmaAnterior('origem', 'EF2B-M');
+      expect([visiveis('origem'), visiveis('destino')]).toEqual([['Mia'], ['Ana']]);
+      tela.filtrarTurmaAnterior('origem', SEM_TURMA_ANTERIOR);
+      expect(visiveis('origem')).toEqual(['Júlia']);
+
+      tela.filtrarTurmaAnterior('origem', '');
+      tela.filtrarTurmaAnterior('destino', '');
+      tela.filtrarTipoAluno('origem', 'novo');
+      expect([visiveis('origem'), visiveis('destino')]).toEqual([['Júlia'], ['Ana', 'Bruno', 'Carla']]);
+      tela.filtrarTipoAluno('destino', 'veterano');
+      expect([visiveis('origem'), visiveis('destino')]).toEqual([['Júlia'], ['Ana', 'Bruno']]);
+      expect([tela.qtdFiltrosDe('origem'), tela.qtdFiltrosDe('destino')]).toEqual([1, 1]);
+
+      // Os dois juntos, e a busca do lado por cima.
+      tela.filtrarTipoAluno('origem', 'veterano');
+      tela.filtrarTurmaAnterior('origem', 'EF2B-M');
+      expect(visiveis('origem')).toEqual(['Mia']);
+      expect(tela.qtdFiltrosDe('origem')).toBe(2);
+      tela.buscar('origem', 'ivo');
+      expect(visiveis('origem')).toEqual([]);
+    });
+
+    it('"Marcar todos" marca só os que o filtro mostra, e mover leva só eles', () => {
+      montar(() => of(COM_ANTERIOR));
+      abrir();
+
+      tela.filtrarTipoAluno('origem', 'veterano');
+      tela.alternarTodos('origem');
+      expect([...tela.marcadosOrigem()].sort()).toEqual(['13', '9']);
+      tela.moverMarcados('origem');
+      expect(salvarNoRm).toHaveBeenCalledWith('fulano', '2026', 2, [
+        { ra: '9', codTurma: 'EF3A-M' },
+        { ra: '13', codTurma: 'EF3A-M' },
+      ]);
+      expect(nomes('origem')).toEqual(['Júlia']);
+    });
+
+    it('sem ninguém nos filtros, o lado avisa e "Limpar os filtros" desliga os dois filtros só daquele lado', () => {
+      montar(() => of(COM_ANTERIOR));
+      abrir();
+
+      tela.filtrarTipoAluno('origem', 'novo');
+      tela.filtrarTurmaAnterior('origem', 'EF2A-M');
+      tela.filtrarTipoAluno('destino', 'veterano');
+      fixture.detectChanges();
+      const origem = () => (fixture.nativeElement as HTMLElement).querySelectorAll('.va-painel')[0];
+      expect(origem().textContent).toContain('Nenhum aluno nesses filtros.');
+
+      origem().querySelector<HTMLButtonElement>('.va-limpar-busca')!.click();
+      expect([tela.turmaAnteriorDe('origem'), tela.tipoAlunoDe('origem')]).toEqual(['', '']);
+      expect(tela.tipoAlunoDe('destino')).toBe('veterano');
+      expect(visiveis('origem')).toEqual(['Ivo', 'Júlia', 'Mia']);
+    });
+
+    it('trocar a série solta a turma anterior dos dois lados e mantém o tipo; a tela recriada volta com os filtros', () => {
+      montar(() => of(COM_ANTERIOR));
+      abrir();
+      tela.filtrarTurmaAnterior('origem', 'EF2A-M');
+      tela.filtrarTipoAluno('origem', 'veterano');
+      tela.filtrarTurmaAnterior('destino', 'EF2B-M');
+      TestBed.tick();
+
+      // Recriada (celular ↔ computador), a tela volta como estava.
+      fixture = TestBed.createComponent(VincularAlunosComponent);
+      fixture.detectChanges();
+      tela = fixture.componentInstance;
+      expect(tela.filtros()).toEqual({
+        origem: { turmaAnterior: 'EF2A-M', tipoAluno: 'veterano' },
+        destino: { turmaAnterior: 'EF2B-M', tipoAluno: '' },
+      });
+
+      tela.selecionarSerie('2|4');
+      expect(tela.filtros()).toEqual({
+        origem: { turmaAnterior: '', tipoAluno: 'veterano' },
+        destino: { turmaAnterior: '', tipoAluno: '' },
+      });
+    });
+  });
+
+  it('no destino, o aluno já enturmado na turma ganha a etiqueta "Enturmado"', () => {
     montar();
     // Ana foi importada para o 3º A. O registro importado do Davi é do 3º A, mas a matrícula dele está
     // no 3º B (mudaram direto no RM): a etiqueta só vale na turma em que o aluno está.
@@ -699,23 +869,78 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     fixture.detectChanges();
     const etiquetas = (fixture.nativeElement as HTMLElement).querySelectorAll('.va-painel')[1].querySelectorAll('.va-cartao-veio--importado');
     expect([...etiquetas].map((e) => e.closest('.va-cartao')!.querySelector('.va-cartao-nome')!.textContent!.trim())).toEqual(['Ana']);
+    expect(etiquetas[0].textContent?.trim()).toContain('Enturmado');
     tela.escolherTurma('destino', 'EF3B-M');
     expect(importados()).toEqual([]);
+  });
 
-    // Movida para o 3º B, fica pendente: sem a etiqueta.
-    tela.escolherTurma('destino', 'EF3A-M');
+  it('o enturmado fica travado: não marca, não arrasta e não sai da turma por nenhum caminho', () => {
+    montar();
+    importadosNoRm.set('1', 'EF3A-M');
+    abrir();
+    const ana = () => tela.destino()!.alunos.find((a) => a.id === '1')!;
+    expect(tela.travado(ana())).toBe(true);
+    expect(tela.travado(tela.destino()!.alunos.find((a) => a.id === '2')!)).toBe(false);
+
+    // Clicar no cartão não marca, e "marcar todos" pula a Ana.
     tela.alternarAluno('destino', '1');
+    expect(tela.marcado('destino', '1')).toBe(false);
+    tela.alternarTodos('destino');
+    expect(tela.marcado('destino', '1')).toBe(false);
+    expect(tela.marcado('destino', '2')).toBe(true);
+    expect(tela.estadoMarcarTodos('destino')).toBe('true');
+    tela.alternarTodos('destino');
+
+    // O cartão não arrasta, não diz que é marcável e mostra por quê.
+    fixture.detectChanges();
+    const cartao = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.va-painel')[1].querySelectorAll<HTMLElement>('.va-cartao')].find(
+      (c) => c.querySelector('.va-cartao-nome')!.textContent!.trim() === 'Ana',
+    )!;
+    expect(cartao.closest('li')!.getAttribute('draggable')).toBe('false');
+    expect(cartao.classList).toContain('va-cartao--travado');
+    expect(cartao.getAttribute('aria-pressed')).toBeNull();
+    expect(cartao.getAttribute('aria-disabled')).toBe('true');
+    expect(cartao.getAttribute('title')).toContain('não dá para mover');
+
+    // Começar a arrastar a Ana é recusado.
+    const arraste = { preventDefault: vi.fn(), dataTransfer: null } as unknown as DragEvent;
+    tela.iniciarArrasto('destino', '1', arraste);
+    expect(arraste.preventDefault).toHaveBeenCalled();
+    expect(tela.arrastando('1')).toBe(false);
+
+    // Mesmo marcada antes de a leitura dos importados chegar, ela não vai junto ao mover.
+    tela.marcadosDestino.set(new Set(['1', '2']));
+    expect(tela.qtdMarcadosDestino()).toBe(1);
     tela.moverMarcadosPara('EF3B-M');
-    tela.escolherTurma('destino', 'EF3B-M');
-    expect(tela.destino()!.alunos.map((a) => a.nome)).toContain('Ana');
-    expect(importados()).toEqual([]);
+    expect(salvarNoRm).toHaveBeenCalledTimes(1);
+    expect(salvarNoRm.mock.calls[0][3].map((m: { ra: string }) => m.ra)).toEqual(['2']);
+    expect(tela.destino()!.alunos.map((a) => a.id)).toContain('1');
+  });
 
-    // De volta à turma da matrícula, o back deixa o registro como Importado: a etiqueta volta.
-    respostaDoRm = (m) => ({ ...m, situacao: m.codTurma === 'EF3A-M' ? 'na-matricula' : 'pendente', motivo: null });
-    tela.alternarAluno('destino', '1');
+  it('quem a FV recusou (Inconsistente no RM) ganha a etiqueta laranja com a turma e o motivo; movido de novo, perde', () => {
+    montar();
+    // A FV não conseguiu pôr o Davi (matrícula no 3º B) no 3º A.
+    inconsistentesNoRm.set('4', { codTurma: 'EF3A-M', obs: 'Aluno(a) já possui turma.' });
+    abrir();
+    tela.escolherTurma('destino', 'EF3B-M');
+    const davi = () => tela.destino()!.alunos.find((a) => a.id === '4')!;
+    const eva = () => tela.destino()!.alunos.find((a) => a.id === '5')!;
+
+    expect(tela.inconsistenteDe(davi())).toBe('Não entrou em 3º Ano A - Manhã: Aluno(a) já possui turma.');
+    expect(tela.inconsistenteDe(eva())).toBeNull();
+    expect(tela.detalhes(davi())).toContainEqual({ rotulo: 'Inconsistente', valor: 'Não entrou em 3º Ano A - Manhã: Aluno(a) já possui turma.' });
+    fixture.detectChanges();
+    const etiquetas = (fixture.nativeElement as HTMLElement).querySelectorAll('.va-painel')[1].querySelectorAll('.va-cartao-veio--inconsistente');
+    expect([...etiquetas].map((e) => e.closest('.va-cartao')!.querySelector('.va-cartao-nome')!.textContent!.trim())).toEqual(['Davi']);
+    expect(etiquetas[0].textContent?.trim()).toContain('Inconsistente');
+    expect(etiquetas[0].getAttribute('title')).toContain('Aluno(a) já possui turma.');
+
+    // Movido de novo, o registro volta a ser pendente: a etiqueta sai.
+    tela.alternarAluno('destino', '4');
     tela.moverMarcadosPara('EF3A-M');
     tela.escolherTurma('destino', 'EF3A-M');
-    expect(importados()).toEqual(['Ana']);
+    expect(tela.inconsistenteDe(davi())).toBeNull();
+    expect(TestBed.inject(AlunosEnturmacaoService).inconsistentes('2026', 2).has('4')).toBe(false);
   });
 
   it('tirar da turma o aluno com movimento salvo e sem turma na matrícula desfaz o movimento no RM', () => {
@@ -738,7 +963,7 @@ describe('VincularAlunosComponent (lado a lado)', () => {
   it('o que o RM não grava volta para onde estava, com o motivo no aluno', () => {
     montar();
     abrir();
-    const jaNaMatricula = 'O aluno já está na turma EF3A-M na matrícula: para tirá-lo da turma, faça no RM.';
+    const jaNaMatricula = 'O aluno já está na turma EF3A-M na matrícula: para tirá-lo da turma.';
     respostaDoRm = (m) =>
       m.ra === '10'
         ? { ...m, situacao: 'falhou', motivo: 'Não foi possível salvar: tempo esgotado.' }

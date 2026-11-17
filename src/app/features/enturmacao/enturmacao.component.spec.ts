@@ -22,12 +22,21 @@ const aluno = (ra: string, nome: string, codTurma: string, extra: Partial<ApiEnt
   ...extra,
 });
 
-// Fora de ordem, como o back manda: só os pendentes numa turma da pré-enturmação.
+// Fora de ordem e sem a situação, como o back de antes mandava (só os pendentes): todos pendentes.
 const ALUNOS = [
   aluno('3', 'Carla', 'EF3A-M'),
   aluno('1', 'Ana', 'EF3A-M'),
   aluno('2', 'Bruno', 'EF5A-M', { serie: QUINTO }),
   aluno('9', 'Davi', 'EF3B-M'),
+];
+
+// Com a situação, como o back manda agora: pendentes, enturmados e quem requer revisão.
+const COM_SITUACAO = [
+  aluno('1', 'Ana', 'EF3A-M', { situacao: 'pendente' }),
+  aluno('3', 'Carla', 'EF3A-M', { situacao: 'importado' }),
+  aluno('4', 'Eva', 'EF3B-M', { situacao: 'requer-revisao', obs: 'Aluno(a) já possui turma.' }),
+  aluno('9', 'Davi', 'EF3B-M', { situacao: 'pendente' }),
+  aluno('7', 'Gil', 'EF3B-M', { situacao: 'importado', obs: 'Revisão antiga.' }),
 ];
 
 const UNIDADES: Unidade[] = [
@@ -99,7 +108,7 @@ describe('EnturmacaoComponent', () => {
     expect(getLista).toHaveBeenCalledWith('fulano', '2027', 2);
     expect(nomes()).toEqual(['Ana', 'Bruno', 'Carla', 'Davi']);
     expect(tela.visiveis().map((a) => a.serie)).toEqual(['3º Ano', '5º Ano', '3º Ano', '3º Ano']);
-    // Estão numa turma da pré-enturmação, mas ainda não foram importados: cada linha mostra Pendente.
+    // Sem a situação (back de antes desta versão), todos são pendentes: cada linha mostra Pendente.
     fixture.detectChanges();
     const situacoes = [...(fixture.nativeElement as HTMLElement).querySelectorAll('tbody app-badge')].map((b) => b.textContent?.trim());
     expect(situacoes).toEqual(['Pendente', 'Pendente', 'Pendente', 'Pendente']);
@@ -168,7 +177,98 @@ describe('EnturmacaoComponent', () => {
     expect(tela.alunosMarcados().map((a) => a.id)).toEqual(['1', '3']);
   });
 
-  it('importar confirma, manda os marcados para a FV, avisa como ficou cada grupo e relê a lista', async () => {
+  it('abre em todas as situações (os enturmados ficam na lista); o filtro conta cada uma e mostra o motivo do inconsistente', () => {
+    montar(() => of(COM_SITUACAO));
+    abrir();
+
+    expect(tela.situacao()).toBe('');
+    expect(tela.situacaoOptions().map((o) => o.label)).toEqual([
+      'Todas as situações (5)',
+      'Pendentes (2)',
+      'Enturmados (2)',
+      'Inconsistentes (1)',
+    ]);
+
+    fixture.detectChanges();
+    expect(nomes()).toEqual(['Ana', 'Carla', 'Davi', 'Eva', 'Gil']);
+    const el = fixture.nativeElement as HTMLElement;
+    const situacoes = [...el.querySelectorAll('tbody app-badge')].map((b) => b.textContent?.trim());
+    expect(situacoes).toEqual(['Pendente', 'Enturmado', 'Pendente', 'Inconsistente', 'Enturmado']);
+    // O motivo só aparece em quem requer revisão; só os pendentes têm a caixa de marcar.
+    expect([...el.querySelectorAll('.en-motivo')].map((m) => m.textContent?.trim())).toEqual(['Aluno(a) já possui turma.']);
+    expect(el.querySelectorAll('tbody saea-checkbox').length).toBe(2);
+
+    tela.selecionarSituacao('pendente');
+    expect(nomes()).toEqual(['Ana', 'Davi']);
+    tela.selecionarSituacao('revisao');
+    expect(nomes()).toEqual(['Eva']);
+    // A contagem segue a turma escolhida.
+    tela.selecionarTurma('EF3A-M');
+    expect(tela.situacaoOptions().map((o) => o.label)).toEqual([
+      'Todas as situações (2)',
+      'Pendentes (1)',
+      'Enturmados (1)',
+      'Inconsistentes (0)',
+    ]);
+    expect(tela.textoSemResultado()).toBe('Nenhum aluno inconsistente com esse filtro.');
+  });
+
+  it('o cabeçalho marca só os pendentes da lista, e o botão Enturmar conta só eles', () => {
+    montar(() => of(COM_SITUACAO));
+    abrir();
+    tela.selecionarSituacao('');
+
+    tela.alternarVisiveis(true);
+    expect(tela.alunosMarcados().map((a) => a.id)).toEqual(['1', '9']);
+    expect(tela.todosVisiveisMarcados()).toBe(true);
+    expect(tela.textoImportar()).toBe('Enturmar 2 alunos');
+    // Um enturmado marcado à mão não vai.
+    tela.definirMarcado('3', true);
+    expect(tela.alunosMarcados().map((a) => a.id)).toEqual(['1', '9']);
+
+    // Só enturmados na lista: não há o que marcar.
+    tela.selecionarSituacao('enturmado');
+    expect(tela.visiveisPendentes()).toEqual([]);
+    expect([tela.todosVisiveisMarcados(), tela.visiveisEmParte()]).toEqual([false, false]);
+  });
+
+  it('só com enturmados, eles continuam na lista sem caixa de marcar; no filtro Pendentes, não há ninguém para enturmar', () => {
+    montar(() => of([aluno('3', 'Carla', 'EF3A-M', { situacao: 'importado' })]));
+    abrir();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(nomes()).toEqual(['Carla']);
+    expect([...el.querySelectorAll('tbody app-badge')].map((b) => b.textContent?.trim())).toEqual(['Enturmado']);
+    expect(el.querySelectorAll('tbody saea-checkbox').length).toBe(0);
+
+    tela.selecionarSituacao('pendente');
+    fixture.detectChanges();
+    expect(nomes()).toEqual([]);
+    expect(el.textContent).toContain('Nenhum aluno pendente para enturmar.');
+  });
+
+  it('quem acabou de ser enturmado continua na lista, agora como Enturmado', async () => {
+    let lista: ApiEnturmacaoParaImportarDto[] = [
+      aluno('1', 'Ana', 'EF3A-M', { situacao: 'pendente' }),
+      aluno('3', 'Carla', 'EF3A-M', { situacao: 'importado' }),
+    ];
+    montar(() => of(lista));
+    abrir();
+    tela.definirMarcado('1', true);
+    importar.mockReturnValueOnce(of({ concluido: true, alunos: [{ ra: '1', situacao: 'importado', obs: null }] }));
+    // Relida depois da FV, a Ana vem como importada.
+    lista = [aluno('1', 'Ana', 'EF3A-M', { situacao: 'importado' }), aluno('3', 'Carla', 'EF3A-M', { situacao: 'importado' })];
+
+    await tela.importar();
+    fixture.detectChanges();
+
+    expect(getLista).toHaveBeenCalledTimes(2);
+    expect(nomes()).toEqual(['Ana', 'Carla']);
+    const el = fixture.nativeElement as HTMLElement;
+    expect([...el.querySelectorAll('tbody app-badge')].map((b) => b.textContent?.trim())).toEqual(['Enturmado', 'Enturmado']);
+  });
+
+  it('enturmar confirma, manda os marcados para a FV, avisa como ficou cada grupo e relê a lista', async () => {
     montar();
     abrir();
     tela.definirMarcado('1', true);
@@ -189,26 +289,26 @@ describe('EnturmacaoComponent', () => {
 
     expect(confirmar).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'Importar 3 alunos para a matrícula?',
+        title: 'Enturmar 3 alunos na matrícula?',
         description:
           'A FV de enturmação do RM grava a turma de destino na matrícula de cada aluno (2 turmas) e o matricula nas ' +
           'disciplinas dela. Não dá para desfazer por esta tela.',
       }),
     );
     expect(importar).toHaveBeenCalledWith('fulano', '2027', 2, ['1', '2', '3']);
-    expect(toast.success).toHaveBeenCalledWith('1 aluno importado', 'Já estão na matrícula, na turma de destino.');
-    // Quem foi para revisão sai da lista (como na pré-enturmação): o aviso leva o motivo e o que fazer.
+    expect(toast.success).toHaveBeenCalledWith('1 aluno enturmado', 'Já estão na matrícula, na turma de destino.');
+    // Quem foi para revisão fica na lista com essa situação: o aviso leva o motivo e o que fazer.
     expect(toast.warning).toHaveBeenCalledWith(
-      '1 aluno requer revisão',
-      'Aluno(a) já possui turma. Saíram desta lista: confira a matrícula no RM e mova de novo na Pré-enturmação.',
+      '1 aluno ficou inconsistente',
+      'Aluno(a) já possui turma. Ficaram como "Inconsistente": confira a matrícula no RM e mova de novo na Pré-enturmação.',
     );
-    expect(toast.info).toHaveBeenCalledWith('1 aluno continua pendente', 'A FV não chegou a processar. Tente importar de novo.');
+    expect(toast.info).toHaveBeenCalledWith('1 aluno continua pendente', 'A FV não chegou a processar. Tente enturmar de novo.');
     // Relê a lista (a FV mudou os registros) e a seleção começa do zero.
     expect(getLista).toHaveBeenCalledTimes(2);
     expect([tela.importando(), tela.marcados().size]).toEqual([false, 0]);
   });
 
-  it('cancelar não importa; sem concluir, avisa que o RM ainda está importando; erro avisa a causa e relê', async () => {
+  it('cancelar não enturma; sem concluir, avisa que o RM ainda está enturmando; erro avisa a causa e relê', async () => {
     montar();
     abrir();
     tela.definirMarcado('1', true);
@@ -219,29 +319,29 @@ describe('EnturmacaoComponent', () => {
 
     importar.mockReturnValueOnce(of({ concluido: false, alunos: [{ ra: '1', situacao: 'pendente', obs: null }] }));
     await tela.importar();
-    expect(toast.info).toHaveBeenCalledWith('O RM ainda está importando', 'Recarregue a lista em alguns instantes para ver como ficou cada aluno.');
+    expect(toast.info).toHaveBeenCalledWith('O RM ainda está enturmando', 'Recarregue a lista em alguns instantes para ver como ficou cada aluno.');
     expect(toast.success).not.toHaveBeenCalled();
 
     tela.definirMarcado('1', true);
     importar.mockReturnValueOnce(throwError(() => ({ error: { message: 'O RM não importou a enturmação: Violação de chave' } })));
     await tela.importar();
-    expect(toast.danger).toHaveBeenCalledWith('Não foi possível importar', 'O RM não importou a enturmação: Violação de chave');
+    expect(toast.danger).toHaveBeenCalledWith('Não foi possível enturmar', 'O RM não importou a enturmação: Violação de chave');
     expect(getLista).toHaveBeenCalledTimes(3);
   });
 
-  it('sem marcados, o botão de importar fica desligado e importar não pergunta nada', async () => {
+  it('sem marcados, o botão Enturmar fica desligado e não pergunta nada', async () => {
     montar();
     abrir();
     fixture.detectChanges();
 
     const botao = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('app-button.en-importar button')!;
     expect(botao.disabled).toBe(true);
-    expect(botao.textContent?.trim()).toContain('Importar');
+    expect(botao.textContent?.trim()).toContain('Enturmar');
 
     tela.definirMarcado('1', true);
     fixture.detectChanges();
     expect(botao.disabled).toBe(false);
-    expect(botao.textContent).toContain('Importar 1 aluno');
+    expect(botao.textContent).toContain('Enturmar 1 aluno');
     tela.limparMarcados();
     await tela.importar();
     expect(confirmar).not.toHaveBeenCalled();
@@ -259,10 +359,11 @@ describe('EnturmacaoComponent', () => {
     expect(tela.pronto()).toBe(true);
   });
 
-  it('trocar de unidade relê e limpa os filtros e os marcados', () => {
+  it('trocar de unidade relê e limpa os filtros e os marcados (a situação volta a todas)', () => {
     montar();
     abrir();
     tela.selecionarTurma('EF3A-M');
+    tela.selecionarSituacao('pendente');
     tela.busca.set('ana');
     tela.definirMarcado('1', true);
 
@@ -270,6 +371,6 @@ describe('EnturmacaoComponent', () => {
     TestBed.tick();
 
     expect(getLista).toHaveBeenLastCalledWith('fulano', '2027', 13);
-    expect([tela.turma(), tela.busca(), tela.marcados().size]).toEqual(['', '', 0]);
+    expect([tela.turma(), tela.busca(), tela.marcados().size, tela.situacao()]).toEqual(['', '', 0, '']);
   });
 });

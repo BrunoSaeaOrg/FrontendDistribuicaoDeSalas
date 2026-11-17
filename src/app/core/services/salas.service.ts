@@ -3,6 +3,9 @@ import { finalize, firstValueFrom, forkJoin, from, map, Observable, tap } from '
 import { AuthService } from '../auth/auth.service';
 import { filiaisDasRespostas, fundirSalasEApi, juntarFiliais, nomesDasUnidades } from '../mock/ocupacao-adapter';
 import {
+  lerMotivos,
+  MotivosPorTurno,
+  normalizarMotivo,
   Sala,
   StatusInfo,
   StatusOcupacao,
@@ -540,11 +543,17 @@ export class SalasService {
       });
   }
 
+  /** Por que a sala está indisponível no turno, no ano em uso; null = disponível. */
+  motivoIndisponivel(sala: Sala, turno: Turno): string | null {
+    return sala.indisponivel?.[turno] || null;
+  }
+
   /**
-   * Marca a sala como indisponível no ano em uso, com o motivo, ou, com o motivo vazio, volta a
-   * deixá-la disponível. Gravado no RM, a sala muda na tela na hora (sem reler as salas).
+   * Marca a sala como indisponível num turno do ano em uso, com o motivo, ou, com o motivo vazio,
+   * deixa o turno disponível de novo. O back junta com o motivo do outro turno como está no RM, e
+   * a sala muda na tela na hora (sem reler as salas) com os dois turnos que ficaram gravados.
    */
-  definirIndisponibilidade(sala: Sala, motivo: string): Observable<string | null> {
+  definirIndisponibilidade(sala: Sala, turno: Turno, motivo: string): Observable<MotivosPorTurno> {
     return this.ocupacaoApi
       .definirIndisponibilidade({
         codUsuario: this.authService.currentUser()?.username ?? '',
@@ -553,12 +562,13 @@ export class SalasService {
         codBloco: sala.codBloco,
         codPredio: sala.codPredio,
         codSala: sala.codSala,
-        motivo: motivo.trim(),
+        turno,
+        motivo: normalizarMotivo(motivo),
       })
       .pipe(
-        map((res) => res.motivo?.trim() || null),
+        map((res) => lerMotivos(res.motivo)),
         tap((gravado) =>
-          this._salas.update((list) => list.map((s) => (s.id === sala.id ? { ...s, motivoIndisponivel: gravado } : s))),
+          this._salas.update((list) => list.map((s) => (s.id === sala.id ? { ...s, indisponivel: gravado } : s))),
         ),
       );
   }

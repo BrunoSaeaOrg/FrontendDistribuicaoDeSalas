@@ -6,7 +6,13 @@ import { FormsModule } from '@angular/forms';
 import { SaeaCheckboxComponent, SaeaInputComponent, SaeaTooltipDirective } from '@sistemas-saea/saea-design-system';
 import { nomeDoAndar, Turno } from '../../core/models';
 import { ApiAlunoEnturmacaoDto, ApiTurmaEnturmacaoDto } from '../../core/models/ocupacao-api.model';
-import { AlunosEnturmacaoService, SelecaoDaTela } from '../../core/services/alunos-enturmacao.service';
+import {
+  AlunosEnturmacaoService,
+  FiltrosDoLado,
+  Inconsistencia,
+  SelecaoDaTela,
+  TipoDeAluno,
+} from '../../core/services/alunos-enturmacao.service';
 import { SalasService, serieDaTurma } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AlertComponent } from '../../shared/ui/alert/alert.component';
@@ -127,6 +133,8 @@ export interface PainelDaTurma {
   visiveis: AlunoDaTela[];
   /** A busca deste lado, sem espaços nas pontas; vazia, a lista mostra todos. */
   busca: string;
+  /** Algum filtro de turma anterior ou tipo de aluno está ligado (vale para os dois lados). */
+  filtrado: boolean;
   /** As outras turmas que dividem a sala da turma nesse turno (vazio sem sala). */
   dividemCom: string[];
   /** Marcados deste lado. */
@@ -178,6 +186,11 @@ export class VincularAlunosComponent {
 
   readonly qtdAlunos = qtdAlunos;
   readonly SEM_TURMA = SEM_TURMA;
+  /** As duas ordenações do menu "Filtros". */
+  readonly ORDENS: readonly { valor: OrdemDosNomes; rotulo: string; icone: string }[] = [
+    { valor: 'az', rotulo: 'A → Z', icone: 'arrow_downward' },
+    { valor: 'za', rotulo: 'Z → A', icone: 'arrow_upward' },
+  ];
 
   /**
    * A escolha de antes, se o app recriou a tela (celular ↔ computador, troca de layout) ou se ela
@@ -189,6 +202,16 @@ export class VincularAlunosComponent {
   readonly serie = signal(this.retomada?.serie ?? '');
   readonly origemId = signal<string | null>(this.retomada?.origemId ?? null);
   readonly destinoId = signal<string | null>(this.retomada?.destinoId ?? null);
+  /**
+   * Os filtros do menu "Filtros" de cada lado, que valem só para aquele lado:
+   * - turma do ano anterior: só quem veio dela (com duas matrículas, de qualquer uma). Vazio = todas;
+   *   SEM_TURMA_ANTERIOR = quem não tinha turma (quase sempre os novos). A lista muda com a série:
+   *   volta a vazio ao trocar;
+   * - tipo de aluno: novo ou veterano; vazio = os dois. Fica ao trocar de série.
+   */
+  readonly filtros = signal<Readonly<Record<Lado, FiltrosDoLado>>>(
+    this.retomada?.filtros ?? { origem: SEM_FILTROS, destino: SEM_FILTROS },
+  );
   readonly marcadosOrigem = signal<ReadonlySet<string>>(new Set());
   readonly marcadosDestino = signal<ReadonlySet<string>>(new Set());
   /** Os últimos movidos: ficam no começo da turma em que entraram, destacados. */
@@ -294,6 +317,13 @@ export class VincularAlunosComponent {
     if (filial === null || this.carregandoSalas()) return new Map();
     const estado = this.alunosService.importados(this.anoLetivo(), filial);
     return estado?.estado === 'pronto' ? estado.porRa : new Map();
+  });
+
+  /** Os que a FV de importação recusou (último registro no MD como Inconsistente): a etiqueta laranja. */
+  private readonly inconsistentesNoRm = computed<ReadonlyMap<string, Inconsistencia>>(() => {
+    const filial = this.codFilial();
+    if (filial === null || this.carregandoSalas()) return new Map();
+    return this.alunosService.inconsistentes(this.anoLetivo(), filial);
   });
 
   private readonly alunosDaUnidade = computed<AlunoDaTela[]>(() => {
@@ -442,17 +472,93 @@ export class VincularAlunosComponent {
     return id === SEM_TURMA ? todos.filter((a) => a.serie === this.serie()) : todos;
   }
 
+  /** Os alunos da série (todos os períodos e turmas): as opções e contagens dos filtros. */
+  private readonly alunosDaSerie = computed(() => {
+    const serie = this.serie();
+    return serie ? this.alunosDaUnidade().filter((a) => a.serie === serie) : [];
+  });
+
+  /** As turmas do ano anterior dos alunos da série, com quantos vieram de cada uma; e quem não tinha. */
+  readonly turmaAnteriorOptions = computed<SelectOption[]>(() => {
+    const alunos = this.alunosDaSerie();
+    const porTurma = new Map<string, number>();
+    let semTurma = 0;
+    alunos.forEach((a) => {
+      const turmas = turmasAnteriores(a);
+      if (turmas.length === 0) semTurma++;
+      turmas.forEach((t) => porTurma.set(t, (porTurma.get(t) ?? 0) + 1));
+    });
+    const turmas = [...porTurma]
+      .sort(([a], [b]) => a.localeCompare(b, 'pt-BR', { numeric: true }))
+      .map(([t, n]) => ({ value: t, label: `${t} (${n})` }));
+    return [
+      { value: '', label: 'Todas as turmas' },
+      ...turmas,
+      ...(semTurma > 0 ? [{ value: SEM_TURMA_ANTERIOR, label: `Sem turma anterior (${semTurma})` }] : []),
+    ];
+  });
+
+  /** Novos e veteranos da série, com quantos são. */
+  readonly tipoAlunoOptions = computed<SelectOption[]>(() => {
+    const alunos = this.alunosDaSerie();
+    const novos = alunos.filter((a) => a.novo).length;
+    return [
+      { value: '', label: 'Todos os tipos' },
+      { value: 'novo', label: `Novos (${novos})` },
+      { value: 'veterano', label: `Veteranos (${alunos.length - novos})` },
+    ];
+  });
+
+  /** Os filtros de turma anterior e tipo de aluno do lado; null = nenhum ligado. */
+  private filtroDosAlunos(lado: Lado): ((a: AlunoDaTela) => boolean) | null {
+    const { turmaAnterior: turma, tipoAluno: tipo } = this.filtros()[lado];
+    if (!turma && !tipo) return null;
+    return (a) => {
+      if (tipo && (tipo === 'novo') !== a.novo) return false;
+      if (!turma) return true;
+      const anteriores = turmasAnteriores(a);
+      return turma === SEM_TURMA_ANTERIOR ? anteriores.length === 0 : anteriores.includes(turma);
+    };
+  }
+
   /** A busca de cada lado, por nome (sem ligar para acento) ou RA. Volta a vazia ao trocar a série. */
   readonly busca = signal<Readonly<Record<Lado, string>>>({ origem: '', destino: '' });
 
-  /** Cada lado sempre em ordem alfabética: de A a Z, ou de Z a A depois de um clique no botão de ordem. */
+  /** Cada lado sempre em ordem alfabética: de A a Z, ou de Z a A (escolha no menu "Filtros" do lado). */
   readonly ordem =signal<Readonly<Record<Lado, OrdemDosNomes>>>({ origem: 'az', destino: 'az' });
+
+  /** O menu "Filtros" aberto: de qual lado e o botão em que ele se ancora; null = fechado. */
+  readonly filtrosAbertos = signal<{ lado: Lado; botao: HTMLElement } | null>(null);
+
+  /** Embaixo do botão, alinhado pela direita (o botão fica no fim da barra); sem espaço, pela esquerda; por último, em cima. */
+  readonly posicoesDosFiltros: ConnectedPosition[] = [
+    { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 6 },
+    { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 6 },
+    { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -6 },
+  ];
 
   readonly origem = computed(() => this.painel('origem'));
   readonly destino = computed(() => this.painel('destino'));
 
-  readonly qtdMarcadosOrigem = computed(() => this.marcadosOrigem().size);
-  readonly qtdMarcadosDestino = computed(() => this.marcadosDestino().size);
+  /**
+   * Os já enturmados na turma em que estão (o último registro no MD está como Importado): ficam
+   * travados. Não dá para marcar, arrastar nem mover; a opção nem aparece.
+   */
+  private readonly enturmados = computed<ReadonlySet<string>>(
+    () => new Set(this.alunosDaUnidade().filter((a) => this.importado(a)).map((a) => a.id)),
+  );
+
+  /** Os marcados de cada lado, sem os enturmados (um marcado antes de a leitura dos importados chegar sai daqui). */
+  private readonly marcadosNaOrigem = computed(() => semEnturmados(this.marcadosOrigem(), this.enturmados()));
+  private readonly marcadosNoDestino = computed(() => semEnturmados(this.marcadosDestino(), this.enturmados()));
+
+  readonly qtdMarcadosOrigem = computed(() => this.marcadosNaOrigem().size);
+  readonly qtdMarcadosDestino = computed(() => this.marcadosNoDestino().size);
+
+  /** O aluno já está na matrícula nesta turma: travado (sem marcar, arrastar nem mover). */
+  travado(aluno: AlunoDaTela): boolean {
+    return this.enturmados().has(aluno.id);
+  }
 
   /**
    * Dá para mover (e gravar na hora): nenhuma gravação em curso e os movimentos já gravados foram
@@ -505,6 +611,7 @@ export class VincularAlunosComponent {
         serie: this.serie(),
         origemId: this.origemId(),
         destinoId: this.destinoId(),
+        filtros: this.filtros(),
       };
     });
     // A unidade escolhida pede os alunos dela (a leitura é lenta: só a da unidade em uso).
@@ -613,6 +720,19 @@ export class VincularAlunosComponent {
     return !aluno.gravadoNoRm && this.importadosNoRm().get(aluno.id) === this.turmaAtual(aluno);
   }
 
+  /**
+   * O último registro do aluno no MD de enturmação está como Inconsistente: a FV de importação não
+   * conseguiu pô-lo na turma. O texto diz para qual turma e por quê; null = não está inconsistente
+   * (ou há um movimento gravado depois, que vale mais).
+   */
+  inconsistenteDe(aluno: AlunoDaTela): string | null {
+    if (aluno.gravadoNoRm) return null;
+    const registro = this.inconsistentesNoRm().get(aluno.id);
+    if (!registro) return null;
+    const turma = registro.codTurma ? `Não entrou em ${this.nomeDaTurma(registro.codTurma)}` : 'Não entrou na turma';
+    return registro.motivo ? `${turma}: ${registro.motivo}` : `${turma}.`;
+  }
+
   /** Abre os dados do aluno embaixo da linha dele (fecha o que estava aberto); clicar de novo fecha. */
   alternarDetalhe(ra: string): void {
     this.detalheAberto.update((aberto) => (aberto === ra ? null : ra));
@@ -642,6 +762,7 @@ export class VincularAlunosComponent {
     const dados: (DadoDoAluno | null)[] = [
       aluno.gravadoNoRm ? { rotulo: 'Salvo para', valor: this.nomeDaTurma(aluno.codTurmaOriginal ?? SEM_TURMA) } : null,
       this.falhaDe(aluno) ? { rotulo: 'Não salvou', valor: this.falhaDe(aluno)! } : null,
+      this.inconsistenteDe(aluno) ? { rotulo: 'Inconsistente', valor: this.inconsistenteDe(aluno)! } : null,
       anoAnterior ? { rotulo: 'Ano anterior', valor: anoAnterior } : null,
       aluno.instituicaoOrigem ? { rotulo: 'Escola de origem', valor: aluno.instituicaoOrigem } : null,
     ];
@@ -656,15 +777,15 @@ export class VincularAlunosComponent {
 
   /**
    * Começa a arrastar um aluno. Se ele estiver marcado, vão todos os marcados do lado (a imagem do
-   * arraste diz quantos); senão, só ele. Durante a gravação no RM não se arrasta.
+   * arraste diz quantos); senão, só ele. Durante a gravação no RM não se arrasta, nem o enturmado.
    */
   iniciarArrasto(lado: Lado, ra: string, event: DragEvent): void {
     this.previa.set(null);
-    if (!this.podeMover()) {
+    if (!this.podeMover() || this.enturmados().has(ra)) {
       event.preventDefault();
       return;
     }
-    const marcados = lado === 'origem' ? this.marcadosOrigem() : this.marcadosDestino();
+    const marcados = lado === 'origem' ? this.marcadosNaOrigem() : this.marcadosNoDestino();
     const ras = marcados.has(ra) ? [...marcados] : [ra];
     this.arrasto.set({ de: lado, ras });
     const dados = event.dataTransfer;
@@ -717,7 +838,7 @@ export class VincularAlunosComponent {
   }
 
   marcado(lado: Lado, ra: string): boolean {
-    return (lado === 'origem' ? this.marcadosOrigem() : this.marcadosDestino()).has(ra);
+    return (lado === 'origem' ? this.marcadosNaOrigem() : this.marcadosNoDestino()).has(ra);
   }
 
   /** Trocar o ano troca o de todas as telas (é o do SalasService). Os movimentos ficam guardados por ano. */
@@ -741,6 +862,7 @@ export class VincularAlunosComponent {
     this.serie.set(chave);
     this.limparMarcados();
     this.busca.set({ origem: '', destino: '' });
+    this.soltarTurmaAnterior();
     const periodos = this.periodosDaSerie();
     const origem = periodos.find((p) => this.alunosNaTurma(p.id).length > 0) ?? periodos[0];
     const turmas = this.turmasDaSerie();
@@ -808,8 +930,72 @@ export class VincularAlunosComponent {
   /** Leva os marcados do destino para a turma escolhida na lista (e grava). */
   moverMarcadosPara(codTurma: string): void {
     this.menuMover.set(null);
-    const marcados = [...this.marcadosDestino()];
+    const marcados = [...this.marcadosNoDestino()];
     if (marcados.length > 0) this.mover(marcados, codTurma);
+  }
+
+  /** O filtro da turma do ano anterior, só do lado. Os marcados continuam, como na busca. */
+  filtrarTurmaAnterior(lado: Lado, valor: string): void {
+    this.filtros.update((f) => ({ ...f, [lado]: { ...f[lado], turmaAnterior: valor } }));
+  }
+
+  /** O filtro do tipo de aluno, só do lado. Os marcados continuam, como na busca. */
+  filtrarTipoAluno(lado: Lado, valor: string): void {
+    const tipoAluno: TipoDeAluno = valor === 'novo' || valor === 'veterano' ? valor : '';
+    this.filtros.update((f) => ({ ...f, [lado]: { ...f[lado], tipoAluno } }));
+  }
+
+  /** Desliga os filtros de turma anterior e tipo de aluno do lado. */
+  limparFiltros(lado: Lado): void {
+    this.filtros.update((f) => ({ ...f, [lado]: SEM_FILTROS }));
+  }
+
+  turmaAnteriorDe(lado: Lado): string {
+    return this.filtros()[lado].turmaAnterior;
+  }
+
+  tipoAlunoDe(lado: Lado): TipoDeAluno {
+    return this.filtros()[lado].tipoAluno;
+  }
+
+  /** Quantos filtros estão ligados no lado (o número no botão "Filtros"); a ordem não conta. */
+  qtdFiltrosDe(lado: Lado): number {
+    const { turmaAnterior, tipoAluno } = this.filtros()[lado];
+    return (turmaAnterior ? 1 : 0) + (tipoAluno ? 1 : 0);
+  }
+
+  /** A turma anterior muda com a série: os dois lados voltam a "Todas as turmas"; o tipo fica. */
+  private soltarTurmaAnterior(): void {
+    this.filtros.update((f) => ({
+      origem: { ...f.origem, turmaAnterior: '' },
+      destino: { ...f.destino, turmaAnterior: '' },
+    }));
+  }
+
+  /** O botão "Filtros" do lado: abre o menu dele; aberto, fecha. */
+  alternarFiltros(lado: Lado, event: Event): void {
+    const botao = event.currentTarget as HTMLElement;
+    this.filtrosAbertos.update((aberto) => (aberto?.lado === lado ? null : { lado, botao }));
+  }
+
+  /** Clique fora do menu: fecha, menos no botão que o abriu (o clique dele já fecha). */
+  cliqueForaDosFiltros(event: MouseEvent): void {
+    const aberto = this.filtrosAbertos();
+    if (aberto && !aberto.botao.contains(event.target as Node)) this.filtrosAbertos.set(null);
+  }
+
+  /** Aberto o menu, o foco vai para a ordem escolhida (depois que ele aparece na página). */
+  focarFiltros(): void {
+    setTimeout(() => document.querySelector<HTMLElement>('.va-filtros-menu [aria-checked="true"]')?.focus());
+  }
+
+  /** Esc fecha o menu e devolve o foco ao botão. */
+  teclaNosFiltros(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    const aberto = this.filtrosAbertos();
+    this.filtrosAbertos.set(null);
+    aberto?.botao.focus();
   }
 
   buscar(lado: Lado, texto: string): void {
@@ -831,16 +1017,23 @@ export class VincularAlunosComponent {
    * deles, vazia com nenhum (o valor vai direto no aria-checked).
    */
   estadoMarcarTodos(lado: Lado): 'true' | 'false' | 'mixed' {
-    const painel = lado === 'origem' ? this.origem() : this.destino();
-    const marcados = lado === 'origem' ? this.marcadosOrigem() : this.marcadosDestino();
-    const qtd = painel?.visiveis.filter((a) => marcados.has(a.id)).length ?? 0;
+    const selecionaveis = this.selecionaveis(lado);
+    const marcados = lado === 'origem' ? this.marcadosNaOrigem() : this.marcadosNoDestino();
+    const qtd = selecionaveis.filter((a) => marcados.has(a.id)).length;
     if (qtd === 0) return 'false';
-    return qtd === painel!.visiveis.length ? 'true' : 'mixed';
+    return qtd === selecionaveis.length ? 'true' : 'mixed';
   }
 
-  /** O botão de ordem: inverte o lado entre A a Z e Z a A. */
-  alternarOrdem(lado: Lado): void {
-    this.ordem.update((o) => ({ ...o, [lado]: o[lado] === 'az' ? 'za' : 'az' }));
+  /** Os que a lista do lado mostra e dá para marcar (o enturmado fica de fora). */
+  selecionaveis(lado: Lado): AlunoDaTela[] {
+    const painel = lado === 'origem' ? this.origem() : this.destino();
+    const enturmados = this.enturmados();
+    return painel?.visiveis.filter((a) => !enturmados.has(a.id)) ?? [];
+  }
+
+  /** A ordenação do lado, no menu "Filtros": de A a Z ou de Z a A. */
+  definirOrdem(lado: Lado, ordem: OrdemDosNomes): void {
+    this.ordem.update((o) => ({ ...o, [lado]: ordem }));
   }
 
   tentarDeNovo(): void {
@@ -849,6 +1042,8 @@ export class VincularAlunosComponent {
   }
 
   alternarAluno(lado: Lado, ra: string): void {
+    // O enturmado não se marca: clicar no cartão dele não faz nada.
+    if (this.enturmados().has(ra)) return;
     const marcados = lado === 'origem' ? this.marcadosOrigem : this.marcadosDestino;
     marcados.update((atual) => {
       const proximos = new Set(atual);
@@ -864,32 +1059,32 @@ export class VincularAlunosComponent {
   }
 
   /**
-   * Marca todos os que a lista mostra (com busca, só os encontrados; os marcados antes continuam);
-   * com todos eles já marcados, desmarca esses.
+   * Marca todos os que a lista mostra e dá para marcar (com busca, só os encontrados; os marcados
+   * antes continuam; o enturmado fica de fora); com todos eles já marcados, desmarca esses.
    */
   alternarTodos(lado: Lado): void {
-    const painel = lado === 'origem' ? this.origem() : this.destino();
-    if (!painel) return;
+    const selecionaveis = this.selecionaveis(lado);
+    if (selecionaveis.length === 0) return;
     const marcados = lado === 'origem' ? this.marcadosOrigem : this.marcadosDestino;
     const desmarcar = this.todosMarcados(lado);
     marcados.update((atual) => {
       const proximos = new Set(atual);
-      painel.visiveis.forEach((a) => (desmarcar ? proximos.delete(a.id) : proximos.add(a.id)));
+      selecionaveis.forEach((a) => (desmarcar ? proximos.delete(a.id) : proximos.add(a.id)));
       return proximos;
     });
   }
 
-  /** Todos os que a lista mostra estão marcados. */
+  /** Todos os que a lista mostra e dá para marcar estão marcados. */
   todosMarcados(lado: Lado): boolean {
-    const painel = lado === 'origem' ? this.origem() : this.destino();
-    const marcados = lado === 'origem' ? this.marcadosOrigem() : this.marcadosDestino();
-    return !!painel && painel.visiveis.length > 0 && painel.visiveis.every((a) => marcados.has(a.id));
+    const selecionaveis = this.selecionaveis(lado);
+    const marcados = lado === 'origem' ? this.marcadosNaOrigem() : this.marcadosNoDestino();
+    return selecionaveis.length > 0 && selecionaveis.every((a) => marcados.has(a.id));
   }
 
   /** Leva os marcados de um lado para a turma do outro. */
   moverMarcados(de: Lado): void {
     const para = de === 'origem' ? this.destinoId() : this.origemId();
-    const marcados = de === 'origem' ? this.marcadosOrigem() : this.marcadosDestino();
+    const marcados = de === 'origem' ? this.marcadosNaOrigem() : this.marcadosNoDestino();
     if (!para || marcados.size === 0) return;
     this.mover([...marcados], para);
   }
@@ -900,6 +1095,7 @@ export class VincularAlunosComponent {
     this.destinoId.set(null);
     this.limparMarcados();
     this.busca.set({ origem: '', destino: '' });
+    this.soltarTurmaAnterior();
   }
 
   private limparMarcados(): void {
@@ -926,11 +1122,18 @@ export class VincularAlunosComponent {
     });
   }
 
-  /** Leva os alunos para a turma (ou, se for um período da origem, para "sem turma") e grava na hora. */
+  /**
+   * Leva os alunos para a turma (ou, se for um período da origem, para "sem turma") e grava na hora.
+   * O enturmado nunca vai junto, venha de onde vier o pedido (arraste, botões ou menu).
+   */
   private mover(ras: readonly string[], destinoId: string): void {
     if (!this.podeMover()) return;
     const para = paraTurma(destinoId);
-    const chegando = this.aplicarMovimento(ras, para);
+    const enturmados = this.enturmados();
+    const chegando = this.aplicarMovimento(
+      ras.filter((ra) => !enturmados.has(ra)),
+      para,
+    );
     if (chegando.length > 0) this.gravar(chegando, para);
   }
 
@@ -1027,14 +1230,16 @@ export class VincularAlunosComponent {
     if (!turma || this.estadoAlunos()?.estado !== 'pronto') return null;
     const alunos = this.alunosNaTurma(turma.id);
     const busca = this.busca()[lado].trim();
+    const filtro = this.filtroDosAlunos(lado);
     return {
       lado,
       turma,
       alunos,
-      visiveis: filtrarEOrdenar(alunos, busca, this.ordem()[lado]),
+      visiveis: filtrarEOrdenar(filtro ? alunos.filter(filtro) : alunos, busca, this.ordem()[lado]),
       busca,
+      filtrado: filtro !== null,
       dividemCom: (turma.sala?.turmasNoTurno ?? []).filter((c) => c !== turma.id).map((c) => this.nomeCurto(c)),
-      marcados: lado === 'origem' ? this.marcadosOrigem().size : this.marcadosDestino().size,
+      marcados: lado === 'origem' ? this.marcadosNaOrigem().size : this.marcadosNoDestino().size,
     };
   }
 
@@ -1061,6 +1266,20 @@ const PERIODOS = [
   { chave: 'ST', rotulo: 'Semi-Tarde' },
   { chave: '?', rotulo: 'Sem período' },
 ] as const;
+
+/** O valor do filtro de turma anterior para quem não tinha turma no ano anterior. */
+export const SEM_TURMA_ANTERIOR = '__sem-turma-anterior__';
+
+/** Os filtros de um lado desligados: todas as turmas anteriores e os dois tipos de aluno. */
+const SEM_FILTROS: FiltrosDoLado = { turmaAnterior: '', tipoAluno: '' };
+
+/** As turmas do ano anterior do aluno: com duas matrículas vêm as duas ("EF1M-T / EF1C-M"). */
+function turmasAnteriores(aluno: AlunoDaTela): string[] {
+  return (aluno.turmaAnterior ?? '')
+    .split('/')
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
 
 /** Sem acento e em minúsculas, para "luisa" achar "LUÍSA". */
 function semAcento(texto: string): string {
@@ -1147,6 +1366,12 @@ function retomar(selecao: SelecaoDaTela | null, ano: string): SelecaoDaTela | nu
 
 function chaveDaSerie(dto: ApiAlunoEnturmacaoDto): string {
   return `${dto.codCurso}|${dto.codHabilitacao}`;
+}
+
+/** Os marcados sem os enturmados; sem enturmado marcado, o mesmo conjunto. */
+function semEnturmados(marcados: ReadonlySet<string>, enturmados: ReadonlySet<string>): ReadonlySet<string> {
+  if (![...marcados].some((ra) => enturmados.has(ra))) return marcados;
+  return new Set([...marcados].filter((ra) => !enturmados.has(ra)));
 }
 
 /** "5º Ano - Ensino Fundamental - Manhã - EF I" → "5º Ano - Ensino Fundamental" (o turno sai). */

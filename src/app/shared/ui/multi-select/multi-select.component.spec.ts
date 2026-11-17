@@ -71,3 +71,35 @@ describe('MultiSelectComponent com "Todas as unidades"', () => {
     expect(botao().classList).not.toContain('ms-gatilho--marcado');
   });
 });
+
+describe('MultiSelectComponent com ações no fim da lista', () => {
+  it('as ações vêm depois das opções, fecham a lista e saem em "acao"; sem opção, a lista só tem as ações', () => {
+    const fixture = TestBed.createComponent(MultiSelectComponent);
+    fixture.componentRef.setInput('options', UNIDADES.slice(0, 1));
+    fixture.componentRef.setInput('acoes', [{ value: 'indisponivel', label: 'Marcar manhã como indisponível', icon: 'block' }]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const lista = el.querySelector<HTMLElement>('.ms-lista')!;
+    const fechar = vi.fn();
+    (lista as unknown as { hidePopover: () => void }).hidePopover = fechar;
+    const escolhidas: string[] = [];
+    fixture.componentInstance.acao.subscribe((v) => escolhidas.push(v));
+
+    // A lista só monta o conteúdo aberta.
+    fixture.componentInstance.aberta.set(true);
+    fixture.detectChanges();
+    expect(el.querySelector('.ms-acoes--separadas')).not.toBeNull();
+    const acao = el.querySelector<HTMLButtonElement>('.ms-acao')!;
+    expect(acao.textContent).toContain('Marcar manhã como indisponível');
+
+    acao.click();
+    expect(fechar).toHaveBeenCalled();
+    expect(escolhidas).toEqual(['indisponivel']);
+    expect(fixture.componentInstance.selected()).toEqual([]);
+
+    fixture.componentRef.setInput('options', []);
+    fixture.detectChanges();
+    expect(el.querySelector('.ms-acoes--separadas')).toBeNull();
+    expect(el.querySelectorAll('.ms-acao')).toHaveLength(1);
+  });
+});

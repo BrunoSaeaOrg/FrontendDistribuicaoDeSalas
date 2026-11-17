@@ -129,3 +129,15 @@
   text-align: center;
   color: var(--saea-ink-soft);
 }
+
+/* "Requer revisão": o motivo da FV embaixo do selo, em até duas linhas (inteiro na dica). */
+.en-motivo {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 280px;
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}

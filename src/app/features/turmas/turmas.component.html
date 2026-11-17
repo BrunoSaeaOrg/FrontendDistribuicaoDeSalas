@@ -49,29 +49,45 @@
               <td class="turmas-cell-strong">{{ row.nome }}</td>
               <td>{{ row.carteiras }}</td>
               @for (cell of row.cells; track cell.turno) {
-                <td class="turmas-cell-turno">
+                <!-- Turno indisponível no ano: a célula em cinza, o selo e o motivo (no seletor, no lugar do texto). -->
+                <td class="turmas-cell-turno" [class.turmas-cell-turno--indisponivel]="!!cell.motivoIndisponivel">
                   <div class="turmas-turno">
-                    @let comSeletor = uiMode.editorMode() && !cell.vinculando && cell.opcoes.length > 0;
-                    @if (comSeletor || cell.turmas.length > 0) {
+                    @let comSeletor = uiMode.editorMode() && !cell.vinculando && !cell.gravandoMotivo;
+                    @if (comSeletor || cell.turmas.length > 0 || cell.motivoIndisponivel) {
                       <!-- O total do turno e os avisos ficam ao lado do campo (ou das fichas), não abaixo. -->
                       <div class="turmas-linha">
                         @if (comSeletor) {
                           <!-- Como destinatários num campo de e-mail: as turmas da célula (vinculadas e
-                               marcadas) ficam em fichas dentro do seletor, antes do "Adicionar turma...". -->
+                               marcadas) ficam em fichas dentro do seletor, antes do "Adicionar turma...".
+                               No fim da lista, marcar o turno como indisponível (ou desfazer). -->
                           <app-multi-select
                             class="turmas-seletor"
                             size="sm"
                             [contagem]="false"
                             [options]="cell.opcoesSeletor"
-                            [placeholder]="cell.turmas.length > 0 || cell.selecionadas.length > 0 ? 'Adicionar turma...' : 'Vincular turmas...'"
-                            [disabled]="salvando()"
+                            [acoes]="cell.acoes"
+                            [placeholder]="cell.textoDoSeletor"
+                            [dica]="cell.motivoIndisponivel ?? ''"
+                            [disabled]="salvando() || !!gravandoMotivo()"
                             [selected]="cell.valoresSelecionados"
                             (selectedChange)="selecionar(cell, $event)"
+                            (acao)="aoEscolherAcao(row, cell, $event)"
                           >
+                            @if (cell.motivoIndisponivel) {
+                              <app-badge class="turmas-indisp-selo" tone="neutral">Indisponível</app-badge>
+                            }
                             <ng-container *ngTemplateOutlet="vinculadas; context: { $implicit: cell, row: row }" />
                             <ng-container *ngTemplateOutlet="marcadas; context: { $implicit: cell }" />
                           </app-multi-select>
                         } @else {
+                          @if (cell.motivoIndisponivel) {
+                            <span class="turmas-indisp">
+                              <app-badge class="turmas-indisp-selo" tone="neutral">Indisponível</app-badge>
+                              <saea-truncate class="turmas-indisp-motivo" maxWidth="100%" [label]="cell.motivoIndisponivel">
+                                {{ cell.motivoIndisponivel }}
+                              </saea-truncate>
+                            </span>
+                          }
                           <ng-container *ngTemplateOutlet="vinculadas; context: { $implicit: cell, row: row }" />
                         }
                         @if (cell.turmas.length > 1 || cell.excede) {
@@ -95,6 +111,10 @@
                             Gravando {{ gravacao.atual }} de {{ gravacao.total }}...
                           }
                         </span>
+                      } @else if (cell.gravandoMotivo) {
+                        <span class="turmas-gravando-lote">
+                          <saea-spinner class="turmas-gravando" [size]="18" label="Gravando no RM" />
+                        </span>
                       } @else if (cell.selecionadas.length > 0) {
                         <span class="turmas-previa" [class.turmas-previa--excede]="cell.excedeComSelecionadas">
                           Com elas: {{ qtdAlunos(cell.alunosComSelecionadas) }} para {{ row.carteiras }} carteiras
@@ -103,10 +123,8 @@
                           <app-button size="sm" [disabled]="salvando()" (clicked)="confirmar(row, cell)">Confirmar</app-button>
                           <app-button variant="ghost" size="sm" [disabled]="salvando()" (clicked)="limpar(cell)">Cancelar</app-button>
                         </div>
-                      } @else if (cell.opcoes.length === 0 && cell.turmas.length === 0) {
-                        <span class="turmas-livre">— Nenhuma turma disponível —</span>
                       }
-                    } @else if (cell.turmas.length === 0) {
+                    } @else if (cell.turmas.length === 0 && !cell.motivoIndisponivel) {
                       <span class="turmas-livre">— Livre —</span>
                     }
                   </div>
@@ -124,6 +142,65 @@
       </table>
     </div>
   </app-card>
+
+  <!-- Marcar o turno da sala como indisponível no ano letivo, com o motivo, ou deixá-lo disponível de novo. -->
+  <saea-dialog
+    [(open)]="dialogoMotivo"
+    eyebrow="Salas → Turmas"
+    [title]="tituloMotivo()"
+    [width]="480"
+    [closable]="!gravandoMotivo()"
+    [closeOnBackdrop]="!gravandoMotivo()"
+    [closeOnEsc]="!gravandoMotivo()"
+  >
+    @if (alvoDoMotivo(); as alvo) {
+      <p class="turmas-motivo-texto">
+        {{ alvo.unidade }} · {{ anoLetivo() }}. Enquanto {{ oTurno() }} estiver indisponível, nenhuma turma pode ser
+        vinculada à sala nesse turno, só neste ano letivo. O motivo aparece aqui e no Painel.
+      </p>
+      @if (alvo.turmas.length > 0) {
+        <app-alert class="turmas-motivo-aviso" tone="warning">
+          {{ alvo.turmas.length === 1 ? 'A turma ' + alvo.turmas[0] + ' continua' : 'As turmas ' + alvo.turmas.join(', ') + ' continuam' }}
+          na sala: libere {{ alvo.turmas.length === 1 ? 'a turma' : 'as turmas' }} se for o caso.
+        </app-alert>
+      }
+      <div class="turmas-motivo-campo">
+        <label class="turmas-motivo-rotulo" for="turmas-motivo">
+          Motivo
+          <span class="turmas-motivo-obrigatorio" aria-hidden="true">*</span>
+          <span class="turmas-so-leitor">(obrigatório)</span>
+        </label>
+        <textarea
+          id="turmas-motivo"
+          class="turmas-motivo-textarea"
+          rows="4"
+          required
+          aria-required="true"
+          aria-describedby="turmas-motivo-ajuda"
+          placeholder="Ex.: em reforma até março"
+          [maxLength]="alvo.limite"
+          [readOnly]="!!gravandoMotivo()"
+          [ngModel]="motivo()"
+          (ngModelChange)="motivo.set($event)"
+        ></textarea>
+        <div class="turmas-motivo-ajuda" id="turmas-motivo-ajuda">
+          <span>{{ alvo.motivoAtual ? 'Para deixar o turno disponível, use "Tornar disponível".' : 'Vale só para este turno.' }}</span>
+          <span>{{ motivo().length }}/{{ alvo.limite }}</span>
+        </div>
+      </div>
+    }
+    <div saeaDialogFooter>
+      <button saea-button variant="ghost" type="button" [disabled]="!!gravandoMotivo()" (click)="fecharMotivo()">Cancelar</button>
+      @if (alvoDoMotivo()?.motivoAtual) {
+        <button saea-button variant="secondary" type="button" icon="event_available" [disabled]="!!gravandoMotivo()" (click)="tornarDisponivel()">
+          Tornar disponível
+        </button>
+      }
+      <button saea-button type="button" icon="block" [loading]="!!gravandoMotivo()" [disabled]="!motivo().trim()" (click)="salvarMotivo()">
+        {{ alvoDoMotivo()?.motivoAtual ? 'Salvar motivo' : 'Marcar indisponível' }}
+      </button>
+    </div>
+  </saea-dialog>
 </div>
 
 <!-- Turmas vinculadas em chips na horizontal: até 3, e o resto num "+N" que abre todas. -->

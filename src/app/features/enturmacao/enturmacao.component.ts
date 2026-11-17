@@ -9,7 +9,7 @@ import { AlunosEnturmacaoService } from '../../core/services/alunos-enturmacao.s
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
 import { motivoDaFalha, SalasService } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
-import { BadgeComponent } from '../../shared/ui/badge/badge.component';
+import { BadgeComponent, BadgeTone } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
@@ -25,6 +25,19 @@ type EstadoDaLista =
   | { estado: 'pronto'; alunos: readonly ApiEnturmacaoParaImportarDto[] }
   | { estado: 'erro' };
 
+/** A situação do aluno na enturmação: só o pendente pode ser enturmado. */
+export type SituacaoDoAluno = 'pendente' | 'enturmado' | 'revisao';
+
+/**
+ * O selo de cada situação, na coluna Situação e no filtro. "revisao" é o IMPORTADO = 2 do MD, que o
+ * RM chama de "Inconsistente" (antes "Requer Revisão"): o rótulo segue o RM, em laranja de aviso.
+ */
+export const SITUACOES: Readonly<Record<SituacaoDoAluno, { rotulo: string; plural: string; tom: BadgeTone }>> = {
+  pendente: { rotulo: 'Pendente', plural: 'Pendentes', tom: 'info' },
+  enturmado: { rotulo: 'Enturmado', plural: 'Enturmados', tom: 'success' },
+  revisao: { rotulo: 'Inconsistente', plural: 'Inconsistentes', tom: 'warning' },
+};
+
 /** Um aluno da lista: o id é o RA. */
 export interface AlunoParaImportar {
   id: string;
@@ -35,19 +48,23 @@ export interface AlunoParaImportar {
   chaveSerie: string;
   codTurma: string;
   nomeTurma: string;
+  situacao: SituacaoDoAluno;
+  /** Com "Inconsistente": o motivo que a FV escreveu. */
+  obs: string | null;
 }
 
 /**
- * Enturmação: os alunos que estão numa turma da pré-enturmação e ainda não entraram na matrícula,
- * para a secretaria importar (OC_SAL_ENTUR_PARA_IMPORTAR). São os mesmos que a pré-enturmação mostra
- * pendentes nas turmas de destino; quem requer revisão fica de fora, como lá. Lista com filtro de
- * série e turma e busca; a secretaria marca quem vai e importa. O esqueleto é o da Sala por Ano
- * Letivo (app-card, barra de filtros e ações, tabela), com as peças da lib SAEA.
+ * Enturmação: os alunos que estão numa turma da pré-enturmação (OC_SAL_ENTUR_PARA_IMPORTAR), com a
+ * situação de cada um: pendente (ainda não está na matrícula), enturmado (já está) ou inconsistente
+ * (a FV recusou, com o motivo). Lista com filtro de série, turma e situação (abre em todas, para os
+ * já enturmados continuarem à vista) e
+ * busca; a secretaria marca os pendentes que vão e enturma. O esqueleto é o da Sala por Ano Letivo
+ * (app-card, barra de filtros e ações, tabela), com as peças da lib SAEA.
  *
- * Importar roda a FV "EDU - Enturmação" do RM (OC_SAL_ENTUR_IMPORTAR, só no TTESTE por enquanto),
+ * Enturmar roda a FV "EDU - Enturmação" do RM (OC_SAL_ENTUR_IMPORTAR, só no TTESTE por enquanto),
  * com os registros dos marcados: ela grava a turma na matrícula ou manda o aluno para revisão, com o
- * motivo (aí ele sai daqui e volta à turma da matrícula na pré-enturmação). No fim, a tela avisa
- * como ficou cada grupo e relê a lista.
+ * motivo (aí ele volta à turma da matrícula na pré-enturmação). No fim, a tela avisa como ficou cada
+ * grupo e relê a lista.
  */
 @Component({
   selector: 'app-enturmacao',
@@ -85,8 +102,13 @@ export class EnturmacaoComponent {
   readonly serie = signal('');
   /** A turma de destino do filtro (CODTURMA); vazia = todas. */
   readonly turma = signal('');
+  /**
+   * A situação do filtro; vazia = todas. Abre em todas: os já enturmados continuam na lista (com o
+   * selo verde, sem caixa de marcar), inclusive os que acabaram de ser enturmados.
+   */
+  readonly situacao = signal<SituacaoDoAluno | ''>('');
   readonly busca = signal('');
-  /** Os RAs marcados para importar. */
+  /** Os RAs marcados para enturmar (só pendentes). */
   readonly marcados = signal<ReadonlySet<string>>(new Set());
 
   private readonly estado = signal<EstadoDaLista | null>(null);
@@ -105,8 +127,8 @@ export class EnturmacaoComponent {
   readonly esperando = computed(() => this.carregando() || this.importando());
   readonly textoDaEspera = computed(() =>
     this.importando()
-      ? `Importando ${qtd(this.enviadosNaImportacao(), 'aluno', 'alunos')} no RM...`
-      : 'Lendo os alunos para importar no RM...',
+      ? `Enturmando ${qtd(this.enviadosNaImportacao(), 'aluno', 'alunos')} no RM...`
+      : 'Lendo os alunos da enturmação no RM...',
   );
   readonly estimativaDaEspera = computed(() =>
     this.importando() ? 5000 + this.enviadosNaImportacao() * 1500 : this.estimativa(),
@@ -143,7 +165,7 @@ export class EnturmacaoComponent {
     return 3000 + (nasSalas + semSala) * 11;
   });
 
-  /** Todos os alunos da unidade para importar, em ordem alfabética. */
+  /** Todos os alunos da unidade na enturmação, em ordem alfabética. */
   readonly alunos = computed<AlunoParaImportar[]>(() => {
     const estado = this.estado();
     if (estado?.estado !== 'pronto') return [];
@@ -173,41 +195,73 @@ export class EnturmacaoComponent {
     return [{ value: '', label: 'Todas as turmas' }, ...opcoes];
   });
 
-  /** Há alunos para importar na unidade: a barra de ações e a tabela aparecem. */
+  /** Há alunos na enturmação da unidade (em qualquer situação): a barra de ações e a tabela aparecem. */
   readonly temAlunos = computed(() => this.pronto() && this.alunos().length > 0);
 
-  /** As linhas da lista: série, turma e busca (nome sem ligar para acento, ou RA). */
-  readonly visiveis = computed(() => {
+  /** Os da série e da turma escolhidas, em qualquer situação: a contagem do filtro de situação. */
+  private readonly daTurma = computed(() => {
     const turma = this.turma();
+    return this.daSerie().filter((a) => !turma || a.codTurma === turma);
+  });
+
+  /** As situações, com quantos alunos da série e da turma escolhidas têm cada uma. */
+  readonly situacaoOptions = computed<SelectOption[]>(() => {
+    const alunos = this.daTurma();
+    const quantos = (s: SituacaoDoAluno) => alunos.filter((a) => a.situacao === s).length;
+    return [
+      { value: '', label: `Todas as situações (${alunos.length})` },
+      ...(Object.keys(SITUACOES) as SituacaoDoAluno[]).map((s) => ({ value: s, label: `${SITUACOES[s].plural} (${quantos(s)})` })),
+    ];
+  });
+
+  /** As linhas da lista: série, turma, situação e busca (nome sem ligar para acento, ou RA). */
+  readonly visiveis = computed(() => {
+    const situacao = this.situacao();
     const termo = normalizar(this.busca());
-    return this.daSerie()
-      .filter((a) => !turma || a.codTurma === turma)
+    return this.daTurma()
+      .filter((a) => !situacao || a.situacao === situacao)
       .filter((a) => !termo || normalizar(a.nome).includes(termo) || a.id.includes(termo));
   });
 
-  /** Os marcados que ainda estão na lista (a lista relida pode não ter mais algum). */
+  /** Os pendentes da lista: só eles podem ser marcados. */
+  readonly visiveisPendentes = computed(() => this.visiveis().filter((a) => a.situacao === 'pendente'));
+
+  /** Os marcados que ainda estão na lista e pendentes (a lista relida pode não ter mais algum). */
   readonly alunosMarcados = computed(() => {
     const marcados = this.marcados();
-    return this.alunos().filter((a) => marcados.has(a.id));
+    return this.alunos().filter((a) => a.situacao === 'pendente' && marcados.has(a.id));
   });
 
   readonly todosVisiveisMarcados = computed(() => {
-    const visiveis = this.visiveis();
+    const pendentes = this.visiveisPendentes();
     const marcados = this.marcados();
-    return visiveis.length > 0 && visiveis.every((a) => marcados.has(a.id));
+    return pendentes.length > 0 && pendentes.every((a) => marcados.has(a.id));
   });
 
-  /** O quadrado do cabeçalho com traço: parte dos alunos da lista está marcada. */
+  /** O quadrado do cabeçalho com traço: parte dos pendentes da lista está marcada. */
   readonly visiveisEmParte = computed(() => {
     const marcados = this.marcados();
-    return !this.todosVisiveisMarcados() && this.visiveis().some((a) => marcados.has(a.id));
+    return !this.todosVisiveisMarcados() && this.visiveisPendentes().some((a) => marcados.has(a.id));
   });
 
-  /** "Importar", "Importar 3 alunos". */
+  /** "Enturmar", "Enturmar 3 alunos". */
   readonly textoImportar = computed(() => {
     const n = this.alunosMarcados().length;
-    return n === 0 ? 'Importar' : `Importar ${qtd(n, 'aluno', 'alunos')}`;
+    return n === 0 ? 'Enturmar' : `Enturmar ${qtd(n, 'aluno', 'alunos')}`;
   });
+
+  /** A linha da lista vazia: o que falta, pela situação do filtro. */
+  readonly textoSemResultado = computed(() => {
+    const situacao = this.situacao();
+    const comFiltro = !!(this.serie() || this.turma() || this.busca().trim());
+    const fim = comFiltro ? ' com esse filtro.' : '.';
+    if (situacao === 'pendente') return `Nenhum aluno pendente para enturmar${fim}`;
+    if (situacao === 'enturmado') return `Nenhum aluno enturmado${fim}`;
+    if (situacao === 'revisao') return `Nenhum aluno inconsistente${fim}`;
+    return 'Nenhum aluno com esse filtro.';
+  });
+
+  readonly SITUACOES = SITUACOES;
 
   /** "Nenhum aluno marcado", "3 alunos marcados · 2 turmas". */
   readonly resumoDaSelecao = computed(() => {
@@ -256,6 +310,10 @@ export class EnturmacaoComponent {
     this.turma.set(valor);
   }
 
+  selecionarSituacao(valor: string): void {
+    this.situacao.set(valor === 'pendente' || valor === 'enturmado' || valor === 'revisao' ? valor : '');
+  }
+
   tentarDeNovo(): void {
     const filial = this.codFilial();
     if (filial !== null) this.ler(this.anoLetivo(), filial);
@@ -274,9 +332,9 @@ export class EnturmacaoComponent {
     });
   }
 
-  /** O quadrado do cabeçalho: marca (ou desmarca) todos os que a lista mostra agora. */
+  /** O quadrado do cabeçalho: marca (ou desmarca) todos os pendentes que a lista mostra agora. */
   alternarVisiveis(marcar: boolean): void {
-    const ras = this.visiveis().map((a) => a.id);
+    const ras = this.visiveisPendentes().map((a) => a.id);
     this.marcados.update((atual) => {
       const proximos = new Set(atual);
       ras.forEach((ra) => (marcar ? proximos.add(ra) : proximos.delete(ra)));
@@ -294,7 +352,7 @@ export class EnturmacaoComponent {
     return filial === null ? null : this.alunosService.foto(this.anoLetivo(), filial, aluno.id);
   }
 
-  /** Confirma e importa os marcados pela FV de enturmação do RM; no fim, avisa como ficou cada grupo e relê a lista. */
+  /** Confirma e enturma os marcados pela FV de enturmação do RM; no fim, avisa como ficou cada grupo e relê a lista. */
   async importar(): Promise<void> {
     const marcados = this.alunosMarcados();
     const filial = this.codFilial();
@@ -302,11 +360,11 @@ export class EnturmacaoComponent {
     if (marcados.length === 0 || filial === null || !usuario || this.importando()) return;
     const turmas = new Set(marcados.map((a) => a.codTurma)).size;
     const confirmou = await this.confirmDialog.confirm({
-      title: `Importar ${qtd(marcados.length, 'aluno', 'alunos')} para a matrícula?`,
+      title: `Enturmar ${qtd(marcados.length, 'aluno', 'alunos')} na matrícula?`,
       description:
         `A FV de enturmação do RM grava a turma de destino na matrícula de cada aluno ` +
         `(${qtd(turmas, 'turma', 'turmas')}) e o matricula nas disciplinas dela. Não dá para desfazer por esta tela.`,
-      confirmLabel: 'Importar',
+      confirmLabel: 'Enturmar',
     });
     if (!confirmou) return;
 
@@ -331,35 +389,35 @@ export class EnturmacaoComponent {
       error: (err) => {
         if (!environment.production) console.error('[importação] erro:', err);
         this.importando.set(false);
-        this.toast.danger('Não foi possível importar', motivoDaFalha(err));
+        this.toast.danger('Não foi possível enturmar', motivoDaFalha(err));
         // A FV pode ter passado por parte dos alunos antes de falhar: a lista relida mostra como ficou.
         this.ler(ano, filial);
       },
     });
   }
 
-  /** Um aviso por grupo: importados, os que a FV mandou para revisão e os que ela não processou. */
+  /** Um aviso por grupo: enturmados, os que a FV mandou para revisão e os que ela não processou. */
   private avisarResultado(resultado: ApiEnturmacaoImportacaoDto): void {
     if (!resultado.concluido) {
-      this.toast.info('O RM ainda está importando', 'Recarregue a lista em alguns instantes para ver como ficou cada aluno.');
+      this.toast.info('O RM ainda está enturmando', 'Recarregue a lista em alguns instantes para ver como ficou cada aluno.');
       return;
     }
     const importados = resultado.alunos.filter((a) => a.situacao === 'importado').length;
     const revisao = resultado.alunos.filter((a) => a.situacao === 'requer-revisao');
     const pendentes = resultado.alunos.length - importados - revisao.length;
     if (importados > 0)
-      this.toast.success(qtd(importados, 'aluno importado', 'alunos importados'), 'Já estão na matrícula, na turma de destino.');
+      this.toast.success(qtd(importados, 'aluno enturmado', 'alunos enturmados'), 'Já estão na matrícula, na turma de destino.');
     if (revisao.length > 0) {
       // A FV costuma dar o mesmo motivo para todos; com motivos diferentes, fica só a orientação.
       const motivos = [...new Set(revisao.map((a) => a.obs?.trim()).filter((m): m is string => !!m))];
       this.toast.warning(
-        qtd(revisao.length, 'aluno requer revisão', 'alunos requerem revisão'),
+        qtd(revisao.length, 'aluno ficou inconsistente', 'alunos ficaram inconsistentes'),
         (motivos.length === 1 ? `${motivos[0]} ` : '') +
-          'Saíram desta lista: confira a matrícula no RM e mova de novo na Pré-enturmação.',
+          'Ficaram como "Inconsistente": confira a matrícula no RM e mova de novo na Pré-enturmação.',
       );
     }
     if (pendentes > 0)
-      this.toast.info(qtd(pendentes, 'aluno continua pendente', 'alunos continuam pendentes'), 'A FV não chegou a processar. Tente importar de novo.');
+      this.toast.info(qtd(pendentes, 'aluno continua pendente', 'alunos continuam pendentes'), 'A FV não chegou a processar. Tente enturmar de novo.');
   }
 
   private ler(ano: string, filial: number): void {
@@ -380,6 +438,7 @@ export class EnturmacaoComponent {
   private limparFiltros(): void {
     this.serie.set('');
     this.turma.set('');
+    this.situacao.set('');
     this.busca.set('');
     this.marcados.set(new Set());
   }
@@ -394,6 +453,9 @@ function paraTela(dto: ApiEnturmacaoParaImportarDto): AlunoParaImportar {
     chaveSerie: partes.slice(0, 2).join(' - '),
     codTurma: dto.codTurma,
     nomeTurma: dto.nomeTurma,
+    // Sem o campo (backend de antes desta versão), vêm só os pendentes.
+    situacao: dto.situacao === 'importado' ? 'enturmado' : dto.situacao === 'requer-revisao' ? 'revisao' : 'pendente',
+    obs: dto.situacao === 'requer-revisao' ? dto.obs?.trim() || null : null,
   };
 }
 

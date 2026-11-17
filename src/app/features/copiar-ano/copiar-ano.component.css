@@ -21,7 +21,7 @@
   min-height: 420px;
 }
 
-/* Unidade e anos à esquerda, Copiar à direita. */
+/* Unidade e ano à esquerda, Nova sala e Copiar à direita. */
 .ca-barra {
   flex-shrink: 0;
   display: flex;
@@ -38,20 +38,11 @@
   align-items: flex-end;
   gap: var(--sp-3) var(--sp-5);
 }
-.ca-anos {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--sp-3);
-}
 .ca-unidade-escolha {
   width: 240px;
 }
-.ca-anos app-select {
+.ca-ano {
   width: 160px;
-}
-.ca-seta {
-  margin-bottom: 10px;
-  color: var(--saea-ink-faint);
 }
 .ca-acao {
   display: flex;
@@ -71,23 +62,6 @@
   min-height: 0;
   overflow-x: auto;
   overflow-y: auto;
-}
-
-/* Aviso de uma linha acima da tabela: "tudo igual" ou "escolha o destino". */
-.ca-aviso {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin: var(--sp-4) 0 0;
-  font-size: var(--fs-sm);
-  color: var(--saea-ink-soft);
-}
-.ca-aviso .material-icons {
-  font-size: 18px;
-  color: var(--saea-info);
-}
-.ca-aviso--ok .material-icons {
-  color: var(--saea-success);
 }
 
 .ca-tabela {
@@ -136,6 +110,7 @@
   margin-left: var(--sp-2);
   color: var(--saea-ink-soft);
 }
+/* Unidade que ficou de fora da última cópia: o motivo ao lado da quantidade. */
 .ca-motivo::before {
   content: '·';
   margin-right: var(--sp-2);
@@ -144,17 +119,10 @@
 .ca-sala--marcada td {
   background: color-mix(in srgb, var(--saea-primary) 7%, transparent);
 }
-/* Já igual no destino: não tem o que copiar. */
-.ca-sala--igual {
-  color: var(--saea-ink-soft);
-}
 .ca-nome {
   display: block;
   font-weight: 600;
   color: var(--saea-ink);
-}
-.ca-sala--igual .ca-nome {
-  font-weight: 500;
 }
 /* Unidade, andar e tipo: texto de apoio ao nome da sala. */
 .ca-cel-suave {
@@ -169,12 +137,23 @@
   color: var(--saea-danger);
 }
 
+/* Card de Copiar: o texto e o ano de destino. */
+.ca-copiar-texto {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+}
+.ca-copiar-ano {
+  display: block;
+  max-width: 200px;
+}
+
 /*
  * Celular: cada sala vira um bloco (marca à esquerda; nome e carteiras em cima, "andar · tipo" e
  * capacidade embaixo). A unidade sai: já está no título do grupo.
  */
 @media (max-width: 640px) {
-  .ca-anos app-select {
+  .ca-ano {
     width: 120px;
   }
   .ca-escolhas,

@@ -211,13 +211,17 @@ export interface ApiEnturmacaoPendenteDto {
 }
 
 /**
- * Aluno cujo último registro no MD de enturmação está como Importado, isto é, já está na matrícula
- * (OC_SAL_ENTUR_IMPORTADOS; na API.OC.ENTUR.BAS, IMPORTADO = "Importado").
+ * Aluno cujo último registro no MD de enturmação já passou pela FV de importação
+ * (OC_SAL_ENTUR_IMPORTADOS): Importado (já está na matrícula) ou Inconsistente (a FV recusou; no
+ * back, situacao "requer-revisao", o nome antigo, com o motivo em obs).
  */
 export interface ApiEnturmacaoImportadoDto {
   ra: string;
-  /** A turma do registro importado. */
+  /** A turma do registro (no Inconsistente, a que o aluno não conseguiu entrar; pode vir vazia). */
   codTurma: string;
+  /** Sem o campo (back antigo), é importado. */
+  situacao?: 'importado' | 'requer-revisao';
+  obs?: string | null;
 }
 
 /** Situação do registro no MD de enturmação que ainda não foi importado: IMPORTADO 0 ou 2. */
@@ -233,6 +237,12 @@ export interface ApiEnturmacaoParaImportarDto {
   codTurma: string;
   /** "3º Ano A - Manhã". */
   nomeTurma: string;
+  /**
+   * pendente (dá para enturmar), importado (já na matrícula) ou requer-revisao (com o motivo em obs).
+   * Opcional: o backend antes desta versão manda só os pendentes, sem o campo.
+   */
+  situacao?: 'pendente' | 'importado' | 'requer-revisao';
+  obs?: string | null;
 }
 
 /**

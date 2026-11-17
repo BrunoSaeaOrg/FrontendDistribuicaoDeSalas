@@ -372,3 +372,88 @@
   font-size: var(--fs-xs);
   color: var(--saea-ink-faint);
 }
+
+/*
+ * Turno indisponível no ano: a célula em cinza (os status de lotação são verde, laranja e vermelho),
+ * como a linha da sala indisponível no Painel, com o selo antes das turmas e o motivo.
+ */
+.turmas-cell-turno--indisponivel {
+  background: color-mix(in srgb, var(--saea-ink-faint) 14%, transparent);
+}
+.turmas-indisp-selo {
+  flex: none;
+}
+.turmas-indisp {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.turmas-indisp-motivo {
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+
+/* O diálogo do motivo: o mesmo campo de várias linhas da justificativa da Planta. */
+.turmas-motivo-texto {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+}
+.turmas-motivo-aviso {
+  display: block;
+  margin-bottom: var(--sp-4);
+}
+.turmas-motivo-campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.turmas-motivo-rotulo {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--saea-ink);
+}
+.turmas-motivo-obrigatorio {
+  margin-left: 2px;
+  color: var(--saea-danger);
+}
+/* Só para leitor de tela: quem vê tem o "*". */
+.turmas-so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.turmas-motivo-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 96px;
+  resize: vertical;
+  font-size: var(--fs-md, var(--fs-sm));
+  font-family: var(--font-body);
+  line-height: 1.4;
+  color: var(--saea-ink);
+  background: var(--saea-surface);
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3) var(--sp-4);
+  outline: none;
+  transition:
+    border-color var(--dur-short) var(--ease-out),
+    box-shadow var(--dur-short) var(--ease-out);
+}
+.turmas-motivo-textarea:focus {
+  border-color: var(--saea-primary);
+  box-shadow: var(--saea-focus-ring);
+}
+.turmas-motivo-ajuda {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}

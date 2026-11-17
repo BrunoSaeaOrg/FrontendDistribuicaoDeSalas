@@ -1,16 +1,20 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { SaeaCheckboxComponent } from '@sistemas-saea/saea-design-system';
+import {
+  SaeaButtonComponent,
+  SaeaCheckboxComponent,
+  SaeaDialogComponent,
+  SaeaDialogFooterDirective,
+} from '@sistemas-saea/saea-design-system';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { juntarFiliais, nomesDasUnidades } from '../../core/mock/ocupacao-adapter';
 import { nomeDoAndar, unidadeNoFiltro } from '../../core/models';
-import { ApiCopiaAnoPlanoDto, ApiCopiaSalaDto, ApiSalaCriadaDto } from '../../core/models/ocupacao-api.model';
+import { ApiCopiaAnoPlanoDto, ApiCopiaSalaDto, ApiCopiaSalaResultadoDto, ApiSalaCriadaDto } from '../../core/models/ocupacao-api.model';
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
 import { motivoDaFalha, SalasService } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
-import { BadgeTone } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
@@ -22,19 +26,7 @@ import { NovaSalaComponent } from './nova-sala/nova-sala.component';
 /** Salas por chamada de OC_SAL_COPIAR_ANO_SALAS: nenhuma chamada fica longa. */
 export const SALAS_POR_LOTE = 10;
 
-/** O que a sala marcada grava no destino; "sem-destino" é a lista antes de escolher o "Para" (nada a copiar ainda). */
-export type EstadoSala = 'nova' | 'muda' | 'igual' | 'falhou' | 'sem-destino';
-
-/** O que a cópia faz com a sala, na dica da linha (a tabela só tem as colunas da sala). */
-const SELO: Record<EstadoSala, { tom: BadgeTone; texto: (destino: string) => string }> = {
-  nova: { tom: 'info', texto: (d) => `Nova em ${d}` },
-  muda: { tom: 'warning', texto: () => 'Carteiras diferentes' },
-  igual: { tom: 'success', texto: () => 'Igual' },
-  falhou: { tom: 'danger', texto: () => 'Não gravou' },
-  'sem-destino': { tom: 'info', texto: () => 'Escolha o ano de destino para copiar' },
-};
-
-/** Uma sala da lista: os registros de carteiras dela. */
+/** Uma sala da lista: os registros de carteiras dela no ano de origem. */
 export interface LinhaSala {
   chave: string;
   codFilial: number;
@@ -43,38 +35,29 @@ export interface LinhaSala {
   andar: string;
   nome: string;
   tipo: string;
-  /** "25 → 30" quando o destino tem outro valor e a cópia vai mudar. */
-  carteiras: string;
-  capacidade: string;
+  carteiras: number;
+  capacidade: number;
   registros: ApiCopiaSalaDto[];
-  /** Quantos registros da sala a cópia grava (os que vão ser criados ou mudar). */
-  aGravar: number;
-  estado: EstadoSala;
-  selo: { tom: BadgeTone; texto: string };
+  /** Por que a sala não gravou na última cópia; ela continua marcada para copiar de novo. */
   erro?: string;
 }
 
 export interface GrupoFilial {
   codFilial: number;
   titulo: string;
-  /** A filial não tem como receber a cópia (sem período no destino): só o motivo, sem as salas. */
+  /** A unidade não recebeu a última cópia (sem período letivo no destino, ou mais de um): o motivo. */
   motivo?: string;
   linhas: LinhaSala[];
   selecionaveis: string[];
 }
 
+/** Como cada sala marcada ficou depois de Copiar. */
+type ResultadoDaSala = 'copiada' | 'igual' | 'sem-periodo' | 'falhou';
+
 /** "Sala 2" antes de "Sala 10", sem diferenciar maiúsculas nem acentos. */
 const COMPARADOR = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
-
-/**
- * O número da sala na coluna: o da origem, ou "destino → origem" quando o registro do destino tem
- * outro valor e a cópia vai trocar (só no "atualizar", que é quando `origem` e `noDestino` vêm).
- */
-function deParaDestino(valor: number, origem?: number, noDestino?: number | null): string {
-  return origem !== undefined && noDestino != null && noDestino !== origem ? `${noDestino} → ${origem}` : String(valor);
-}
 
 /** Id do registro de carteiras: "CODCOLIGADA|CODFILIAL|IDPERLET|CODPREDIO|CODBLOCO|CODTIPOSALA|CODSALA". */
 function chaveDoRegistro(s: ApiCopiaSalaDto): string {
@@ -83,16 +66,13 @@ function chaveDoRegistro(s: ApiCopiaSalaDto): string {
 }
 
 /**
- * Salas por ano: copia salas de um ano letivo para outro (ex.: 2026 → 2027), uma tela só. Ao
- * escolher o ano de origem, a tela lê o plano (OC_SAL_COPIAR_ANO_PLANO, que só lê o RM) e lista as
- * salas dele (só as dele: a sala que só o destino tem não entra); sem o ano de destino, a lista vem
- * sem nada para marcar. As salas ficam por unidade, que é uma filial do RM (o campo Unidade deixa
- * só as marcadas na tela, sem reler o RM); com os dois anos, a pessoa marca as salas (ou
- * todas) e Copiar grava só as marcadas que estão na tela: o registro de
- * carteiras e capacidade da sala (OC_SAL_COPIAR_ANO_SALAS, em lotes). Depois relê o plano: o que
- * gravou vira "Igual" e o que falhou fica marcado para copiar de novo. As turmas não vão junto: as
- * de cada ano entram nas salas pela tela Salas → Turmas. A unidade entra assim que tem período letivo
- * no destino, com ou sem turma.
+ * Salas por ano: lista as salas de um ano letivo (OC_SAL_COPIAR_ANO_PLANO sem destino, que só lê o
+ * RM), por unidade (filial do RM; o campo Unidade deixa só as marcadas na tela, sem reler o RM). A
+ * pessoa marca as salas (ou todas) e Copiar abre um card que pergunta para qual ano; confirmado,
+ * grava o registro de carteiras e capacidade das marcadas (OC_SAL_COPIAR_ANO_SALAS, em lotes). O
+ * backend refaz o plano com o destino a cada lote: o que já está igual não é gravado de novo, e a
+ * unidade sem período letivo no destino fica de fora, com o motivo. O que não gravou continua
+ * marcado. As turmas não vão junto: as de cada ano entram nas salas pela tela Salas → Turmas.
  */
 @Component({
   selector: 'app-copiar-ano',
@@ -106,7 +86,10 @@ function chaveDoRegistro(s: ApiCopiaSalaDto): string {
     MultiSelectComponent,
     NovaSalaComponent,
     SelectComponent,
+    SaeaButtonComponent,
     SaeaCheckboxComponent,
+    SaeaDialogComponent,
+    SaeaDialogFooterDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './copiar-ano.component.html',
@@ -119,24 +102,21 @@ export class CopiarAnoComponent {
   private readonly toast = inject(ToastService);
   readonly uiMode = inject(UiModeService);
 
-  /** Começa no ano da tela; o destino, no ano seguinte, se ele existir no RM. */
+  /** O ano das salas listadas: começa no ano da tela. */
   readonly anoOrigem = linkedSignal(() => this.salasService.anoLetivo());
-  readonly anoDestino = linkedSignal(() => {
-    const seguinte = String(Number(this.anoOrigem()) + 1);
-    return this.salasService.anosLetivos().includes(seguinte) ? seguinte : '';
-  });
 
   readonly anoOptions = computed<SelectOption[]>(() => [
     { value: '', label: 'Selecione o ano' },
     ...this.salasService.anosLetivos().map((ano) => ({ value: ano, label: ano })),
   ]);
 
-  /** O "Para" ainda vazio: a lista é só das salas da origem, sem nada para marcar. */
-  readonly semDestino = computed(() => !this.anoDestino());
+  /** O ano seguinte ao da lista, se o RM já tem: é o que o card de Copiar e a Nova sala sugerem. */
+  readonly anoSeguinte = computed(() => {
+    const seguinte = String(Number(this.anoOrigem()) + 1);
+    return this.salasService.anosLetivos().includes(seguinte) ? seguinte : '';
+  });
 
-  readonly textoLendo = computed(() =>
-    this.semDestino() ? `Lendo ${this.anoOrigem()} no RM...` : `Lendo ${this.anoOrigem()} e ${this.anoDestino()} no RM...`,
-  );
+  readonly textoLendo = computed(() => `Lendo ${this.anoOrigem()} no RM...`);
 
   readonly plano = signal<ApiCopiaAnoPlanoDto | null>(null);
   readonly lendo = signal(false);
@@ -147,18 +127,19 @@ export class CopiarAnoComponent {
   readonly copiando = computed(() => this.progresso() !== null);
   /** O que não gravou na última cópia, por sala: o motivo aparece na linha. */
   private readonly falhas = signal<ReadonlyMap<string, string>>(new Map());
+  /** As unidades que ficaram de fora da última cópia (por CODFILIAL): o motivo aparece no título delas. */
+  private readonly motivosDasFiliais = signal<ReadonlyMap<number, string>>(new Map());
   /** Muda a cada leitura: um plano que chega depois de outra leitura é descartado. */
   private leitura = 0;
 
   constructor() {
-    // Trocar os anos relê as salas (só leitura); basta o de origem para listar. A seleção é dos anos que estavam na tela.
+    // Trocar o ano relê as salas (só leitura). A seleção e os avisos da última cópia eram do ano que estava na tela.
     effect(() => {
       const origem = this.anoOrigem();
-      const destino = this.anoDestino();
       untracked(() => {
         this.selecionadas.set(new Set());
-        this.falhas.set(new Map());
-        void this.ler(origem, destino);
+        this.limparResultado();
+        void this.ler(origem);
       });
     });
   }
@@ -187,8 +168,8 @@ export class CopiarAnoComponent {
   private readonly todosOsGrupos = computed<GrupoFilial[]>(() => {
     const plano = this.plano();
     if (!plano) return [];
-    const destino = this.anoDestino();
     const falhas = this.falhas();
+    const motivos = this.motivosDasFiliais();
     const somenteLeitura = this.uiMode.readOnlyMode();
 
     // As salas, pela chave do registro (filial, bloco, prédio e sala); a mesma sala pode ter mais de um registro.
@@ -199,72 +180,44 @@ export class CopiarAnoComponent {
     });
 
     const nomes = this.nomesDasFiliais();
-    const linhas = [...porChave.entries()].map(([chave, registros]) => {
+    const linhas: LinhaSala[] = [...porChave.entries()].map(([chave, registros]) => {
       const registro = registros[0];
-      // Cada filial é uma unidade: "CASJ 1", o mesmo nome do campo Unidade das outras telas.
-      const unidade = nomes.get(registro.codFilial) ?? `Unidade ${registro.codFilial}`;
-      const aGravar = registros.filter((r) => r.situacao === 'copiar' || r.situacao === 'atualizar').length;
-      const erro = falhas.get(chave);
-      const estado: EstadoSala = erro
-        ? 'falhou'
-        : registros.some((r) => r.situacao === 'copiar')
-          ? 'nova'
-          : registros.some((r) => r.situacao === 'atualizar')
-            ? 'muda'
-            : registros.every((r) => r.situacao === 'sem-destino')
-              ? 'sem-destino'
-              : 'igual';
-      const muda = registros.find((r) => r.situacao === 'atualizar');
       return {
         chave,
         codFilial: registro.codFilial,
-        unidade,
+        // Cada filial é uma unidade: "CASJ 1", o mesmo nome do campo Unidade das outras telas.
+        unidade: nomes.get(registro.codFilial) ?? `Unidade ${registro.codFilial}`,
         andar: nomeDoAndar(registro.andar),
         nome: registro.sala || 'Sala sem nome',
         tipo: registro.tipoSala,
-        carteiras: deParaDestino(registro.carteiras, muda?.carteiras, muda?.carteirasNoDestino),
-        capacidade: deParaDestino(registro.capacidade, muda?.capacidade, muda?.capacidadeNoDestino),
+        carteiras: registro.carteiras,
+        capacidade: registro.capacidade,
         registros,
-        aGravar,
-        estado,
-        selo: { tom: SELO[estado].tom, texto: SELO[estado].texto(destino) },
-        erro,
-        situacoes: registros.map((r) => r.situacao),
+        erro: falhas.get(chave),
       };
     });
 
-    // Por unidade (filial); a que não tem período no destino vira só o motivo.
-    const filiais = new Map<number, typeof linhas>();
+    // Por unidade (filial), na ordem do nome, como o campo Unidade das outras telas ("CASJ 1", "CASJ 2", "Liceu").
+    const filiais = new Map<number, LinhaSala[]>();
     linhas.forEach((l) => filiais.set(l.codFilial, [...(filiais.get(l.codFilial) ?? []), l]));
-    // Na ordem do nome, como o campo Unidade das outras telas ("CASJ 1", "CASJ 2", "Liceu").
     return [...filiais.entries()]
       .sort(([a, la], [b, lb]) => COMPARADOR.compare(la[0].unidade, lb[0].unidade) || a - b)
       .map(([codFilial, daFilial]) => {
-        const titulo = daFilial[0].unidade;
-        const semPeriodo = daFilial.every((l) => l.situacoes.every((s) => s === 'sem-periodo'));
-        const ambiguo = daFilial.every((l) => l.situacoes.every((s) => s === 'periodo-ambiguo'));
-        if (semPeriodo || ambiguo) {
-          const motivo = ambiguo
-            ? `Tem mais de um período letivo em ${destino}: não dá para saber em qual gravar.`
-            : `Ainda não tem período letivo em ${destino}. Depois de criar, as salas aparecem aqui.`;
-          return { codFilial, titulo, motivo, linhas: [], selecionaveis: [] };
-        }
-        const ordenadas: LinhaSala[] = daFilial
-          .map(({ situacoes: _, ...l }) => l)
-          .sort((a, b) => COMPARADOR.compare(a.nome, b.nome));
+        const ordenadas = [...daFilial].sort((a, b) => COMPARADOR.compare(a.nome, b.nome));
         return {
           codFilial,
-          titulo,
+          titulo: daFilial[0].unidade,
+          motivo: motivos.get(codFilial),
           linhas: ordenadas,
-          selecionaveis: somenteLeitura ? [] : ordenadas.filter((l) => l.aGravar > 0).map((l) => l.chave),
+          selecionaveis: somenteLeitura ? [] : ordenadas.map((l) => l.chave),
         };
       });
   });
 
   /**
-   * As unidades da cópia (o CODFILIAL de cada uma; nenhuma = todas). Só mudam quando a pessoa marca:
-   * trocar os anos não mexe nelas, e se as marcadas não tiverem salas no ano de origem, a lista fica
-   * vazia com o aviso.
+   * As unidades da lista (o CODFILIAL de cada uma; nenhuma = todas). Só mudam quando a pessoa marca:
+   * trocar o ano não mexe nelas, e se as marcadas não tiverem salas no ano, a lista fica vazia com o
+   * aviso.
    */
   readonly unidades = signal<string[]>([]);
 
@@ -303,13 +256,6 @@ export class CopiarAnoComponent {
   readonly marcadas = computed(() => this.linhas().filter((l) => this.selecionadas().has(l.chave)));
   readonly algumaMarcada = computed(() => this.marcadas().length > 0);
   readonly temSalas = computed(() => this.linhas().length > 0);
-  readonly tudoIgual = computed(
-    () => this.temSalas() && !this.semDestino() && this.selecionaveis().length === 0 && !this.uiMode.readOnlyMode(),
-  );
-  readonly textoTudoIgual = computed(() => {
-    const salas = this.daUnidade() ? `as salas ${this.daUnidade()}` : 'as salas';
-    return `Todas ${salas} em ${this.anoDestino()} já estão iguais às de ${this.anoOrigem()}.`;
-  });
 
   readonly textoBotao = computed(() => {
     const n = this.marcadas().length;
@@ -323,10 +269,6 @@ export class CopiarAnoComponent {
 
   escolherOrigem(ano: string): void {
     if (!this.copiando()) this.anoOrigem.set(ano);
-  }
-
-  escolherDestino(ano: string): void {
-    if (!this.copiando()) this.anoDestino.set(ano);
   }
 
   /** Só filtra a lista (o plano já tem todas as unidades). As salas marcadas saem: o Copiar é das unidades na tela. */
@@ -345,7 +287,7 @@ export class CopiarAnoComponent {
     });
   }
 
-  /** O checkbox da unidade marca (ou desmarca) as salas dela que têm algo a copiar. */
+  /** O checkbox da unidade marca (ou desmarca) todas as salas dela. */
   marcarFilial(grupo: GrupoFilial, marcadas: boolean): void {
     this.selecionadas.update((atual) => {
       const proximas = new Set(atual);
@@ -363,7 +305,35 @@ export class CopiarAnoComponent {
   }
 
   tentarDeNovo(): void {
-    void this.ler(this.anoOrigem(), this.anoDestino());
+    void this.ler(this.anoOrigem());
+  }
+
+  // ------------------------------------------------------------- card de Copiar ---
+
+  /** O card que pergunta para qual ano copiar (aberto pelo botão Copiar). */
+  readonly dialogoCopiar = signal(false);
+  /** O ano escolhido no card; fica para a próxima cópia, se ainda servir. */
+  readonly anoDestino = signal('');
+
+  /** Os anos do card: todos menos o das salas listadas. */
+  readonly anoDestinoOptions = computed<SelectOption[]>(() =>
+    this.anoOptions().filter((o) => o.value !== this.anoOrigem()),
+  );
+
+  readonly tituloCopiar = computed(() => `${this.textoBotao()} de ${this.anoOrigem()}`);
+  readonly podeConfirmar = computed(() => !!this.anoDestino() && this.anoDestino() !== this.anoOrigem() && !this.copiando());
+
+  /** Abre o card com o último ano escolhido ou, se ele não serve, com o ano seguinte ao da lista. */
+  abrirCopia(): void {
+    if (!this.podeCopiar()) return;
+    const ultimo = this.anoDestino();
+    const valido = ultimo && ultimo !== this.anoOrigem() && this.salasService.anosLetivos().includes(ultimo);
+    this.anoDestino.set(valido ? ultimo : this.anoSeguinte());
+    this.dialogoCopiar.set(true);
+  }
+
+  fecharCopia(): void {
+    if (!this.copiando()) this.dialogoCopiar.set(false);
   }
 
   /** O diálogo Nova sala (escolher a unidade e preencher a sala). */
@@ -371,44 +341,44 @@ export class CopiarAnoComponent {
 
   /**
    * A sala nova está no cadastro do RM e nos anos em que entrou: relê a lista (ela aparece se entrou
-   * no ano de origem) e, se o ano das outras telas é um deles, recarrega as salas delas.
+   * no ano listado) e, se o ano das outras telas é um deles, recarrega as salas delas.
    */
   aoCriarSala(criada: ApiSalaCriadaDto): void {
-    void this.ler(this.anoOrigem(), this.anoDestino());
+    void this.ler(this.anoOrigem());
     const entrou = criada.anos.filter((a) => a.situacao !== 'falhou').map((a) => a.ano);
     if (entrou.includes(this.salasService.anoLetivo())) this.salasService.carregar();
   }
 
-  /** Grava as salas marcadas; o que falhar fica marcado para copiar de novo. */
+  /**
+   * Grava as salas marcadas no ano escolhido no card. Vão todos os registros delas: o backend refaz o
+   * plano com o destino e só grava o que é novo ou mudou. O que não gravou (falha ou unidade sem
+   * período no destino) continua marcado, com o motivo.
+   */
   async copiar(): Promise<void> {
-    if (!this.podeCopiar()) return;
+    if (!this.podeCopiar() || !this.podeConfirmar()) return;
     const origem = this.anoOrigem();
     const destino = this.anoDestino();
     const codUsuario = this.codUsuario();
     const marcadas = this.marcadas();
 
-    const registros = marcadas.flatMap((l) =>
-      l.registros.filter((r) => r.situacao === 'copiar' || r.situacao === 'atualizar').map((r) => ({ linha: l.chave, registro: r })),
-    );
+    const registros = marcadas.flatMap((l) => l.registros.map((r) => ({ linha: l.chave, id: r.id })));
     const total = registros.length;
     if (!total) return;
 
-    const falhas = new Map<string, string>();
+    const resultados = new Map<string, ApiCopiaSalaResultadoDto>();
     let feitas = 0;
+    this.limparResultado();
     this.progresso.set({ atual: 0, total });
     try {
       for (let i = 0; i < registros.length; i += SALAS_POR_LOTE) {
         const lote = registros.slice(i, i + SALAS_POR_LOTE);
-        const linhaDoId = new Map(lote.map((r) => [r.registro.id, r.linha]));
         try {
-          const resultados = await firstValueFrom(this.api.copiarSalasDoAno(codUsuario, origem, destino, [...linhaDoId.keys()]));
-          resultados
-            .filter((r) => r.situacao === 'falhou')
-            .forEach((r) => falhas.set(linhaDoId.get(r.id) ?? r.id, r.erro || 'O RM não confirmou a gravação.'));
+          const voltou = await firstValueFrom(this.api.copiarSalasDoAno(codUsuario, origem, destino, lote.map((r) => r.id)));
+          voltou.forEach((r) => resultados.set(r.id, r));
         } catch (err) {
           // O lote inteiro caiu (ex.: sem conexão): os próximos seguem e estas ficam para copiar de novo.
           const erro = motivoDaFalha(err);
-          lote.forEach((r) => falhas.set(r.linha, erro));
+          lote.forEach((r) => resultados.set(r.id, { id: r.id, situacao: 'falhou', erro }));
         }
         feitas += lote.length;
         this.progresso.set({ atual: feitas, total });
@@ -417,41 +387,82 @@ export class CopiarAnoComponent {
       this.progresso.set(null);
     }
 
-    this.falhas.set(falhas);
-    // As que falharam continuam marcadas: é só clicar em Copiar de novo.
-    this.selecionadas.set(new Set(falhas.keys()));
-    this.avisar(marcadas.length, falhas.size, destino);
-    await this.ler(origem, destino);
-    // A tela está no ano que acabou de receber a cópia: recarrega para mostrar.
-    if (this.salasService.anoLetivo() === destino) this.salasService.carregar();
-  }
-
-  private avisar(salas: number, falhas: number, destino: string): void {
-    if (falhas) {
-      this.toast.warning(
-        'Cópia concluída com falhas',
-        `${plural(falhas, 'sala não foi gravada', 'salas não foram gravadas')}. Elas continuam marcadas para copiar de novo.`,
+    // Uma sala pode ter mais de um registro: vale o pior deles.
+    const falhas = new Map<string, string>();
+    const motivos = new Map<number, string>();
+    const contagem: Record<ResultadoDaSala, number> = { copiada: 0, igual: 0, 'sem-periodo': 0, falhou: 0 };
+    for (const linha of marcadas) {
+      const daSala = linha.registros.map(
+        (r) => resultados.get(r.id) ?? { id: r.id, situacao: 'falhou' as const, erro: 'O RM não confirmou a gravação.' },
       );
-      return;
+      const falhou = daSala.find((r) => r.situacao === 'falhou');
+      const semPeriodo = daSala.find((r) => r.situacao === 'sem-periodo' || r.situacao === 'periodo-ambiguo');
+      let resultado: ResultadoDaSala;
+      if (falhou) {
+        resultado = 'falhou';
+        falhas.set(linha.chave, falhou.erro || 'O RM não confirmou a gravação.');
+      } else if (semPeriodo) {
+        resultado = 'sem-periodo';
+        motivos.set(
+          linha.codFilial,
+          semPeriodo.situacao === 'periodo-ambiguo'
+            ? `Não copiada: tem mais de um período letivo em ${destino}, não dá para saber em qual gravar.`
+            : `Não copiada: ainda não tem período letivo em ${destino}.`,
+        );
+      } else if (daSala.some((r) => r.situacao === 'criada' || r.situacao === 'atualizada')) {
+        resultado = 'copiada';
+      } else {
+        resultado = 'igual';
+      }
+      contagem[resultado]++;
     }
-    this.toast.success('Cópia concluída', `${plural(salas, 'sala copiada', 'salas copiadas')} para ${destino}.`);
+
+    this.falhas.set(falhas);
+    this.motivosDasFiliais.set(motivos);
+    // As que não gravaram continuam marcadas: é só clicar em Copiar de novo.
+    this.selecionadas.set(
+      new Set(marcadas.filter((l) => falhas.has(l.chave) || motivos.has(l.codFilial)).map((l) => l.chave)),
+    );
+    this.dialogoCopiar.set(false);
+    this.avisar(contagem, destino);
+    // A tela está no ano que acabou de receber a cópia: recarrega para mostrar.
+    if (contagem.copiada && this.salasService.anoLetivo() === destino) this.salasService.carregar();
   }
 
-  /**
-   * Lê o plano (só leitura). Sem destino, vêm só as salas da origem; sem origem ou com o mesmo ano
-   * nos dois, a lista fica vazia.
-   */
-  private async ler(origem: string, destino: string): Promise<void> {
+  private avisar(c: Record<ResultadoDaSala, number>, destino: string): void {
+    const partes = [
+      c.copiada ? `${plural(c.copiada, 'sala copiada', 'salas copiadas')} para ${destino}` : '',
+      c.igual ? `${plural(c.igual, 'já estava igual', 'já estavam iguais')}` : '',
+      c['sem-periodo'] ? `${plural(c['sem-periodo'], 'ficou de fora', 'ficaram de fora')} (unidade sem período letivo)` : '',
+      c.falhou ? `${plural(c.falhou, 'não foi gravada', 'não foram gravadas')}` : '',
+    ].filter(Boolean);
+    const texto = partes.join(', ') + '.';
+    if (c.falhou || c['sem-periodo']) {
+      this.toast.warning('Cópia concluída com pendências', `${texto} As que não gravaram continuam marcadas.`);
+    } else if (c.copiada) {
+      this.toast.success('Cópia concluída', texto);
+    } else {
+      this.toast.info('Nada a copiar', `As salas marcadas já estavam iguais em ${destino}.`);
+    }
+  }
+
+  private limparResultado(): void {
+    this.falhas.set(new Map());
+    this.motivosDasFiliais.set(new Map());
+  }
+
+  /** Lê as salas do ano (só leitura); sem ano, a lista fica vazia. */
+  private async ler(origem: string): Promise<void> {
     const leitura = ++this.leitura;
     this.erroLeitura.set(null);
-    if (!origem || origem === destino) {
+    if (!origem) {
       this.plano.set(null);
       this.lendo.set(false);
       return;
     }
     this.lendo.set(true);
     try {
-      const plano = await firstValueFrom(this.api.getPlanoCopiaAno(this.codUsuario(), origem, destino));
+      const plano = await firstValueFrom(this.api.getPlanoCopiaAno(this.codUsuario(), origem, ''));
       if (leitura !== this.leitura) return;
       this.plano.set(plano);
     } catch (err) {
