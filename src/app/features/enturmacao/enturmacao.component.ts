@@ -413,7 +413,7 @@ export class EnturmacaoComponent {
       this.toast.warning(
         qtd(revisao.length, 'aluno ficou inconsistente', 'alunos ficaram inconsistentes'),
         (motivos.length === 1 ? `${motivos[0]} ` : '') +
-          'Ficaram como "Inconsistente": confira a matrícula no RM e mova de novo na Pré-enturmação.',
+          'Ficaram como "Inconsistente": confira a matrícula no RM (na Pré-enturmação eles ficam travados).',
       );
     }
     if (pendentes > 0)

@@ -541,23 +541,34 @@ export class VincularAlunosComponent {
   readonly destino = computed(() => this.painel('destino'));
 
   /**
-   * Os já enturmados na turma em que estão (o último registro no MD está como Importado): ficam
-   * travados. Não dá para marcar, arrastar nem mover; a opção nem aparece.
+   * Os alunos travados (RA → por quê): os já enturmados na turma em que estão (último registro no MD
+   * como Importado) e os Inconsistentes (a FV de importação recusou). Não dá para marcar, arrastar
+   * nem mover; a opção nem aparece.
    */
-  private readonly enturmados = computed<ReadonlySet<string>>(
-    () => new Set(this.alunosDaUnidade().filter((a) => this.importado(a)).map((a) => a.id)),
-  );
+  private readonly travados = computed<ReadonlyMap<string, string>>(() => {
+    const travados = new Map<string, string>();
+    for (const a of this.alunosDaUnidade()) {
+      if (this.importado(a)) travados.set(a.id, 'Já está na matrícula nesta turma: não dá para mover');
+      else if (this.inconsistenteDe(a)) travados.set(a.id, 'Inconsistente no RM: confira a matrícula; não dá para mover por aqui');
+    }
+    return travados;
+  });
 
-  /** Os marcados de cada lado, sem os enturmados (um marcado antes de a leitura dos importados chegar sai daqui). */
-  private readonly marcadosNaOrigem = computed(() => semEnturmados(this.marcadosOrigem(), this.enturmados()));
-  private readonly marcadosNoDestino = computed(() => semEnturmados(this.marcadosDestino(), this.enturmados()));
+  /** Os marcados de cada lado, sem os travados (um marcado antes de a leitura do RM chegar sai daqui). */
+  private readonly marcadosNaOrigem = computed(() => semTravados(this.marcadosOrigem(), this.travados()));
+  private readonly marcadosNoDestino = computed(() => semTravados(this.marcadosDestino(), this.travados()));
 
   readonly qtdMarcadosOrigem = computed(() => this.marcadosNaOrigem().size);
   readonly qtdMarcadosDestino = computed(() => this.marcadosNoDestino().size);
 
-  /** O aluno já está na matrícula nesta turma: travado (sem marcar, arrastar nem mover). */
+  /** O aluno está travado (enturmado ou Inconsistente): sem marcar, arrastar nem mover. */
   travado(aluno: AlunoDaTela): boolean {
-    return this.enturmados().has(aluno.id);
+    return this.travados().has(aluno.id);
+  }
+
+  /** Por que o aluno não se move (a dica do cartão e do cadeado); null = não está travado. */
+  motivoTravado(aluno: AlunoDaTela): string | null {
+    return this.travados().get(aluno.id) ?? null;
   }
 
   /**
@@ -777,11 +788,11 @@ export class VincularAlunosComponent {
 
   /**
    * Começa a arrastar um aluno. Se ele estiver marcado, vão todos os marcados do lado (a imagem do
-   * arraste diz quantos); senão, só ele. Durante a gravação no RM não se arrasta, nem o enturmado.
+   * arraste diz quantos); senão, só ele. Durante a gravação no RM não se arrasta, nem o travado (enturmado ou Inconsistente).
    */
   iniciarArrasto(lado: Lado, ra: string, event: DragEvent): void {
     this.previa.set(null);
-    if (!this.podeMover() || this.enturmados().has(ra)) {
+    if (!this.podeMover() || this.travados().has(ra)) {
       event.preventDefault();
       return;
     }
@@ -1024,11 +1035,11 @@ export class VincularAlunosComponent {
     return qtd === selecionaveis.length ? 'true' : 'mixed';
   }
 
-  /** Os que a lista do lado mostra e dá para marcar (o enturmado fica de fora). */
+  /** Os que a lista do lado mostra e dá para marcar (o travado, enturmado ou Inconsistente, fica de fora). */
   selecionaveis(lado: Lado): AlunoDaTela[] {
     const painel = lado === 'origem' ? this.origem() : this.destino();
-    const enturmados = this.enturmados();
-    return painel?.visiveis.filter((a) => !enturmados.has(a.id)) ?? [];
+    const travados = this.travados();
+    return painel?.visiveis.filter((a) => !travados.has(a.id)) ?? [];
   }
 
   /** A ordenação do lado, no menu "Filtros": de A a Z ou de Z a A. */
@@ -1042,8 +1053,8 @@ export class VincularAlunosComponent {
   }
 
   alternarAluno(lado: Lado, ra: string): void {
-    // O enturmado não se marca: clicar no cartão dele não faz nada.
-    if (this.enturmados().has(ra)) return;
+    // O travado (enturmado ou Inconsistente) não se marca: clicar no cartão dele não faz nada.
+    if (this.travados().has(ra)) return;
     const marcados = lado === 'origem' ? this.marcadosOrigem : this.marcadosDestino;
     marcados.update((atual) => {
       const proximos = new Set(atual);
@@ -1060,7 +1071,7 @@ export class VincularAlunosComponent {
 
   /**
    * Marca todos os que a lista mostra e dá para marcar (com busca, só os encontrados; os marcados
-   * antes continuam; o enturmado fica de fora); com todos eles já marcados, desmarca esses.
+   * antes continuam; o travado fica de fora); com todos eles já marcados, desmarca esses.
    */
   alternarTodos(lado: Lado): void {
     const selecionaveis = this.selecionaveis(lado);
@@ -1124,14 +1135,14 @@ export class VincularAlunosComponent {
 
   /**
    * Leva os alunos para a turma (ou, se for um período da origem, para "sem turma") e grava na hora.
-   * O enturmado nunca vai junto, venha de onde vier o pedido (arraste, botões ou menu).
+   * O travado (enturmado ou Inconsistente) nunca vai junto, venha de onde vier o pedido (arraste, botões ou menu).
    */
   private mover(ras: readonly string[], destinoId: string): void {
     if (!this.podeMover()) return;
     const para = paraTurma(destinoId);
-    const enturmados = this.enturmados();
+    const travados = this.travados();
     const chegando = this.aplicarMovimento(
-      ras.filter((ra) => !enturmados.has(ra)),
+      ras.filter((ra) => !travados.has(ra)),
       para,
     );
     if (chegando.length > 0) this.gravar(chegando, para);
@@ -1368,10 +1379,10 @@ function chaveDaSerie(dto: ApiAlunoEnturmacaoDto): string {
   return `${dto.codCurso}|${dto.codHabilitacao}`;
 }
 
-/** Os marcados sem os enturmados; sem enturmado marcado, o mesmo conjunto. */
-function semEnturmados(marcados: ReadonlySet<string>, enturmados: ReadonlySet<string>): ReadonlySet<string> {
-  if (![...marcados].some((ra) => enturmados.has(ra))) return marcados;
-  return new Set([...marcados].filter((ra) => !enturmados.has(ra)));
+/** Os marcados sem os travados (enturmados e Inconsistentes); sem travado marcado, o mesmo conjunto. */
+function semTravados(marcados: ReadonlySet<string>, travados: ReadonlyMap<string, string>): ReadonlySet<string> {
+  if (![...marcados].some((ra) => travados.has(ra))) return marcados;
+  return new Set([...marcados].filter((ra) => !travados.has(ra)));
 }
 
 /** "5º Ano - Ensino Fundamental - Manhã - EF I" → "5º Ano - Ensino Fundamental" (o turno sai). */

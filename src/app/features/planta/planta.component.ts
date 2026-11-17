@@ -1,12 +1,12 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, signal, untracked, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { AlunosEnturmacaoService } from '../../core/services/alunos-enturmacao.service';
+import { SaeaTooltipDirective } from '@sistemas-saea/saea-design-system';
 import { RegrasService } from '../../core/services/regras.service';
 import { SalasService } from '../../core/services/salas.service';
 import { UiModeService } from '../../core/services/ui-mode.service';
-import { Turno, unidadeNoFiltro } from '../../core/models';
+import { nomeDoAndar, Turno, unidadeNoFiltro } from '../../core/models';
 import { AlertComponent } from '../../shared/ui/alert/alert.component';
 import { BadgeComponent } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
@@ -25,18 +25,22 @@ interface DeskSlot {
   tooltip: string;
   /** Posição além do limite da regra de ocupação (só existe quando a filial deixa exceder ou a sala já passou). */
   acimaDoLimite: boolean;
-  /** O aluno sentado nesta carteira (nas ocupadas, quando os alunos da sala já chegaram). */
-  aluno: AlunoNaCarteira | null;
 }
 
-/** Um aluno da sala no turno, sentado numa carteira ocupada. */
-interface AlunoNaCarteira {
-  ra: string;
-  nome: string;
-  /** A turma da matrícula ("3º Ano A - Manhã"). */
-  turma: string;
-  /** A foto (data URL); null = ainda não veio ou não tem (o avatar mostra as iniciais). */
-  foto: string | null;
+/** Um dos quatro números do cabeçalho da sala (Alunos, Carteiras, Vagas ou Sem carteira, Limite). */
+interface IndicadorDaSala {
+  rotulo: string;
+  valor: string;
+  sub: string;
+  /** Cor do número: normal, ok (vagas), aviso (acima do limite) ou perigo (sem carteira). */
+  tom: 'normal' | 'ok' | 'aviso' | 'perigo';
+}
+
+/** Um item da legenda embaixo da grade: só os tipos de quadro que a sala mostra. */
+interface ItemDaLegenda {
+  tipo: DeskKind | 'acima';
+  rotulo: string;
+  icon: string;
 }
 
 const TURNOS: Turno[] = ['manha', 'tarde'];
@@ -58,6 +62,7 @@ export const TAMANHO_JUSTIFICATIVA = 500;
     EmptyStateComponent,
     MultiSelectComponent,
     SelectComponent,
+    SaeaTooltipDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './planta.component.html',
@@ -66,7 +71,6 @@ export const TAMANHO_JUSTIFICATIVA = 500;
 export class PlantaComponent {
   private readonly salasService = inject(SalasService);
   private readonly regrasService = inject(RegrasService);
-  private readonly alunosService = inject(AlunosEnturmacaoService);
   private readonly route = inject(ActivatedRoute);
   readonly uiMode = inject(UiModeService);
 
@@ -84,6 +88,12 @@ export class PlantaComponent {
     if (t.etapa === 'relendo') return 'Atualizando as salas...';
     return `Transferindo ${t.quantidade} ${t.quantidade === 1 ? 'carteira' : 'carteiras'} para ${t.destinoNome}...`;
   });
+  /**
+   * Os filtros (unidade, ano, segmento, série, sala) e o turno ficam travados enquanto a
+   * transferência grava no RM e relê as salas: trocar a sala ou o ano no meio atrapalharia a gravação.
+   */
+  readonly filtrosTravados = computed(() => !!this.transferindo());
+
   /** Na linha da sala que recebe, em "Outras salas". */
   readonly textoRecebendo = computed(() => {
     const t = this.transferindo();
@@ -119,7 +129,13 @@ export class PlantaComponent {
   );
 
   selecionarAno(ano: string): void {
+    if (this.filtrosTravados()) return;
     this.salasService.selecionarAno(ano);
+  }
+
+  selecionarTurno(turno: Turno): void {
+    if (this.filtrosTravados()) return;
+    this.turno.set(turno);
   }
 
   readonly segmentoOptions = computed<SelectOption[]>(() => [
@@ -264,35 +280,51 @@ export class PlantaComponent {
       .join('; ');
   });
 
-  /** Os alunos da unidade da sala no ano (a leitura da pré-enturmação): carregando, prontos ou com erro. */
-  private readonly estadoAlunos = computed(() => {
+  /** As turmas do turno, cada uma numa etiqueta com quantos alunos tem. */
+  readonly turmasDoTurno = computed(() => {
     const sala = this.sala();
-    return sala ? this.alunosService.estado(this.anoLetivo(), sala.codFilial) : undefined;
+    return sala ? this.salasService.turmasNoTurno(sala, this.turno()).map((t) => ({ nome: t.nomeProprio, alunos: t.alunos })) : [];
   });
 
-  /** "Ana Clara Souza" → "AS": as iniciais na carteira de quem não tem foto. */
-  iniciais(nome: string): string {
-    const partes = nome.split(/\s+/).filter(Boolean);
-    return ((partes[0]?.[0] ?? '') + (partes.length > 1 ? partes[partes.length - 1][0] : '')).toUpperCase();
-  }
-
-  /** Os alunos da unidade ainda estão vindo do RM: as carteiras ocupadas ficam com o ícone até lá. */
-  readonly carregandoAlunos = computed(() => this.estadoAlunos()?.estado === 'carregando');
+  /** "Sala de aula · 1º andar · 42,13 m²". */
+  readonly metaDaSala = computed(() => {
+    const sala = this.sala();
+    if (!sala) return '';
+    const area = sala.area ? `${String(sala.area).replace('.', ',')} m²` : null;
+    return [sala.tipo, nomeDoAndar(sala.andar), area].filter((p) => p && p !== '—').join(' · ');
+  });
 
   /**
-   * Os alunos da sala no turno: os das turmas e subturmas dela naquele turno, pela turma da
-   * matrícula, em ordem alfabética. Não há no RM a carteira de cada aluno: eles sentam nas carteiras
-   * ocupadas na ordem da grade.
+   * Os quatro números do cabeçalho: alunos no turno, carteiras na sala, vagas (ou, faltando carteira,
+   * quantos alunos estão sem) e o limite da regra de ocupação.
    */
-  private readonly alunosDaSala = computed(() => {
-    const sala = this.sala();
-    const estado = this.estadoAlunos();
-    if (!sala || estado?.estado !== 'pronto') return [];
-    const turmas = new Map(this.salasService.turmasNoTurno(sala, this.turno()).map((t) => [t.codTurma, t.nomeProprio]));
-    return estado.alunos
-      .filter((a) => a.codTurma !== null && turmas.has(a.codTurma))
-      .map((a) => ({ ra: a.ra, nome: a.nome, turma: turmas.get(a.codTurma!)! }))
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  readonly indicadores = computed<IndicadorDaSala[]>(() => {
+    const alunos = this.alunosAtuais();
+    const carteiras = this.capacidade();
+    const limite = this.limite();
+    const pct = this.regraDaSala()?.pctMaximoUtilizacao ?? 90;
+    const semCarteira = alunos - carteiras;
+    const sobra: IndicadorDaSala =
+      semCarteira > 0
+        ? { rotulo: 'Sem carteira', valor: String(semCarteira), sub: semCarteira === 1 ? 'aluno a mais' : 'alunos a mais', tom: 'perigo' }
+        : { rotulo: 'Vagas', valor: String(-semCarteira), sub: 'carteiras livres', tom: 'ok' };
+    const regra: IndicadorDaSala =
+      limite === null
+        ? { rotulo: 'Limite', valor: '—', sub: 'sem capacidade cadastrada', tom: 'normal' }
+        : {
+            rotulo: 'Limite',
+            valor: String(limite),
+            sub: this.acimaDoLimite()
+              ? `${pct}% de ${this.capacidadeNormativa()} · já tem ${carteiras}`
+              : `${pct}% de ${this.capacidadeNormativa()}${this.podeExceder() ? ' · pode exceder' : ''}`,
+            tom: this.acimaDoLimite() ? 'aviso' : 'normal',
+          };
+    return [
+      { rotulo: 'Alunos', valor: String(alunos), sub: 'no turno', tom: 'normal' },
+      { rotulo: 'Carteiras', valor: String(carteiras), sub: 'na sala', tom: 'normal' },
+      sobra,
+      regra,
+    ];
   });
 
   readonly plantaPct = computed(() => {
@@ -303,9 +335,25 @@ export class PlantaComponent {
   });
 
   /**
+   * A dica da barra de ocupação: o que ela mede (alunos do turno ÷ carteiras da sala) e o que a cor
+   * quer dizer (cinza com folga, laranja perto do limite da regra, vermelha ao lotar as carteiras).
+   */
+  readonly textoOcupacao = computed(() => {
+    const alunos = this.alunosAtuais();
+    const carteiras = this.capacidade();
+    if (carteiras === 0) return `Ocupação das carteiras: a sala não tem carteiras cadastradas (${alunos} ${alunos === 1 ? 'aluno' : 'alunos'} no turno).`;
+    const pct = Math.round((alunos / carteiras) * 100);
+    const sem = alunos - carteiras;
+    const conta = `${alunos} ${alunos === 1 ? 'aluno' : 'alunos'} em ${carteiras} carteiras (${pct}%)${sem > 0 ? `, ${sem} sem carteira` : ''}`;
+    const regra = this.regraDaSala()?.pctMaximoUtilizacao ?? 90;
+    return `Ocupação das carteiras no turno: ${conta}. A barra fica laranja perto de ${regra}% (limite da regra) e vermelha ao lotar.`;
+  });
+
+  /**
    * A grade da sala: as carteiras (com e sem aluno), os alunos sem carteira e o espaço que sobra até
    * a capacidade. O espaço vai até o limite da regra de ocupação; dali até a capacidade fica
-   * bloqueado, ou, se a filial deixa exceder, livre mas marcado como acima do limite.
+   * bloqueado, ou, se a filial deixa exceder, livre mas marcado como acima do limite. A carteira
+   * ocupada mostra só o ícone de aluno: sem foto, iniciais nem nome até haver a fonte certa.
    */
   readonly deskSlots = computed<DeskSlot[]>(() => {
     const sala = this.sala();
@@ -317,8 +365,6 @@ export class PlantaComponent {
     const pct = this.regraDaSala()?.pctMaximoUtilizacao ?? 90;
     const alunos = this.alunosAtuais();
     const totalSlots = Math.max(cap, capNorm, alunos);
-    const sentados = this.alunosDaSala();
-    const ano = this.anoLetivo();
     const slots: DeskSlot[] = [];
     for (let i = 0; i < totalSlots; i++) {
       let kind: DeskKind;
@@ -355,13 +401,7 @@ export class PlantaComponent {
       }
       const acimaDoLimite = i >= limite && kind !== 'bloqueado' && kind !== 'excedente';
       if (acimaDoLimite && kind !== 'espaco') tooltip += ` (acima do limite de ${pct}%)`;
-      // Nas posições ocupadas (com carteira ou além delas), o aluno da vez, com a foto.
-      const doAluno = i < alunos ? sentados[i] : undefined;
-      const aluno: AlunoNaCarteira | null = doAluno
-        ? { ...doAluno, foto: this.alunosService.foto(ano, sala.codFilial, doAluno.ra) }
-        : null;
-      if (aluno) tooltip = `${aluno.nome} · RA ${aluno.ra} · ${aluno.turma}${kind === 'excedente' ? ' (sem carteira)' : ''}`;
-      slots.push({ index: i, kind, icon, tooltip, acimaDoLimite, aluno });
+      slots.push({ index: i, kind, icon, tooltip, acimaDoLimite });
     }
     return slots;
   });
@@ -369,6 +409,22 @@ export class PlantaComponent {
   /** A legenda só mostra "Bloqueado" e "Acima do limite" quando a grade tem esses quadros. */
   readonly temBloqueado = computed(() => this.deskSlots().some((d) => d.kind === 'bloqueado'));
   readonly temAcimaDoLimite = computed(() => this.deskSlots().some((d) => d.acimaDoLimite));
+
+  /** A legenda embaixo da grade: só os tipos de quadro que a sala mostra agora. */
+  readonly legenda = computed<ItemDaLegenda[]>(() => {
+    const slots = this.deskSlots();
+    const tem = (tipo: DeskKind) => slots.some((d) => d.kind === tipo);
+    const itens: ItemDaLegenda[] = [
+      { tipo: 'aluno', rotulo: 'Aluno sentado', icon: 'person' },
+      { tipo: 'vaga', rotulo: 'Carteira vaga', icon: 'event_seat' },
+      { tipo: 'espaco', rotulo: 'Espaço disponível', icon: 'add' },
+      { tipo: 'bloqueado', rotulo: 'Bloqueado pela regra', icon: 'block' },
+      { tipo: 'excedente', rotulo: 'Acima da capacidade', icon: 'priority_high' },
+    ];
+    const visiveis = itens.filter((i) => tem(i.tipo as DeskKind));
+    if (this.temAcimaDoLimite()) visiveis.push({ tipo: 'acima', rotulo: 'Acima do limite', icon: 'add' });
+    return visiveis;
+  });
 
   readonly outrasSalas = computed(() => {
     const sala = this.sala();
@@ -380,11 +436,14 @@ export class PlantaComponent {
       .map((s) => {
         const cabem = this.salasService.carteirasQueCabem(s);
         const pedeJustificativa = this.salasService.precisaJustificativa(s, 1);
+        const ocupadas = this.salasService.alunosNoTurno(s, turno);
         return {
           id: s.id,
           nome: s.nome,
           tipo: s.tipo,
-          ocupadas: this.salasService.alunosNoTurno(s, turno),
+          ocupadas,
+          /** A barra de ocupação da linha: alunos do turno sobre as carteiras (até 100%). */
+          pct: s.carteiras > 0 ? Math.min(100, Math.round((ocupadas / s.carteiras) * 100)) : ocupadas > 0 ? 100 : 0,
           carteiras: s.carteiras,
           limite: this.salasService.limiteDeUso(s),
           /** Quantas carteiras ainda pode receber pela regra (Infinity = o limite não barra). */
@@ -510,19 +569,6 @@ export class PlantaComponent {
       const campo = this.campoJustificativa();
       if (campo && this.pedidoJustificativa()) campo.nativeElement.focus();
     });
-    // Os alunos da unidade da sala (a mesma leitura da Pré-enturmação, guardada por alguns minutos).
-    effect(() => {
-      const sala = this.sala();
-      const ano = this.anoLetivo();
-      if (sala && this.salasService.anoCarregado() === ano) untracked(() => this.alunosService.garantirAlunos(ano, sala.codFilial));
-    });
-    // As fotos de quem está sentado (só as que ainda não vieram; a grade não espera por elas).
-    effect(() => {
-      const sala = this.sala();
-      const ras = this.alunosDaSala().slice(0, this.alunosAtuais()).map((a) => a.ra);
-      const ano = this.anoLetivo();
-      if (sala && ras.length > 0) untracked(() => this.alunosService.fotosPara(ano, sala.codFilial, ras));
-    });
   }
 
   /** Fecha sem transferir; com a transferência já em andamento, espera ela terminar. */
@@ -603,6 +649,7 @@ export class PlantaComponent {
 
   /** A sala na tela fica se ainda estiver nas unidades marcadas; se não, vai para a primeira delas. */
   selecionarUnidades(unidades: string[]): void {
+    if (this.filtrosTravados()) return;
     this.unidades.set(unidades);
     const salas = this.salasDoFiltro();
     const atual = this.sala();
@@ -610,13 +657,16 @@ export class PlantaComponent {
   }
 
   onSalaChange(id: string): void {
+    if (this.filtrosTravados()) return;
     this.salaId.set(id);
   }
 
   onSegmentoChange(v: string): void {
+    if (this.filtrosTravados()) return;
     this.segmento.set(v);
   }
   onSerieChange(v: string): void {
+    if (this.filtrosTravados()) return;
     this.serie.set(v);
   }
 

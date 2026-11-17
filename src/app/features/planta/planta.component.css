@@ -38,6 +38,7 @@
   min-width: 180px;
 }
 
+/* Manhã | Tarde, no cabeçalho da sala, ao lado de "Transferir carteiras". */
 .planta-tabs {
   display: flex;
   gap: 4px;
@@ -148,36 +149,109 @@
   flex-shrink: 0;
 }
 
+.planta-titulo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* O nome da sala e o status lado a lado. */
+.planta-nome-linha {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
 .planta-nome {
+  margin: 0;
   font-family: var(--font-display);
   font-size: var(--fs-2xl);
+  font-weight: 500;
   color: var(--saea-ink);
 }
 .planta-meta {
   font-size: var(--fs-sm);
   color: var(--saea-ink-soft);
-  margin-top: 2px;
 }
-
-.planta-status-row {
+.planta-head-acoes {
   display: flex;
   align-items: center;
-  gap: var(--sp-5);
-  margin-top: var(--sp-4);
+  gap: var(--sp-3);
   flex-wrap: wrap;
-  flex-shrink: 0;
 }
 
-.planta-progress-wrap {
-  flex: 1;
-  min-width: 220px;
+/* Os quatro números da sala: Alunos, Carteiras, Vagas (ou Sem carteira) e Limite. */
+.planta-indicadores {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  flex-shrink: 0;
 }
-.planta-progress-labels {
+.planta-indicador {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--saea-surface-sunken);
+  min-width: 0;
+}
+.planta-indicador-rotulo {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--saea-ink-soft);
+}
+.planta-indicador-valor {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--saea-ink);
+}
+.planta-indicador-valor--ok {
+  color: var(--saea-success);
+}
+.planta-indicador-valor--aviso {
+  color: var(--saea-warning);
+}
+.planta-indicador-valor--perigo {
+  color: var(--saea-danger);
+}
+.planta-indicador-sub {
   font-size: var(--fs-xs);
   color: var(--saea-ink-soft);
-  margin-bottom: 4px;
+}
+.planta-indicador-sub--aviso {
+  color: var(--saea-warning);
+  font-weight: 600;
+}
+@media (max-width: 880px) {
+  .planta-indicadores {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A barra de ocupação e, embaixo, as turmas do turno em etiquetas. */
+.planta-status-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  flex-shrink: 0;
+}
+/* Em volta da barra: uma área maior para passar o mouse e ver a dica (a barra tem só 8 px). */
+.planta-progress-alvo {
+  padding: 6px 0;
+  margin: -6px 0;
+  border-radius: var(--radius-sm);
+  cursor: help;
+}
+.planta-progress-alvo:focus-visible {
+  outline: 2px solid var(--saea-primary-strong);
+  outline-offset: 2px;
 }
 .planta-progress-track {
   height: 8px;
@@ -194,60 +268,153 @@
     width var(--dur-short) var(--ease-out);
 }
 
-.planta-turma-label {
-  flex: 1;
-  min-width: 200px;
+.planta-turmas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.planta-turmas-rotulo {
   font-size: var(--fs-sm);
+  color: var(--saea-ink-soft);
+}
+.planta-turmas-vazio {
+  font-size: var(--fs-sm);
+  color: var(--saea-ink-faint);
+}
+.planta-turma-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 30px;
+  padding: 0 6px 0 12px;
+  border-radius: var(--radius-pill);
+  background: var(--saea-chip-bg);
+  font-size: var(--fs-sm);
+  font-weight: 500;
   color: var(--saea-ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+.planta-turma-qtd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  background: var(--saea-surface);
+  font-size: var(--fs-xs);
+  font-weight: 700;
 }
 
 /*
- * A altura vem do card (.saea-card-fill): absorve a folga e rola por dentro,
- * em vez de um max-height fixo que nao acompanhava a viewport.
+ * A altura vem do card (.saea-card-fill): a moldura ocupa a folga abaixo do cabeçalho. Quem rola
+ * não é ela nem a página: é só a grade de carteiras, por dentro (.planta-desks-area).
  */
+.planta-corpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .planta-room-wrap {
   margin-top: var(--sp-5);
   flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  /* A moldura não some em tela baixa: abaixo disso, rola o .planta-corpo (dentro do card). */
+  min-height: 260px;
   /* Coluna flex para a moldura da sala ocupar toda a area disponivel. */
   display: flex;
   flex-direction: column;
 }
 
+/* Tela baixa (notebook de 768 px): indicadores e espaços mais compactos, para a moldura ficar maior. */
+@media (max-height: 760px) {
+  .planta-indicadores,
+  .planta-status-row {
+    margin-top: var(--sp-3);
+  }
+  .planta-indicador {
+    padding: var(--sp-2) var(--sp-3);
+  }
+  .planta-indicador-valor {
+    font-size: 20px;
+  }
+  .planta-room-wrap {
+    margin-top: var(--sp-3);
+  }
+}
+/* No celular a página rola normalmente: a coluna do card não rola sozinha e a moldura tem altura própria. */
+@media (max-width: 880px) {
+  .planta-corpo {
+    overflow: visible;
+  }
+  .planta-room-wrap {
+    min-height: 360px;
+    flex: none;
+  }
+}
+
+/*
+ * A moldura da sala, em três partes: a faixa da frente em cima e a legenda embaixo, fixas, e a
+ * grade no meio, que encolhe (min-height:0) e rola. overflow:hidden garante que nenhuma carteira
+ * saia da moldura.
+ */
 .planta-room {
-  padding: var(--sp-5);
-  /*
-   * Preenche a area do card em vez de parar na altura das carteiras — evita a
-   * faixa vazia entre a moldura e a borda inferior do card. flex-shrink:1 (nao
-   * 0) + min-height:0 permite a moldura encolher quando a grade de carteiras
-   * (deskSlots) e maior que o espaco do card — sem isso a moldura nunca cede e
-   * estoura .planta-room-wrap mesmo com overflow-y:auto no pai.
-   */
+  padding: var(--sp-4) var(--sp-5) var(--sp-3);
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+  align-items: center;
   box-sizing: border-box;
+  border: 1px solid var(--saea-border);
+  border-radius: var(--radius-md);
 }
+.planta-desks-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Espaço para a carteira subir ao passar o mouse (translateY) sem ser cortada. */
+  padding: var(--sp-1) 0;
+}
+/* A frente da sala (o quadro): para saber de que lado a turma olha. */
+.planta-frente {
+  flex-shrink: 0;
+  width: min(720px, 80%);
+  height: 26px;
+  border-radius: 8px;
+  background: var(--saea-chip-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--saea-ink-soft);
+}
+/*
+ * As carteiras ocupam a largura toda da moldura: quantas colunas couberem (auto-fill), centradas.
+ * Numa tela larga a sala inteira cabe em poucas linhas, sem rolar.
+ */
 .planta-desks {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 10px;
-  max-width: 420px;
-  /* Centraliza no espaco restante da moldura (auto vertical + horizontal). */
-  margin: auto;
-  align-content: center;
+  grid-template-columns: repeat(auto-fill, 44px);
+  justify-content: center;
+  gap: 14px 18px;
   width: 100%;
+  margin: var(--sp-3) 0;
 }
 
 .planta-desk {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -260,34 +427,11 @@
   font-size: 16px;
 }
 
+/* Carteira ocupada: fundo claro da cor da marca, só com o ícone de aluno (sem foto, iniciais nem nome). */
 .planta-desk--aluno {
-  background: var(--saea-primary);
-  color: #fff;
-  border: 1px solid var(--saea-primary-strong);
-}
-/* Carteira com o aluno: a foto ocupa o quadro inteiro, sem borda, com os cantos da carteira. */
-.planta-desk--com-aluno {
-  padding: 0;
-  border: none;
-  overflow: hidden;
-}
-.planta-desk-foto {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-/* Sem foto: as iniciais em branco no fundo da carteira ocupada, como na Pré-enturmação. */
-.planta-desk-iniciais {
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-.planta-fotos-aviso {
-  margin: var(--sp-3) 0 0;
-  text-align: center;
-  font-size: var(--fs-xs);
-  color: var(--saea-ink-soft);
+  background: color-mix(in srgb, var(--saea-primary) 18%, var(--saea-surface));
+  color: var(--saea-primary-strong);
+  border: 1px solid color-mix(in srgb, var(--saea-primary) 35%, var(--saea-surface));
 }
 .planta-desk--vaga {
   background: var(--saea-chip-bg);
@@ -332,24 +476,23 @@
   border-color: transparent;
 }
 
-.planta-info-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-5);
-  flex-wrap: wrap;
-  margin-top: var(--sp-3);
-}
-
 .planta-transfer-btn-icon {
   font-size: 16px;
   vertical-align: middle;
   margin-right: 4px;
 }
 
+/* A legenda, embaixo da grade e separada dela por uma linha: só o que a sala mostra. */
 .planta-legend {
   display: flex;
-  gap: var(--sp-4);
+  gap: var(--sp-2) var(--sp-5);
   flex-wrap: wrap;
+  justify-content: center;
+  /* Fixa no rodapé da moldura: a grade rola acima dela, a legenda fica sempre à vista. */
+  flex-shrink: 0;
+  width: 100%;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--saea-border);
   font-size: var(--fs-xs);
   color: var(--saea-ink-soft);
 }
@@ -373,9 +516,9 @@
   line-height: 1;
 }
 .planta-legend-dot--aluno {
-  background: var(--saea-primary);
-  color: #fff;
-  border: 1px solid var(--saea-primary-strong);
+  background: color-mix(in srgb, var(--saea-primary) 18%, var(--saea-surface));
+  color: var(--saea-primary-strong);
+  border: 1px solid color-mix(in srgb, var(--saea-primary) 35%, var(--saea-surface));
 }
 .planta-legend-dot--vaga {
   background: var(--saea-chip-bg);
@@ -396,23 +539,6 @@
   background: repeating-linear-gradient(-45deg, var(--saea-chip-bg) 0 3px, transparent 3px 6px);
   color: var(--saea-ink-faint);
   border: 1px solid var(--saea-border);
-}
-
-/* "Limite de 15 carteiras (50% de 30)", embaixo do nome da sala. */
-.planta-limite {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 2px;
-  font-size: var(--fs-xs);
-  color: var(--saea-ink-soft);
-}
-.planta-limite-icon {
-  font-size: 14px;
-}
-.planta-limite--acima {
-  color: var(--saea-warning);
-  font-weight: 600;
 }
 
 /*
@@ -483,10 +609,57 @@
   border-color: var(--saea-primary-strong);
   border-radius: var(--radius-md);
 }
+.planta-outras-dica {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--saea-ink-soft);
+}
+.planta-outra-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .planta-outra-nome {
   font-weight: 600;
   font-size: var(--fs-sm);
   color: var(--saea-ink);
+}
+/* A ocupação da sala no turno, numa barra fina na cor do status. */
+.planta-outra-barra {
+  max-width: 260px;
+  height: 5px;
+  margin-top: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--saea-chip-bg);
+  overflow: hidden;
+}
+.planta-outra-barra-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+/* O status: um ponto na cor e o texto, no lugar do selo grande. */
+.planta-outra-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.planta-outra-status-ponto {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+.planta-outra-status--success {
+  color: var(--saea-success);
+}
+.planta-outra-status--warning {
+  color: color-mix(in srgb, var(--saea-warning) 80%, var(--saea-ink));
+}
+.planta-outra-status--danger {
+  color: var(--saea-danger);
 }
 .planta-outra-meta {
   font-size: var(--fs-xs);

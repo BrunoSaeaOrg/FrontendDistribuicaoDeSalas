@@ -300,7 +300,7 @@ describe('EnturmacaoComponent', () => {
     // Quem foi para revisão fica na lista com essa situação: o aviso leva o motivo e o que fazer.
     expect(toast.warning).toHaveBeenCalledWith(
       '1 aluno ficou inconsistente',
-      'Aluno(a) já possui turma. Ficaram como "Inconsistente": confira a matrícula no RM e mova de novo na Pré-enturmação.',
+      'Aluno(a) já possui turma. Ficaram como "Inconsistente": confira a matrícula no RM (na Pré-enturmação eles ficam travados).',
     );
     expect(toast.info).toHaveBeenCalledWith('1 aluno continua pendente', 'A FV não chegou a processar. Tente enturmar de novo.');
     // Relê a lista (a FV mudou os registros) e a seleção começa do zero.

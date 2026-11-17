@@ -72,8 +72,8 @@
           </thead>
           <tbody>
             @for (row of rows(); track row.id) {
-              <!-- Indisponibilidade (marcada em Salas → Turmas, por turno): o selo e o motivo embaixo do
-                   nome; a linha fica cinza quando o turno do filtro (ou, sem filtro, os dois) está indisponível. -->
+              <!-- Indisponibilidade (marcada em Salas → Turmas, por turno): só o ícone do turno, na coluna
+                   Turmas; a linha fica cinza quando o turno do filtro (ou, sem filtro, os dois) está indisponível. -->
               <tr [class.painel-row--indisponivel]="row.linhaIndisponivel">
                 <td>
                   <span class="painel-inline">
@@ -81,15 +81,7 @@
                   </span>
                 </td>
                 <td class="painel-cell-soft">{{ row.andar }}</td>
-                <td class="painel-cell-strong">
-                  {{ row.nome }}
-                  @if (row.indisponivel; as indisp) {
-                    <span class="painel-indisp">
-                      <app-badge tone="neutral">{{ indisp.selo }}</app-badge>
-                      <saea-truncate class="painel-indisp-motivo" [maxWidth]="260" [label]="indisp.motivo">{{ indisp.motivo }}</saea-truncate>
-                    </span>
-                  }
-                </td>
+                <td class="painel-cell-strong">{{ row.nome }}</td>
                 <td class="painel-cell-soft">{{ row.tipo }}</td>
                 <td>{{ row.carteiras }}</td>
                 <td>{{ row.capacidade }}</td>

@@ -232,9 +232,9 @@
             (dragend)="terminarArrasto()"
           >
             <div class="va-linha-topo">
-              <!-- O enturmado não se move: sem a caixa de marcar, um cadeado no lugar. -->
+              <!-- O travado (enturmado ou Inconsistente) não se move: sem a caixa de marcar, um cadeado no lugar, com o porquê na dica. -->
               @if (travado(a)) {
-                <span class="material-icons va-linha-marca va-linha-travado" title="Já está na matrícula nesta turma: não dá para mover">lock</span>
+                <span class="material-icons va-linha-marca va-linha-travado" [attr.title]="motivoTravado(a)">lock</span>
               } @else {
                 <saea-checkbox
                   class="va-linha-marca"
@@ -324,7 +324,7 @@
     } @else {
       <ul class="va-grade" role="list">
         @for (a of p.visiveis; track a.id) {
-          <!-- O enturmado fica travado: não arrasta, não marca (o clique não faz nada) e não sai da turma. -->
+          <!-- O travado (enturmado ou Inconsistente): não arrasta, não marca (o clique não faz nada) e não sai da turma; a dica diz o porquê. -->
           @let preso = travado(a);
           <li [draggable]="podeMover() && !preso" (dragstart)="iniciarArrasto(p.lado, a.id, $event)" (dragend)="terminarArrasto()">
             <button
@@ -336,7 +336,7 @@
               [class.va-cartao--travado]="preso"
               [attr.aria-pressed]="preso ? null : marcado(p.lado, a.id)"
               [attr.aria-disabled]="preso || null"
-              [attr.title]="preso ? 'Já está na matrícula nesta turma: não dá para mover' : null"
+              [attr.title]="motivoTravado(a)"
               (click)="alternarAluno(p.lado, a.id)"
             >
               @if (foto(a); as src) {

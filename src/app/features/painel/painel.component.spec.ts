@@ -216,17 +216,19 @@ describe('PainelComponent: sala indisponível (marcada em Salas → Turmas)', ()
   const porNome = (painel: PainelComponent, nome: string) => painel.rows().find((r) => r.nome === nome)!;
   const nomes = (painel: PainelComponent) => painel.rows().map((r) => r.nome);
 
-  it('o selo diz o turno e o motivo fica embaixo do nome; a linha só fica cinza com os dois turnos', () => {
-    const painel = criar(SALAS).componentInstance;
+  it('embaixo do nome não aparece selo nem motivo; a linha só fica cinza com os dois turnos', () => {
+    const fixture = criar(SALAS);
+    const painel = fixture.componentInstance;
 
-    expect(porNome(painel, 'Sala 17').indisponivel).toBeNull();
-    expect(porNome(painel, 'Sala 18').indisponivel).toEqual({ selo: 'Indisponível', motivo: 'Em reforma até março.' });
-    expect(porNome(painel, 'Sala 19').indisponivel).toEqual({ selo: 'Indisponível de manhã', motivo: 'Pintura' });
-    expect(porNome(painel, 'Sala 20').indisponivel).toEqual({ selo: 'Indisponível', motivo: 'Manhã: Pintura · Tarde: Reunião de pais' });
     expect(['17', '18', '19', '20'].map((n) => porNome(painel, `Sala ${n}`).linhaIndisponivel)).toEqual([false, true, false, true]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('tbody app-badge')).toBeNull();
+    expect(el.querySelector('tbody')!.textContent).not.toContain('Pintura');
+    expect(el.querySelector('tbody')!.textContent).not.toContain('Em reforma');
   });
 
-  it('a letra do turno indisponível fica cinza e riscada, com o motivo na dica', () => {
+  it('no turno indisponível, o ícone fica no lugar da letra, com o motivo só na dica', () => {
     const fixture = criar(SALAS);
     const painel = fixture.componentInstance;
 
@@ -235,8 +237,10 @@ describe('PainelComponent: sala indisponível (marcada em Salas → Turmas)', ()
     expect([t.tom, t.rotulo]).toEqual([null, 'Tarde: livre']);
 
     const linha = [...(fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr')].find((tr) => tr.textContent!.includes('Sala 19'))!;
-    expect(linha.querySelector('.painel-turno-chip--indisponivel')!.getAttribute('aria-label')).toBe('Manhã: indisponível');
-    expect(linha.textContent).toContain('Indisponível de manhã');
+    const chip = linha.querySelector('.painel-turno-chip--indisponivel')!;
+    expect(chip.getAttribute('aria-label')).toBe('Manhã: indisponível');
+    expect(chip.getAttribute('title')).toBe('Indisponível: Pintura');
+    expect(chip.querySelector('.painel-turno-chip-icone')!.textContent).toBe('event_busy');
   });
 
   it('o filtro Indisponível pega qualquer turno indisponível; com um turno só, a sala segue no status da lotação', () => {

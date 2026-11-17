@@ -1,10 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { SaeaTruncateComponent } from '@sistemas-saea/saea-design-system';
 import { nomeDoAndar, Turno, unidadeNoFiltro } from '../../core/models';
 import { SalasService } from '../../core/services/salas.service';
-import { BadgeComponent, BadgeTone } from '../../shared/ui/badge/badge.component';
+import type { BadgeTone } from '../../shared/ui/badge/badge.component';
 import { CardComponent } from '../../shared/ui/card/card.component';
 import { CarregandoComponent } from '../../shared/ui/carregando/carregando.component';
 import { EmptyStateComponent } from '../../shared/ui/empty-state/empty-state.component';
@@ -29,29 +28,9 @@ interface TurnoChip {
   rotulo: string;
 }
 
-/** O selo e o motivo embaixo do nome da sala, quando algum turno está indisponível. */
-interface IndisponivelNaSala {
-  /** "Indisponível" (os dois turnos), "Indisponível de manhã" ou "Indisponível à tarde". */
-  selo: string;
-  /** O motivo; com motivos diferentes, os dois ("Manhã: ... · Tarde: ..."). */
-  motivo: string;
-}
-
 const TURNOS: Turno[] = ['manha', 'tarde'];
 
 const ROTULO_TURNO: Record<Turno, string> = { manha: 'Manhã', tarde: 'Tarde' };
-
-const SELO_DO_TURNO: Record<Turno, string> = { manha: 'Indisponível de manhã', tarde: 'Indisponível à tarde' };
-
-function indisponivelNaSala(turnos: { turno: Turno; motivo: string | null }[]): IndisponivelNaSala | null {
-  if (turnos.length === 0) return null;
-  if (turnos.length === 1) return { selo: SELO_DO_TURNO[turnos[0].turno], motivo: turnos[0].motivo! };
-  const iguais = turnos.every((t) => t.motivo === turnos[0].motivo);
-  return {
-    selo: 'Indisponível',
-    motivo: iguais ? turnos[0].motivo! : turnos.map((t) => `${ROTULO_TURNO[t.turno]}: ${t.motivo}`).join(' · '),
-  };
-}
 
 /** Uma coluna de Período: os alunos da sala naquele turno; null = sem turma no turno. */
 interface PeriodoCell {
@@ -82,8 +61,6 @@ interface PainelRow {
    */
   statusKeys: string[];
   turnoChips: TurnoChip[];
-  /** O selo e o motivo embaixo do nome; null = disponível nos dois turnos. */
-  indisponivel: IndisponivelNaSala | null;
   /** A linha em cinza: o turno do filtro (ou, sem filtro, os dois) está indisponível. */
   linhaIndisponivel: boolean;
 }
@@ -93,8 +70,6 @@ interface PainelRow {
   standalone: true,
   imports: [
     FormsModule,
-    SaeaTruncateComponent,
-    BadgeComponent,
     CardComponent,
     CarregandoComponent,
     EmptyStateComponent,
@@ -228,7 +203,6 @@ export class PainelComponent {
         // Indisponível vale mais que a lotação; com só um turno indisponível, a sala aparece nos dois status.
         statusKeys: linhaIndisponivel ? ['indisponivel'] : indisponiveis.length && !turno ? ['indisponivel', lotacao] : [lotacao],
         turnoChips,
-        indisponivel: indisponivelNaSala(indisponiveis),
         linhaIndisponivel,
       };
     });

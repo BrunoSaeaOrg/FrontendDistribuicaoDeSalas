@@ -1,4 +1,5 @@
 <div class="planta-page">
+  <!-- Durante uma transferência de carteiras (gravando ou relendo), os filtros ficam travados: trocar a sala ou o ano no meio atrapalharia a gravação. -->
   <div class="planta-filters">
     <app-multi-select
       label="Unidade"
@@ -7,22 +8,13 @@
       [nenhumaEhTodas]="true"
       [options]="unidadeOptions()"
       [selected]="unidades()"
+      [disabled]="filtrosTravados()"
       (selectedChange)="selecionarUnidades($event)"
     />
-    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" [carregando]="carregando()" />
-    <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="onSegmentoChange($event)" [options]="segmentoOptions()" />
-    <app-select label="Série" [ngModel]="serie()" (ngModelChange)="onSerieChange($event)" [options]="serieOptions()" />
-    <app-select label="Sala" [ngModel]="sala()?.id ?? ''" (ngModelChange)="onSalaChange($event)" [options]="salaOptions()" />
-    <div class="planta-tabs">
-      @for (tab of turnoTabs; track tab.turno) {
-        <button
-          type="button"
-          class="planta-tab"
-          [class.planta-tab--active]="turno() === tab.turno"
-          (click)="turno.set(tab.turno)"
-        >{{ tab.label }}</button>
-      }
-    </div>
+    <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoLetivoOptions()" [carregando]="carregando()" [disabled]="filtrosTravados()" />
+    <app-select label="Segmento" [ngModel]="segmento()" (ngModelChange)="onSegmentoChange($event)" [options]="segmentoOptions()" [disabled]="filtrosTravados()" />
+    <app-select label="Série" [ngModel]="serie()" (ngModelChange)="onSerieChange($event)" [options]="serieOptions()" [disabled]="filtrosTravados()" />
+    <app-select label="Sala" [ngModel]="sala()?.id ?? ''" (ngModelChange)="onSalaChange($event)" [options]="salaOptions()" [disabled]="filtrosTravados()" />
   </div>
 
   @if (!sala()) {
@@ -36,86 +28,86 @@
       <app-card class="saea-card-fill saea-carregavel">
         <!-- Transferindo carteiras: cobre a sala até o RM gravar e a tela reler os números. -->
         <app-carregando [ativo]="!!transferindo()" [texto]="textoTransferindo()" />
+        <!--
+          Tudo do card numa coluna que ocupa a altura dele. Normalmente só a grade rola (dentro da
+          moldura); numa tela muito baixa, a moldura não encolhe além do mínimo e quem rola é esta
+          coluna, por dentro do card, nunca a página.
+        -->
+        <div class="planta-corpo saea-scroll">
+        <!-- Cabeçalho: nome e status da sala; à direita, o turno e "Transferir carteiras". -->
         <div class="planta-head">
-          <div>
-            <div class="planta-nome">{{ sala()!.nome }}</div>
-            <div class="planta-meta">{{ sala()!.tipo }} · {{ sala()!.area }} m²</div>
-            <div class="planta-limite" [class.planta-limite--acima]="acimaDoLimite()">
-              <span class="material-icons planta-limite-icon" aria-hidden="true">rule</span>
-              {{ limiteLabel() }}
-              @if (acimaDoLimite()) {
-                · já tem {{ capacidade() }}
+          <div class="planta-titulo">
+            <div class="planta-nome-linha">
+              <h2 class="planta-nome">{{ sala()!.nome }}</h2>
+              <app-badge [tone]="statusInfo().tone">{{ statusInfo().label }}</app-badge>
+            </div>
+            <div class="planta-meta">{{ metaDaSala() }}</div>
+          </div>
+          <div class="planta-head-acoes">
+            <div class="planta-tabs" role="group" aria-label="Turno">
+              @for (tab of turnoTabs; track tab.turno) {
+                <button
+                  type="button"
+                  class="planta-tab"
+                  [class.planta-tab--active]="turno() === tab.turno"
+                  [attr.aria-pressed]="turno() === tab.turno"
+                  [disabled]="filtrosTravados()"
+                  (click)="selecionarTurno(tab.turno)"
+                >{{ tab.label }}</button>
               }
             </div>
+            @if (podeTransferir()) {
+              <app-button variant="secondary" size="sm" [disabled]="!!transferindo()" (clicked)="abrirTransferModal()">
+                <span class="material-icons planta-transfer-btn-icon">swap_horiz</span>
+                Transferir carteiras
+              </app-button>
+            }
           </div>
-          <app-badge [tone]="statusInfo().tone">{{ statusInfo().label }}</app-badge>
         </div>
 
-        <div class="planta-info-row">
-          <div class="planta-legend">
-            <span class="planta-legend-item">
-              <span class="planta-legend-dot planta-legend-dot--aluno"><span class="material-icons planta-legend-icon">person</span></span>Aluno sentado
-            </span>
-            <span class="planta-legend-item">
-              <span class="planta-legend-dot planta-legend-dot--vaga"><span class="material-icons planta-legend-icon">event_seat</span></span>Carteira vaga
-            </span>
-            <span class="planta-legend-item">
-              <span class="planta-legend-dot planta-legend-dot--espaco"><span class="material-icons planta-legend-icon">add</span></span>Espaço disponível
-            </span>
-            @if (temAcimaDoLimite()) {
-              <span class="planta-legend-item">
-                <span class="planta-legend-dot planta-legend-dot--espaco planta-desk--acima"><span class="material-icons planta-legend-icon">add</span></span>Acima do limite
-              </span>
-            }
-            @if (temBloqueado()) {
-              <span class="planta-legend-item">
-                <span class="planta-legend-dot planta-legend-dot--bloqueado"><span class="material-icons planta-legend-icon">block</span></span>Bloqueado pela regra
-              </span>
-            }
-            <span class="planta-legend-item">
-              <span class="planta-legend-dot planta-legend-dot--excedente"><span class="material-icons planta-legend-icon">priority_high</span></span>Acima da capacidade
-            </span>
-          </div>
-
-          @if (podeTransferir()) {
-            <app-button variant="secondary" size="sm" [disabled]="!!transferindo()" (clicked)="abrirTransferModal()">
-              <span class="material-icons planta-transfer-btn-icon">swap_horiz</span>
-              Transferir carteiras
-            </app-button>
+        <!-- Os quatro números da sala no turno; o limite traz a regra (e avisa se a sala já passou dele). -->
+        <div class="planta-indicadores" [title]="limiteLabel()">
+          @for (k of indicadores(); track k.rotulo) {
+            <div class="planta-indicador">
+              <span class="planta-indicador-rotulo">{{ k.rotulo }}</span>
+              <span class="planta-indicador-valor planta-indicador-valor--{{ k.tom }}">{{ k.valor }}</span>
+              <span class="planta-indicador-sub" [class.planta-indicador-sub--aviso]="k.tom === 'aviso'">{{ k.sub }}</span>
+            </div>
           }
         </div>
 
         <div class="planta-status-row">
-          <div class="planta-progress-wrap">
-            <div class="planta-progress-labels">
-              <span>{{ alunosAtuais() }} alunos de {{ capacidade() }} carteiras</span>
-              <span>{{ capacidade() - alunosAtuais() < 0 ? 0 : capacidade() - alunosAtuais() }} vagas</span>
-            </div>
+          <!-- A ocupação das carteiras no turno; ao passar o mouse (ou focar), a dica explica o número e a cor. -->
+          <div
+            class="planta-progress-alvo"
+            tabindex="0"
+            role="img"
+            [attr.aria-label]="textoOcupacao()"
+            [saeaTooltip]="textoOcupacao()"
+          >
             <div class="planta-progress-track">
-              <div
-                class="planta-progress-fill"
-                [style.width.%]="plantaPct()"
-                [style.background]="progressColor()"
-              ></div>
+              <div class="planta-progress-fill" [style.width.%]="plantaPct()" [style.background]="progressColor()"></div>
             </div>
           </div>
-
-          <div class="planta-turma-label" [title]="turmasLabel()">
-            @if (turmasLabel()) {
-              {{ turmasLabel() }}
-            } @else {
-              Nenhuma turma vinculada neste turno
+          <div class="planta-turmas" [title]="turmasLabel()">
+            <span class="planta-turmas-rotulo">Turmas neste turno:</span>
+            @for (t of turmasDoTurno(); track t.nome) {
+              <span class="planta-turma-chip">{{ t.nome }}<span class="planta-turma-qtd">{{ t.alunos }}</span></span>
+            } @empty {
+              <span class="planta-turmas-vazio">Nenhuma turma vinculada neste turno</span>
             }
           </div>
         </div>
 
         <div class="planta-room-wrap">
           <div class="planta-room">
+            <div class="planta-frente" aria-hidden="true">Frente da sala · quadro</div>
+            <!-- Só a grade rola, por dentro da moldura; a frente e a legenda ficam sempre à vista. -->
+            <div class="planta-desks-area saea-scroll">
             <div class="planta-desks">
               @for (desk of deskSlots(); track desk.index) {
                 <div
                   class="planta-desk planta-desk--{{ desk.kind }}"
-                  [class.planta-desk--com-aluno]="!!desk.aluno"
                   [class.planta-desk--acima]="desk.acimaDoLimite"
                   [class.planta-desk--draggable]="desk.kind === 'vaga' && uiMode.editorMode() && !transferindo()"
                   [title]="desk.kind === 'vaga' && uiMode.editorMode() ? 'Arraste para mover esta carteira para outra sala' : desk.tooltip"
@@ -123,27 +115,32 @@
                   (dragstart)="onDeskDragStart(desk, $event)"
                   (dragend)="onDeskDragEnd()"
                 >
-                  <!-- Carteira ocupada: a foto do aluno (sem foto, as iniciais); antes de os alunos chegarem, o ícone. -->
-                  @if (desk.aluno; as aluno) {
-                    @if (aluno.foto) {
-                      <img class="planta-desk-foto" [src]="aluno.foto" alt="" />
-                    } @else {
-                      <span class="planta-desk-iniciais" aria-hidden="true">{{ iniciais(aluno.nome) }}</span>
-                    }
-                  } @else {
-                    <span class="material-icons planta-desk-icon">{{ desk.icon }}</span>
-                  }
+                  <!-- Só o ícone do tipo de quadro: na ocupada, o de aluno (sem foto, iniciais nem nome). -->
+                  <span class="material-icons planta-desk-icon">{{ desk.icon }}</span>
                 </div>
               }
             </div>
-            @if (carregandoAlunos()) {
-              <p class="planta-fotos-aviso" role="status">Carregando os alunos para mostrar as fotos nas carteiras...</p>
-            }
+            </div>
+            <!-- A legenda, embaixo da grade: só o que a sala mostra agora. -->
+            <div class="planta-legend">
+              @for (item of legenda(); track item.tipo) {
+                <span class="planta-legend-item">
+                  <span
+                    class="planta-legend-dot planta-legend-dot--{{ item.tipo === 'acima' ? 'espaco' : item.tipo }}"
+                    [class.planta-desk--acima]="item.tipo === 'acima'"
+                  ><span class="material-icons planta-legend-icon">{{ item.icon }}</span></span>{{ item.rotulo }}
+                </span>
+              }
+            </div>
           </div>
+        </div>
         </div>
       </app-card>
 
       <app-card class="saea-card-fill" title="Outras salas da unidade">
+        @if (uiMode.editorMode()) {
+          <p class="planta-outras-dica">Arraste uma carteira vaga até uma sala para transferir.</p>
+        }
         <div class="planta-outras saea-scroll">
           @for (room of outrasSalas(); track room.id) {
             <div
@@ -156,13 +153,16 @@
               (dragleave)="onOutraSalaDragLeave(room.id)"
               (drop)="onOutraSalaDrop(room.id, $event)"
             >
-              <div>
+              <div class="planta-outra-info">
                 <div class="planta-outra-nome">{{ room.nome }}</div>
                 <div class="planta-outra-meta">
                   {{ room.tipo }} · {{ room.ocupadas }} de {{ room.carteiras }} carteiras ocupadas
                   @if (room.limite !== null) {
                     · limite {{ room.limite }}
                   }
+                </div>
+                <div class="planta-outra-barra" aria-hidden="true">
+                  <div class="planta-outra-barra-fill planta-outra-status--{{ room.statusInfo.tone }}" [style.width.%]="room.pct"></div>
                 </div>
                 <!-- Arrastando uma carteira: o porquê de a sala não receber, ou que vai pedir justificativa. -->
                 @if (arrastando() && room.avisoNoArraste; as aviso) {
@@ -183,8 +183,11 @@
                   </div>
                 }
               </div>
+              <!-- O status da sala: um ponto na cor e o texto (a cor sozinha não basta). -->
               <div class="planta-outra-actions">
-                <app-badge [tone]="room.statusInfo.tone">{{ room.statusInfo.label }}</app-badge>
+                <span class="planta-outra-status planta-outra-status--{{ room.statusInfo.tone }}">
+                  <span class="planta-outra-status-ponto" aria-hidden="true"></span>{{ room.statusInfo.label }}
+                </span>
               </div>
             </div>
           }

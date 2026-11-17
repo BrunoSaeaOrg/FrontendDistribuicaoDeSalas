@@ -89,6 +89,9 @@ describe('PlantaComponent: limite da regra de ocupação', () => {
     expect(planta.acimaDoLimite()).toBe(true);
     expect(contar(planta)).toEqual({ vaga: 20, bloqueado: 10 });
     expect(planta.deskSlots().filter((d) => d.acimaDoLimite).map((d) => d.index)).toEqual([15, 16, 17, 18, 19]);
+    // O indicador do limite avisa (em laranja) quantas carteiras a sala já tem.
+    expect(planta.indicadores()[3]).toEqual({ rotulo: 'Limite', valor: '15', sub: '50% de 30 · já tem 20', tom: 'aviso' });
+    expect(planta.legenda().map((l) => l.rotulo)).toEqual(['Carteira vaga', 'Bloqueado pela regra', 'Acima do limite']);
   });
 
   it('a transferência só leva o que cabe no destino, e sala no limite não recebe', () => {
@@ -276,6 +279,42 @@ describe('PlantaComponent: limite da regra de ocupação', () => {
       expect(el.querySelector('.planta-desk--draggable')).not.toBeNull();
     });
 
+    it('enquanto transfere, os filtros e o turno ficam travados e não trocam a sala; no fim, voltam', async () => {
+      const { fixture, planta, salas, id, el } = criarComRespostaPendente();
+      const desativados = () =>
+        [
+          ...el.querySelectorAll<HTMLSelectElement | HTMLButtonElement>('.planta-filters select, .planta-filters .ms-gatilho, .planta-head .planta-tab'),
+        ].map((c) => c.disabled);
+      // O <select> do app-select aplica o desativado num passo assíncrono do ngModel.
+      const atualizar = async () => {
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+      };
+
+      planta.onOutraSalaDrop(id('Sala 1'), { preventDefault: vi.fn() } as unknown as DragEvent);
+      await atualizar();
+      expect(planta.filtrosTravados()).toBe(true);
+      expect(desativados().length).toBe(7);
+      expect(desativados().every(Boolean)).toBe(true);
+
+      // Nada muda pelos métodos também (a troca de sala, de turno, de unidade ou de ano é ignorada).
+      planta.onSalaChange(id('Sala 1'));
+      planta.selecionarTurno('tarde');
+      planta.selecionarUnidades([]);
+      planta.onSegmentoChange('Anos Iniciais');
+      expect([planta.sala()!.nome, planta.turno(), planta.segmento()]).toEqual(['Sala 3', 'manha', 'todas']);
+
+      resposta.next({ sucesso: 1 });
+      resposta.complete();
+      await atualizar();
+      expect(salas.transferindo()).toBeNull();
+      expect(planta.filtrosTravados()).toBe(false);
+      expect(desativados().some(Boolean)).toBe(false);
+      planta.selecionarTurno('tarde');
+      expect(planta.turno()).toBe('tarde');
+    });
+
     it('no modal "Transferir carteiras", o botão fica em "Transferindo..." e só mostra o Concluído no fim', () => {
       const { fixture, planta, el } = criarComRespostaPendente();
       planta.abrirTransferModal();
@@ -316,8 +355,9 @@ describe('PlantaComponent: limite da regra de ocupação', () => {
   });
 });
 
-describe('PlantaComponent: fotos dos alunos nas carteiras', () => {
+describe('PlantaComponent: carteiras ocupadas só com o ícone, e cabeçalho da sala', () => {
   let getAlunos: ReturnType<typeof vi.fn>;
+  let getFotos: ReturnType<typeof vi.fn>;
 
   // Sala 1 de manhã: o 3º A (2 alunos) e o 3º A Semi-Manhã (1) dividem a sala; 12 carteiras.
   const vinculo: ApiTurmaXSalaDto = {
@@ -361,8 +401,9 @@ describe('PlantaComponent: fotos dos alunos nas carteiras', () => {
   function criar() {
     // Fora de ordem; o Davi é do 3º B (outra sala) e a Eva ainda não tem turma.
     getAlunos = vi.fn(() =>
-      of([aluno('3', 'Carla', 'EF3A-SM'), aluno('1', 'Ana', 'EF3A-M'), aluno('2', 'Bruno', 'EF3A-M'), aluno('4', 'Davi', 'EF3B-M'), aluno('5', 'Eva', null)]),
+      of([aluno('3', 'Carla Dias', 'EF3A-SM'), aluno('1', 'Ana Lima', 'EF3A-M'), aluno('2', 'Bruno', 'EF3A-M'), aluno('4', 'Davi', 'EF3B-M'), aluno('5', 'Eva', null)]),
     );
+    getFotos = vi.fn(() => of({}));
     TestBed.configureTestingModule({
       imports: [PlantaComponent],
       providers: [
@@ -374,10 +415,9 @@ describe('PlantaComponent: fotos dos alunos nas carteiras', () => {
             getTurmasXSalas: () => of([vinculo]),
             getTurmas: () => of([turma('EF3A-M', '3º Ano A - Manhã', 2), turma('EF3A-SM', '3º Ano A - Semi-Manhã', 1)]),
             getAnosLetivos: () => of([]),
+            // A Planta não mostra mais quem está sentado: nem os alunos nem as fotos são pedidos.
             getAlunosEnturmacao: getAlunos,
-            // O Bruno (RA 2) não tem foto: fica com as iniciais.
-            getFotosEnturmacao: (_ano: string, _filial: number, ras: string[]) =>
-              of(Object.fromEntries(ras.filter((ra) => ra !== '2').map((ra) => [ra, `data:image/jpeg;base64,` + ra]))),
+            getFotosEnturmacao: getFotos,
           },
         },
         { provide: AuthService, useValue: { currentUser: signal({ username: 'bruno' }) } },
@@ -394,35 +434,64 @@ describe('PlantaComponent: fotos dos alunos nas carteiras', () => {
     return { fixture, planta: fixture.componentInstance };
   }
 
-  it('as carteiras ocupadas mostram os alunos das turmas da sala no turno, em ordem alfabética, com a foto', () => {
+  it('a carteira ocupada mostra só o ícone de aluno: sem foto, iniciais nem nome, e os alunos nem são lidos', () => {
     const { fixture, planta } = criar();
 
-    expect(getAlunos).toHaveBeenCalledWith(expect.any(String), 2);
-    const ocupadas = planta.deskSlots().filter((d) => d.aluno);
-    expect(ocupadas.map((d) => [d.kind, d.aluno!.nome])).toEqual([
-      ['aluno', 'Ana'],
-      ['aluno', 'Bruno'],
-      ['aluno', 'Carla'],
+    const ocupadas = planta.deskSlots().filter((d) => d.kind === 'aluno');
+    expect(ocupadas.map((d) => [d.icon, d.tooltip])).toEqual([
+      ['person', 'Carteira ocupada por aluno'],
+      ['person', 'Carteira ocupada por aluno'],
+      ['person', 'Carteira ocupada por aluno'],
     ]);
-    expect(ocupadas.map((d) => d.aluno!.foto)).toEqual(['data:image/jpeg;base64,1', null, 'data:image/jpeg;base64,3']);
-    expect(ocupadas[2].tooltip).toBe('Carla · RA 3 · 3º Ano A - Semi-Manhã');
-    // A 4ª carteira é vaga: sem aluno.
-    expect(planta.deskSlots()[3]).toMatchObject({ kind: 'vaga', aluno: null });
+    expect(planta.deskSlots()[3]).toMatchObject({ kind: 'vaga', icon: 'event_seat' });
     const el = fixture.nativeElement as HTMLElement;
-    // A foto ocupa a carteira inteira; sem foto, as iniciais.
-    expect([...el.querySelectorAll('.planta-desk--com-aluno img.planta-desk-foto')].map((i) => i.getAttribute('src'))).toEqual([
-      'data:image/jpeg;base64,1',
-      'data:image/jpeg;base64,3',
-    ]);
-    expect(el.querySelector('.planta-desk--com-aluno .planta-desk-iniciais')?.textContent?.trim()).toBe('B');
+    expect(el.querySelector('.planta-desk img')).toBeNull();
+    expect(el.querySelector('.planta-desk-iniciais')).toBeNull();
+    expect([...el.querySelectorAll('.planta-desk--aluno .planta-desk-icon')].map((i) => i.textContent?.trim())).toEqual(['person', 'person', 'person']);
+    expect(getAlunos).not.toHaveBeenCalled();
+    expect(getFotos).not.toHaveBeenCalled();
   });
 
-  it('à tarde a sala não tem turma: nenhuma foto', () => {
+  it('à tarde a sala não tem turma: nenhuma carteira ocupada', () => {
     const { fixture, planta } = criar();
     planta.turno.set('tarde');
     fixture.detectChanges();
 
-    expect(planta.deskSlots().some((d) => d.aluno)).toBe(false);
-    expect((fixture.nativeElement as HTMLElement).querySelector('.planta-desk--com-aluno')).toBeNull();
+    expect(planta.deskSlots().some((d) => d.kind === 'aluno')).toBe(false);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.planta-desk--aluno')).toBeNull();
+  });
+
+  it('o cabeçalho traz o turno, os quatro números e as turmas do turno; a legenda só o que a sala mostra', () => {
+    const { fixture, planta } = criar();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(planta.metaDaSala()).toBe('Sala de aula · 1º andar · 45 m²');
+    expect(planta.indicadores().map((k) => [k.rotulo, k.valor, k.sub])).toEqual([
+      ['Alunos', '3', 'no turno'],
+      ['Carteiras', '12', 'na sala'],
+      ['Vagas', '9', 'carteiras livres'],
+      ['Limite', '27', '90% de 30'],
+    ]);
+    // O turno saiu dos filtros e foi para o cabeçalho da sala.
+    expect(el.querySelector('.planta-filters .planta-tabs')).toBeNull();
+    expect([...el.querySelectorAll('.planta-head .planta-tab')].map((b) => b.textContent?.trim())).toEqual(['Manhã', 'Tarde']);
+    expect([...el.querySelectorAll('.planta-turma-chip')].map((c) => c.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+      '3º Ano A - Manhã2',
+      '3º Ano A - Semi-Manhã1',
+    ]);
+    expect(planta.legenda().map((l) => l.rotulo)).toEqual(['Aluno sentado', 'Carteira vaga', 'Espaço disponível', 'Bloqueado pela regra']);
+    expect(el.querySelector('.planta-frente')?.textContent?.trim()).toBe('Frente da sala · quadro');
+  });
+
+  it('a barra de ocupação explica, ao passar o mouse ou focar, o que mede e o que a cor quer dizer', () => {
+    const { fixture, planta } = criar();
+    const texto =
+      'Ocupação das carteiras no turno: 3 alunos em 12 carteiras (25%). A barra fica laranja perto de 90% (limite da regra) e vermelha ao lotar.';
+
+    expect(planta.textoOcupacao()).toBe(texto);
+    const alvo = (fixture.nativeElement as HTMLElement).querySelector('.planta-progress-alvo')!;
+    expect(alvo.getAttribute('aria-label')).toBe(texto);
+    expect(alvo.getAttribute('tabindex')).toBe('0');
+    expect(alvo.querySelector('.planta-progress-fill')).not.toBeNull();
   });
 });

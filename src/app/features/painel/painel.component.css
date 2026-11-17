@@ -210,23 +210,11 @@
 }
 
 /*
- * Sala indisponível no ano: a linha em cinza (os status de lotação são verde, laranja e vermelho),
- * o selo "Indisponível" e o motivo embaixo do nome.
+ * Sala indisponível no ano: a linha em cinza (os status de lotação são verde, laranja e vermelho);
+ * qual turno, só pelo ícone na coluna Turmas.
  */
 .painel-row--indisponivel td {
   background: color-mix(in srgb, var(--saea-ink-faint) 14%, transparent);
-}
-.painel-indisp {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  margin-top: var(--sp-1);
-  font-weight: 400;
-}
-.painel-indisp-motivo {
-  font-size: var(--fs-xs);
-  color: var(--saea-ink-soft);
 }
 
 /* No layout mobile, chips de unidade e "Ver planta" com a altura mínima de toque. */
@@ -239,6 +227,24 @@
     min-height: var(--touch-min);
     min-width: var(--touch-min);
     justify-content: center;
+  }
+
+  /*
+   * No celular a tela é a altura do aparelho e os filtros empilhados já a ocupam: o card, que no
+   * computador fica com a folga abaixo dos filtros (flex:1 1 0), ficava com altura zero e a tabela
+   * sumia. Aqui a página tem a altura do conteúdo e rola (a .saea-main--mobile rola), e a tabela tem
+   * altura própria, rolando por dentro com o cabeçalho preso, como a moldura da Planta.
+   */
+  :host,
+  .painel-page {
+    flex: none;
+  }
+  .painel-page > app-card.saea-card-fill {
+    flex: none;
+  }
+  .painel-table-wrap {
+    flex: none;
+    max-height: 70dvh;
   }
 }
 

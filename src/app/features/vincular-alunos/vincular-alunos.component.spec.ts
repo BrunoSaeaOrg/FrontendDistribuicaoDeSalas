@@ -917,7 +917,7 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(tela.destino()!.alunos.map((a) => a.id)).toContain('1');
   });
 
-  it('quem a FV recusou (Inconsistente no RM) ganha a etiqueta laranja com a turma e o motivo; movido de novo, perde', () => {
+  it('quem a FV recusou (Inconsistente no RM) ganha a etiqueta laranja com a turma e o motivo, e fica travado', () => {
     montar();
     // A FV não conseguiu pôr o Davi (matrícula no 3º B) no 3º A.
     inconsistentesNoRm.set('4', { codTurma: 'EF3A-M', obs: 'Aluno(a) já possui turma.' });
@@ -935,12 +935,29 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(etiquetas[0].textContent?.trim()).toContain('Inconsistente');
     expect(etiquetas[0].getAttribute('title')).toContain('Aluno(a) já possui turma.');
 
-    // Movido de novo, o registro volta a ser pendente: a etiqueta sai.
+    // Como o enturmado, fica travado: não marca, não arrasta e não sai da turma por nenhum caminho.
+    expect(tela.travado(davi())).toBe(true);
+    expect(tela.travado(eva())).toBe(false);
+    expect(tela.motivoTravado(davi())).toBe('Inconsistente no RM: confira a matrícula; não dá para mover por aqui');
     tela.alternarAluno('destino', '4');
+    expect(tela.marcado('destino', '4')).toBe(false);
+    tela.alternarTodos('destino');
+    expect([tela.marcado('destino', '4'), tela.marcado('destino', '5')]).toEqual([false, true]);
+    const arraste = { preventDefault: vi.fn(), dataTransfer: null } as unknown as DragEvent;
+    tela.iniciarArrasto('destino', '4', arraste);
+    expect(arraste.preventDefault).toHaveBeenCalled();
+    tela.marcadosDestino.set(new Set(['4', '5']));
     tela.moverMarcadosPara('EF3A-M');
-    tela.escolherTurma('destino', 'EF3A-M');
-    expect(tela.inconsistenteDe(davi())).toBeNull();
-    expect(TestBed.inject(AlunosEnturmacaoService).inconsistentes('2026', 2).has('4')).toBe(false);
+    expect(salvarNoRm.mock.calls[0][3].map((m: { ra: string }) => m.ra)).toEqual(['5']);
+    expect(tela.destino()!.alunos.map((a) => a.id)).toContain('4');
+    expect(TestBed.inject(AlunosEnturmacaoService).inconsistentes('2026', 2).has('4')).toBe(true);
+    fixture.detectChanges();
+    const cartao = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.va-painel')[1].querySelectorAll<HTMLElement>('.va-cartao')].find(
+      (c) => c.querySelector('.va-cartao-nome')!.textContent!.trim() === 'Davi',
+    )!;
+    expect(cartao.classList).toContain('va-cartao--travado');
+    expect(cartao.getAttribute('title')).toContain('Inconsistente no RM');
+    expect(cartao.closest('li')!.getAttribute('draggable')).toBe('false');
   });
 
   it('tirar da turma o aluno com movimento salvo e sem turma na matrícula desfaz o movimento no RM', () => {
