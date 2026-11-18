@@ -131,6 +131,8 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     resposta: () => Observable<ApiAlunoEnturmacaoDto[]> = () => of(ALUNOS),
     turmas: () => Observable<ApiTurmaEnturmacaoDto[]> = () => of(TURMAS),
   ): void {
+    // A unidade lembrada de um teste não pré-carrega no outro.
+    localStorage.clear();
     anoLetivo.set('2026');
     anoCarregado.set('2026');
     getAlunos = vi.fn(resposta);
@@ -209,6 +211,96 @@ describe('VincularAlunosComponent (lado a lado)', () => {
 
     expect(getAlunos).toHaveBeenCalledWith('2026', 2);
     expect(tela.serieOptions().map((o) => o.label)).toEqual(['Selecione a série', '3º Ano - Ensino Fundamental (8)', '4º Ano - Ensino Fundamental (2)']);
+  });
+
+  describe('segmento', () => {
+    const MEDIO = '1ª Série - Ensino Médio - Manhã - EM';
+    const MARA = aluno('20', 'Mara', null, { segmento: 'Ensino Médio', codCurso: '5', codHabilitacao: '1', serie: MEDIO });
+
+    function abrirUnidade(): void {
+      montar(
+        () => of([...ALUNOS, MARA]),
+        () => of([...TURMAS, turmaDoCadastro('EM1A-M', '1ª Série A - Manhã')]),
+      );
+      tela.selecionarUnidade('2');
+      TestBed.tick();
+      fixture.detectChanges();
+    }
+
+    it('vem antes da série, com quantos alunos tem cada um; sem ele nem série, a tela pede o segmento', () => {
+      abrirUnidade();
+      const rotulos = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.va-filtros app-select')].map((s) =>
+        s.getAttribute('label'),
+      );
+      expect(rotulos).toEqual(['Ano letivo', 'Unidade', 'Segmento', 'Série']);
+      expect(tela.segmentoOptions().map((o) => o.label)).toEqual(['Todos os segmentos', 'Anos Iniciais (10)', 'Ensino Médio (1)']);
+      expect([tela.temEscopo(), tela.origem(), tela.destino()]).toEqual([false, null, null]);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Escolha o segmento');
+    });
+
+    it('escolhido, já mostra os alunos de todas as séries dele; a série só especifica', () => {
+      abrirUnidade();
+      tela.selecionarSegmento('Anos Iniciais');
+
+      // A origem junta os sem turma do período de todas as séries; o destino tem as turmas delas.
+      expect([tela.serie(), tela.origemId(), tela.destinoId()]).toEqual(['', 'periodo:M', 'EF3A-M']);
+      expect(tela.origem()!.turma.nome).toBe('Anos Iniciais - Manhã');
+      expect(nomes('origem')).toEqual(['Ivo', 'Júlia', 'Leo']);
+      expect(tela.turmaOptions().map((o) => o.value)).toEqual(['EF3A-M', 'EF3A-SM', 'EF3B-M', 'EF3D-T', 'EF4A-M', 'EF4B-T']);
+      expect(tela.serieOptions().map((o) => o.label)).toEqual([
+        'Todas as séries',
+        '3º Ano - Ensino Fundamental (8)',
+        '4º Ano - Ensino Fundamental (2)',
+      ]);
+
+      // A série especifica; "Todas as séries" volta ao segmento inteiro.
+      tela.selecionarSerie('2|4');
+      expect([tela.origem()!.turma.nome, tela.destinoId()]).toEqual(['4º Ano - Manhã', 'EF4A-M']);
+      expect(nomes('origem')).toEqual(['Leo']);
+      tela.selecionarSerie('');
+      expect([tela.origem()!.turma.nome, tela.destinoId()]).toEqual(['Anos Iniciais - Manhã', 'EF3A-M']);
+    });
+
+    it('a turma só recebe alunos da série dela: os de outra série ficam, com aviso', () => {
+      abrirUnidade();
+      const aviso = vi.spyOn(TestBed.inject(ToastService), 'warning');
+      tela.selecionarSegmento('Anos Iniciais');
+
+      // Ivo (3º ano) e Leo (4º ano) para o 3º A: só o Ivo vai.
+      tela.alternarAluno('origem', '9');
+      tela.alternarAluno('origem', '12');
+      tela.moverMarcados('origem');
+      expect(salvarNoRm).toHaveBeenLastCalledWith('fulano', '2026', 2, [{ ra: '9', codTurma: 'EF3A-M' }]);
+      expect(aviso).toHaveBeenCalledWith('1 aluno de outra série ficou onde estava', expect.stringContaining('3º Ano A - Manhã'));
+      expect(nomes('origem')).toEqual(['Júlia', 'Leo']);
+
+      // Só o Leo: nada vai e ele continua marcado, para escolher a turma do 4º ano.
+      salvarNoRm.mockClear();
+      tela.alternarAluno('origem', '12');
+      tela.moverMarcados('origem');
+      expect(salvarNoRm).not.toHaveBeenCalled();
+      expect(tela.qtdMarcadosOrigem()).toBe(1);
+      tela.escolherTurma('destino', 'EF4A-M');
+      tela.alternarAluno('origem', '12');
+      tela.moverMarcados('origem');
+      expect(salvarNoRm).toHaveBeenLastCalledWith('fulano', '2026', 2, [{ ra: '12', codTurma: 'EF4A-M' }]);
+    });
+
+    it('a série do segmento novo fica; a de outro segmento sai e a tela abre no segmento novo', () => {
+      abrirUnidade();
+      tela.selecionarSegmento('Anos Iniciais');
+      tela.selecionarSerie('2|3');
+      tela.selecionarSegmento('');
+      expect([tela.serie(), tela.origemId(), tela.destinoId()]).toEqual(['2|3', 'periodo:M', 'EF3A-M']);
+
+      tela.selecionarSegmento('Ensino Médio');
+      expect([tela.serie(), tela.origemId(), tela.destinoId()]).toEqual(['', 'periodo:M', 'EM1A-M']);
+      expect(nomes('origem')).toEqual(['Mara']);
+
+      // "Todos os segmentos" sem série: não há o que mostrar.
+      tela.selecionarSegmento('');
+      expect([tela.temEscopo(), tela.origemId(), tela.destinoId()]).toEqual([false, null, null]);
+    });
   });
 
   it('a origem é o período (os sem turma dele); o destino abre na primeira turma principal do período', () => {
@@ -724,9 +816,9 @@ describe('VincularAlunosComponent (lado a lado)', () => {
       ]);
       expect(tela.tipoAlunoOptions().map((o) => o.label)).toEqual(['Todos os tipos', 'Novos (2)', 'Veteranos (4)']);
       fixture.detectChanges();
-      // No topo ficam só ano, unidade e série: a turma anterior e o tipo foram para o menu de cada lado.
+      // No topo ficam só ano, unidade, segmento e série: a turma anterior e o tipo foram para o menu de cada lado.
       const rotulos = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.va-filtros label')].map((l) => l.textContent?.trim());
-      expect(rotulos).toEqual(['Ano letivo', 'Unidade', 'Série']);
+      expect(rotulos).toEqual(['Ano letivo', 'Unidade', 'Segmento', 'Série']);
     });
 
     it('cada lado tem o botão "Filtros" no lugar do A→Z; ele abre a ordenação, a turma anterior e o tipo de aluno', () => {
@@ -1034,6 +1126,7 @@ describe('VincularAlunosComponent (lado a lado)', () => {
   it('recriada pelo layout (celular ↔ computador), a tela volta como estava', () => {
     montar();
     abrir();
+    tela.selecionarSegmento('Anos Iniciais');
     tela.escolherTurma('destino', 'EF3D-T');
     tela.alternarAluno('origem', '9');
     tela.moverMarcados('origem');
@@ -1044,7 +1137,13 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     fixture.detectChanges();
     tela = fixture.componentInstance;
 
-    expect([tela.codFilial(), tela.serie(), tela.origemId(), tela.destinoId()]).toEqual([2, '2|3', 'periodo:M', 'EF3D-T']);
+    expect([tela.codFilial(), tela.segmento(), tela.serie(), tela.origemId(), tela.destinoId()]).toEqual([
+      2,
+      'Anos Iniciais',
+      '2|3',
+      'periodo:M',
+      'EF3D-T',
+    ]);
     expect(nomes('destino')).toEqual(['Ivo']);
     // A leitura dos alunos ainda vale: a tela recriada não vai ao RM de novo.
     expect(getAlunos).toHaveBeenCalledTimes(1);
@@ -1062,6 +1161,6 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     fixture.detectChanges();
     tela = fixture.componentInstance;
 
-    expect([tela.codFilial(), tela.serie(), tela.origemId(), tela.destinoId()]).toEqual([null, '', null, null]);
+    expect([tela.codFilial(), tela.segmento(), tela.serie(), tela.origemId(), tela.destinoId()]).toEqual([null, '', '', null, null]);
   });
 });

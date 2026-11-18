@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { environment } from '../../../environments/environment';
 import {
@@ -29,6 +29,9 @@ import { SelectComponent, SelectOption } from '../../shared/ui/select/select.com
 
 /** "1 aluno", "3 alunos". */
 const qtd = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+/** Quantas linhas a tabela mostra de cada vez ("Exibir mais" traz outras tantas). */
+export const POR_VEZ = 100;
 
 type EstadoDaLista =
   | { estado: 'carregando' }
@@ -71,7 +74,7 @@ export interface AlunoParaImportar {
 /**
  * Enturmação: os alunos que estão numa turma da pré-enturmação (OC_SAL_ENTUR_PARA_IMPORTAR), com a
  * situação de cada um: pendente (ainda não está na matrícula), enturmado (já está) ou inconsistente
- * (a FV recusou, com o motivo). Lista com filtro de série, segmento, turma e situação (abre em todas, para os
+ * (a FV recusou, com o motivo). Lista com filtro de segmento, série, turma e situação (abre em todas, para os
  * já enturmados continuarem à vista) e
  * busca; a secretaria marca os pendentes que vão e enturma. O esqueleto é o da Sala por Ano Letivo
  * (app-card, barra de filtros e ações, tabela), com as peças da lib SAEA.
@@ -197,37 +200,38 @@ export class EnturmacaoComponent {
     return estado.alunos.map(paraTela).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   });
 
-  readonly serieOptions = computed<SelectOption[]>(() => {
-    const series = [...new Set(this.alunos().map((a) => a.chaveSerie).filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b, 'pt-BR', { numeric: true }),
-    );
-    return [{ value: '', label: 'Todas as séries' }, ...series.map((s) => ({ value: s, label: s }))];
-  });
-
-  /** Os da série escolhida (todas, sem filtro). */
-  private readonly daSerie = computed(() => {
-    const serie = this.serie();
-    return serie ? this.alunos().filter((a) => a.chaveSerie === serie) : this.alunos();
-  });
-
-  /** Os segmentos da série escolhida (de todas, sem série). */
+  /** Os segmentos da unidade. O segmento vem antes da série: ele limita as séries. */
   readonly segmentoOptions = computed<SelectOption[]>(() => {
-    const segmentos = [...new Set(this.daSerie().map((a) => a.segmento).filter(Boolean))].sort((a, b) =>
+    const segmentos = [...new Set(this.alunos().map((a) => a.segmento).filter(Boolean))].sort((a, b) =>
       a.localeCompare(b, 'pt-BR', { numeric: true }),
     );
     return [{ value: '', label: 'Todos os segmentos' }, ...segmentos.map((s) => ({ value: s, label: s }))];
   });
 
-  /** Os da série e do segmento escolhidos. */
+  /** Os do segmento escolhido (todos, sem filtro). */
   private readonly doSegmento = computed(() => {
     const segmento = this.segmento();
-    return segmento ? this.daSerie().filter((a) => a.segmento === segmento) : this.daSerie();
+    return segmento ? this.alunos().filter((a) => a.segmento === segmento) : this.alunos();
   });
 
-  /** As turmas de destino da série e do segmento escolhidos (de todas, sem filtro), pelo nome: "3º Ano A - Manhã". */
+  /** As séries do segmento escolhido (de todos, sem segmento). */
+  readonly serieOptions = computed<SelectOption[]>(() => {
+    const series = [...new Set(this.doSegmento().map((a) => a.chaveSerie).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { numeric: true }),
+    );
+    return [{ value: '', label: 'Todas as séries' }, ...series.map((s) => ({ value: s, label: s }))];
+  });
+
+  /** Os do segmento e da série escolhidos. */
+  private readonly daSerie = computed(() => {
+    const serie = this.serie();
+    return serie ? this.doSegmento().filter((a) => a.chaveSerie === serie) : this.doSegmento();
+  });
+
+  /** As turmas de destino do segmento e da série escolhidos (de todas, sem filtro), pelo nome: "3º Ano A - Manhã". */
   readonly turmaOptions = computed<SelectOption[]>(() => {
     const turmas = new Map<string, string>();
-    this.doSegmento().forEach((a) => turmas.set(a.codTurma, a.nomeTurma));
+    this.daSerie().forEach((a) => turmas.set(a.codTurma, a.nomeTurma));
     const opcoes = [...turmas]
       .map(([codTurma, nome]) => ({ value: codTurma, label: rotuloDaTurma(codTurma, nome) }))
       .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { numeric: true }));
@@ -281,13 +285,13 @@ export class EnturmacaoComponent {
   /** Há alunos na enturmação da unidade (em qualquer situação): a barra de ações e a tabela aparecem. */
   readonly temAlunos = computed(() => this.pronto() && this.alunos().length > 0);
 
-  /** Os da série, do segmento e da turma escolhidos, em qualquer situação: a contagem do filtro de situação. */
+  /** Os do segmento, da série e da turma escolhidos, em qualquer situação: a contagem do filtro de situação. */
   private readonly daTurma = computed(() => {
     const turma = this.turma();
-    return this.doSegmento().filter((a) => !turma || a.codTurma === turma);
+    return this.daSerie().filter((a) => !turma || a.codTurma === turma);
   });
 
-  /** As situações, com quantos alunos da série, do segmento e da turma escolhidos têm cada uma. */
+  /** As situações, com quantos alunos do segmento, da série e da turma escolhidos têm cada uma. */
   readonly situacaoOptions = computed<SelectOption[]>(() => {
     const alunos = this.daTurma();
     const quantos = (s: SituacaoDoAluno) => alunos.filter((a) => a.situacao === s).length;
@@ -297,7 +301,7 @@ export class EnturmacaoComponent {
     ];
   });
 
-  /** As linhas da lista: série, segmento, turma, situação e busca (nome sem ligar para acento, ou RA). */
+  /** As linhas da lista: segmento, série, turma, situação e busca (nome sem ligar para acento, ou RA). */
   readonly visiveis = computed(() => {
     const situacao = this.situacao();
     const termo = normalizar(this.busca());
@@ -306,8 +310,27 @@ export class EnturmacaoComponent {
       .filter((a) => !termo || normalizar(a.nome).includes(termo) || a.id.includes(termo));
   });
 
-  /** Os pendentes da lista: só eles podem ser marcados. */
-  readonly visiveisPendentes = computed(() => this.visiveis().filter((a) => a.situacao === 'pendente'));
+  /**
+   * Quantas linhas da lista aparecem: 100 de cada vez, e "Exibir mais" traz as próximas 100. Uma
+   * unidade grande tem mais de mil alunos; desenhar todos (com a foto e o select de turma de cada um)
+   * deixa a tela pesada. Mudar a unidade, o ano, um filtro ou a busca volta às 100 primeiras.
+   */
+  readonly exibindo = linkedSignal({
+    source: () => [this.codFilial(), this.anoLetivo(), this.segmento(), this.serie(), this.turma(), this.situacao(), this.busca()],
+    computation: () => POR_VEZ,
+  });
+
+  /** As linhas que a tabela desenha: as primeiras da lista, até onde o "Exibir mais" chegou. */
+  readonly exibidos = computed(() => this.visiveis().slice(0, this.exibindo()));
+
+  /** Quantas da lista ainda não aparecem. */
+  readonly faltamExibir = computed(() => this.visiveis().length - this.exibidos().length);
+
+  /** "Exibir mais 100", ou só as que faltam no fim da lista ("Exibir mais 8"). */
+  readonly textoExibirMais = computed(() => `Exibir mais ${Math.min(POR_VEZ, this.faltamExibir())}`);
+
+  /** Os pendentes que a tabela mostra: só eles podem ser marcados (o quadrado do cabeçalho marca estes). */
+  readonly visiveisPendentes = computed(() => this.exibidos().filter((a) => a.situacao === 'pendente'));
 
   /** Os marcados que ainda estão na lista e pendentes (a lista relida pode não ter mais algum). */
   readonly alunosMarcados = computed(() => {
@@ -336,7 +359,7 @@ export class EnturmacaoComponent {
   /** A linha da lista vazia: o que falta, pela situação do filtro. */
   readonly textoSemResultado = computed(() => {
     const situacao = this.situacao();
-    const comFiltro = !!(this.serie() || this.segmento() || this.turma() || this.busca().trim());
+    const comFiltro = !!(this.segmento() || this.serie() || this.turma() || this.busca().trim());
     const fim = comFiltro ? ' com esse filtro.' : '.';
     if (situacao === 'pendente') return `Nenhum aluno pendente para enturmar${fim}`;
     if (situacao === 'enturmado') return `Nenhum aluno enturmado${fim}`;
@@ -361,10 +384,10 @@ export class EnturmacaoComponent {
       const ano = this.anoLetivo();
       if (filial !== null && !this.carregandoSalas()) untracked(() => this.ler(ano, filial));
     });
-    // As fotos de quem está na lista (só as que ainda não vieram; a lista não espera por elas).
+    // As fotos de quem a tabela mostra (só as que ainda não vieram; a lista não espera por elas).
     effect(() => {
       const filial = this.codFilial();
-      const ras = this.visiveis().map((a) => a.id);
+      const ras = this.exibidos().map((a) => a.id);
       const ano = this.anoLetivo();
       if (filial !== null && ras.length > 0) untracked(() => this.alunosService.fotosPara(ano, filial, ras));
     });
@@ -380,19 +403,21 @@ export class EnturmacaoComponent {
   selecionarUnidade(valor: string): void {
     this.codFilial.set(valor ? Number(valor) : null);
     this.limparFiltros();
+    // Na próxima entrada, os alunos dela já começam a ser lidos.
+    if (valor) this.alunosService.lembrarUnidade(this.anoLetivo(), Number(valor));
   }
 
-  /** Trocar a série solta o segmento e a turma que não forem dela. */
-  selecionarSerie(valor: string): void {
-    this.serie.set(valor);
-    const segmento = this.segmento();
-    if (segmento && !this.daSerie().some((a) => a.segmento === segmento)) this.segmento.set('');
+  /** Trocar o segmento solta a série e a turma que não forem dele. */
+  selecionarSegmento(valor: string): void {
+    this.segmento.set(valor);
+    const serie = this.serie();
+    if (serie && !this.doSegmento().some((a) => a.chaveSerie === serie)) this.serie.set('');
     this.soltarTurmaDeFora();
   }
 
-  /** Trocar o segmento solta a turma, se ela não for do segmento novo. */
-  selecionarSegmento(valor: string): void {
-    this.segmento.set(valor);
+  /** Trocar a série solta a turma, se ela não for da série nova. */
+  selecionarSerie(valor: string): void {
+    this.serie.set(valor);
     this.soltarTurmaDeFora();
   }
 
@@ -422,7 +447,12 @@ export class EnturmacaoComponent {
     });
   }
 
-  /** O quadrado do cabeçalho: marca (ou desmarca) todos os pendentes que a lista mostra agora. */
+  /** Mostra as próximas 100 linhas da lista (as fotos delas vêm em seguida). */
+  exibirMais(): void {
+    this.exibindo.update((n) => n + POR_VEZ);
+  }
+
+  /** O quadrado do cabeçalho: marca (ou desmarca) todos os pendentes que a tabela mostra agora. */
   alternarVisiveis(marcar: boolean): void {
     const ras = this.visiveisPendentes().map((a) => a.id);
     this.marcados.update((atual) => {
@@ -599,15 +629,15 @@ export class EnturmacaoComponent {
     });
   }
 
-  /** A turma escolhida que não está mais entre as da série e do segmento volta para todas. */
+  /** A turma escolhida que não está mais entre as do segmento e da série volta para todas. */
   private soltarTurmaDeFora(): void {
     const turma = this.turma();
-    if (turma && !this.doSegmento().some((a) => a.codTurma === turma)) this.turma.set('');
+    if (turma && !this.daSerie().some((a) => a.codTurma === turma)) this.turma.set('');
   }
 
   private limparFiltros(): void {
-    this.serie.set('');
     this.segmento.set('');
+    this.serie.set('');
     this.turma.set('');
     this.situacao.set('');
     this.busca.set('');

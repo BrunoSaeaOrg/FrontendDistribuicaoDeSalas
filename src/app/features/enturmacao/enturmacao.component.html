@@ -6,7 +6,7 @@
   >
     <app-carregando [ativo]="esperando()" [texto]="textoDaEspera()" [estimativaMs]="estimativaDaEspera()" />
 
-    <!-- Ano, unidade, série, segmento, turma, situação e busca à esquerda; marcar e enturmar à direita (como em Sala por Ano Letivo). -->
+    <!-- Ano, unidade, segmento, série, turma, situação e busca à esquerda; marcar e enturmar à direita (como em Sala por Ano Letivo). -->
     <div class="en-barra">
       <div class="en-escolhas">
         <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" />
@@ -18,17 +18,17 @@
           [disabled]="carregandoSalas()"
         />
         <app-select
-          label="Série"
-          [ngModel]="serie()"
-          (ngModelChange)="selecionarSerie($event)"
-          [options]="serieOptions()"
-          [disabled]="!temAlunos()"
-        />
-        <app-select
           label="Segmento"
           [ngModel]="segmento()"
           (ngModelChange)="selecionarSegmento($event)"
           [options]="segmentoOptions()"
+          [disabled]="!temAlunos()"
+        />
+        <app-select
+          label="Série"
+          [ngModel]="serie()"
+          (ngModelChange)="selecionarSerie($event)"
+          [options]="serieOptions()"
           [disabled]="!temAlunos()"
         />
         <app-select
@@ -98,7 +98,7 @@
             <tr>
               <th class="en-col-marca">
                 <saea-checkbox
-                  ariaLabel="Marcar todos os pendentes da lista"
+                  ariaLabel="Marcar todos os pendentes exibidos"
                   [checked]="todosVisiveisMarcados()"
                   [indeterminate]="visiveisEmParte()"
                   [disabled]="visiveisPendentes().length === 0"
@@ -112,7 +112,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (a of visiveis(); track a.id) {
+            @for (a of exibidos(); track a.id) {
               <tr [class.en-linha--marcada]="marcado(a.id)">
                 <!-- Só o pendente pode ser enturmado: os outros ficam sem caixa. -->
                 <td class="en-col-marca">
@@ -161,6 +161,15 @@
             }
           </tbody>
         </table>
+        <!-- 100 linhas de cada vez: o resto da lista vem pelo botão (mudar um filtro volta às 100 primeiras). -->
+        @if (faltamExibir() > 0) {
+          <div class="en-mais">
+            <span class="en-dica" aria-live="polite">Mostrando {{ exibidos().length }} de {{ visiveis().length }} alunos</span>
+            <app-button variant="secondary" (clicked)="exibirMais()">
+              <span class="material-icons" aria-hidden="true">expand_more</span> {{ textoExibirMais() }}
+            </app-button>
+          </div>
+        }
       }
     </div>
   </app-card>

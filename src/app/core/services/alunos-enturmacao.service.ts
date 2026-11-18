@@ -1,8 +1,30 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { concatMap, finalize, from, Observable, reduce, tap } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { ApiAlunoEnturmacaoDto, ApiEnturmacaoResultadoDto, ApiTurmaEnturmacaoDto } from '../models/ocupacao-api.model';
 import { OcupacaoApiService } from './ocupacao-api.service';
+import { chaveDoColaborador } from './preferencias.service';
+
+/** A última unidade aberta na Pré-enturmação ou na Enturmação: pré-carregada quando o colaborador entra. */
+export interface UltimaUnidade {
+  ano: string;
+  codFilial: number;
+}
+
+/** Uma chave por colaborador, ao lado das preferências dele (o computador pode ser de vários). */
+const chaveDaUltimaUnidade = (usuario: string) => `${chaveDoColaborador(usuario)}.enturmacao`;
+
+/** A última unidade que o colaborador abriu; null = nenhuma (ou o navegador não guarda). */
+export function lerUltimaUnidade(usuario: string): UltimaUnidade | null {
+  try {
+    const salvo = JSON.parse(localStorage.getItem(chaveDaUltimaUnidade(usuario)) ?? 'null') as Partial<UltimaUnidade> | null;
+    return typeof salvo?.ano === 'string' && /^\d{4}$/.test(salvo.ano) && Number.isInteger(salvo.codFilial)
+      ? { ano: salvo.ano, codFilial: salvo.codFilial! }
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 export type EstadoAlunos =
   | { estado: 'carregando' }
@@ -45,10 +67,12 @@ const FOTOS_POR_PEDIDO = 200;
 /** O back grava até 100 movimentos por pedido. */
 const MOVIMENTOS_POR_PEDIDO = 100;
 
-/** O que a tela mostrava: a unidade, a série e a turma de cada lado, no ano em que foram escolhidas. */
+/** O que a tela mostrava: a unidade, o segmento, a série e a turma de cada lado, no ano em que foram escolhidas. */
 export interface SelecaoDaTela {
   ano: string;
   codFilial: number | null;
+  /** O segmento do filtro ("Anos Iniciais"); vazio = todos. Opcional: a seleção de antes desta versão não tem. */
+  segmento?: string;
   serie: string;
   origemId: string | null;
   destinoId: string | null;
@@ -101,6 +125,35 @@ export class AlunosEnturmacaoService {
   readonly salvando = signal(0);
   /** A última escolha da tela; null = ela ainda não foi aberta. */
   selecao: SelecaoDaTela | null = null;
+
+  constructor() {
+    // Quem entra (ou já estava logado ao abrir o app) já começa a ler a última unidade que abriu.
+    effect(() => {
+      const usuario = this.auth.currentUser()?.username;
+      if (usuario) untracked(() => this.preCarregar(usuario));
+    });
+  }
+
+  /** Guarda a unidade aberta agora (Pré-enturmação ou Enturmação): é ela que se pré-carrega na próxima entrada. */
+  lembrarUnidade(ano: string, codFilial: number): void {
+    const usuario = this.auth.currentUser()?.username;
+    if (!usuario) return;
+    try {
+      localStorage.setItem(chaveDaUltimaUnidade(usuario), JSON.stringify({ ano, codFilial } satisfies UltimaUnidade));
+    } catch {
+      // Sem armazenamento (aba privada, bloqueio): só não pré-carrega.
+    }
+  }
+
+  /**
+   * Lê os alunos da última unidade que o colaborador abriu, sem tela esperando: a consulta do RM leva
+   * de 15 s a 1 min, e o back guarda a leitura. Quando ele chegar na Pré-enturmação ou na Enturmação,
+   * os alunos já estão prontos ou a caminho.
+   */
+  private preCarregar(usuario: string): void {
+    const ultima = lerUltimaUnidade(usuario);
+    if (ultima) this.garantirAlunos(ultima.ano, ultima.codFilial);
+  }
 
   estado(ano: string, codFilial: number): EstadoAlunos | undefined {
     return this._estados().get(chave(ano, codFilial));

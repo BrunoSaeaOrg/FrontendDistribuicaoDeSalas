@@ -101,6 +101,8 @@ interface SerieDaUnidade {
   chave: string;
   /** "3º Ano - Ensino Fundamental". */
   rotulo: string;
+  /** "Anos Iniciais" (SEGMENTO da API.OC.ENTUR.GER); vazio quando a consulta não traz. */
+  segmento: string;
   qtd: number;
 }
 
@@ -148,10 +150,11 @@ interface Chegada {
 }
 
 /**
- * Vincular aluno à turma, lado a lado: escolhe-se a unidade e a série; à esquerda fica a turma de
- * origem e à direita a de destino, com as fotos dos alunos. Marca-se e move-se de um lado para o
- * outro; no destino, os marcados também vão para qualquer outra turma da série ("Mover para outra
- * turma"), para corrigir quem foi para a turma errada.
+ * Vincular aluno à turma, lado a lado: escolhe-se a unidade e o segmento (que já abre os alunos de
+ * todas as séries dele) e, se quiser, a série; à esquerda fica a turma de origem e à direita a de
+ * destino, com as fotos dos alunos. Marca-se e move-se de um lado para o outro (cada turma só recebe
+ * alunos da série dela); no destino, os marcados também vão para qualquer outra turma da série
+ * ("Mover para outra turma"), para corrigir quem foi para a turma errada.
  *
  * Os dados são reais: as turmas do destino vêm do cadastro (OC_SAL_ENTUR_TURMAS), a sala de cada
  * uma do SalasService, alunos e fotos da pré-enturmação do RM (OC_SAL_ENTUR_ALUNOS e
@@ -199,6 +202,8 @@ export class VincularAlunosComponent {
   private readonly retomada = retomar(this.alunosService.selecao, this.salasService.anoLetivo());
 
   readonly codFilial = signal<number | null>(this.retomada?.codFilial ?? null);
+  /** O segmento do filtro ("Anos Iniciais"); vazio = todos. Vem antes da série e limita as séries. */
+  readonly segmento = signal(this.retomada?.segmento ?? '');
   readonly serie = signal(this.retomada?.serie ?? '');
   readonly origemId = signal<string | null>(this.retomada?.origemId ?? null);
   readonly destinoId = signal<string | null>(this.retomada?.destinoId ?? null);
@@ -340,20 +345,53 @@ export class VincularAlunosComponent {
     const mapa = new Map<string, SerieDaUnidade>();
     estado.alunos.forEach((dto) => {
       const chave = chaveDaSerie(dto);
+      const segmento = dto.segmento?.trim() ?? '';
       const atual = mapa.get(chave);
-      if (atual) atual.qtd++;
-      else mapa.set(chave, { chave, rotulo: rotuloDaSerie(dto.serie), qtd: 1 });
+      if (atual) {
+        atual.qtd++;
+        if (!atual.segmento) atual.segmento = segmento;
+      } else mapa.set(chave, { chave, rotulo: rotuloDaSerie(dto.serie), segmento, qtd: 1 });
     });
     return [...mapa.values()];
   });
 
+  /** Os segmentos da unidade, na ordem das séries, com quantos alunos tem cada um. */
+  readonly segmentoOptions = computed<SelectOption[]>(() => {
+    if (!this.prontos()) return [{ value: '', label: this.codFilial() === null ? 'Escolha a unidade antes' : 'Carregando...' }];
+    const qtd = new Map<string, number>();
+    this.series()
+      .filter((s) => s.segmento)
+      .forEach((s) => qtd.set(s.segmento, (qtd.get(s.segmento) ?? 0) + s.qtd));
+    return [{ value: '', label: 'Todos os segmentos' }, ...[...qtd].map(([s, n]) => ({ value: s, label: `${s} (${n})` }))];
+  });
+
+  /** As séries do segmento escolhido (todas, sem segmento). */
+  private readonly seriesDoSegmento = computed(() => {
+    const segmento = this.segmento();
+    return segmento ? this.series().filter((s) => s.segmento === segmento) : this.series();
+  });
+
+  /** Com segmento, a tela já mostra todas as séries dele: a série só especifica. Sem segmento, ela é obrigatória. */
   readonly serieOptions = computed<SelectOption[]>(() => {
     if (!this.prontos()) return [{ value: '', label: this.codFilial() === null ? 'Escolha a unidade antes' : 'Carregando...' }];
     return [
-      { value: '', label: 'Selecione a série' },
-      ...this.series().map((s) => ({ value: s.chave, label: `${s.rotulo} (${s.qtd})` })),
+      { value: '', label: this.segmento() ? 'Todas as séries' : 'Selecione a série' },
+      ...this.seriesDoSegmento().map((s) => ({ value: s.chave, label: `${s.rotulo} (${s.qtd})` })),
     ];
   });
+
+  /**
+   * As séries que a tela mostra (CODCURSO|CODHABILITACAO): a escolhida; sem ela, as do segmento; sem
+   * os dois, nenhuma (a tela pede para escolher).
+   */
+  private readonly seriesDoEscopo = computed<ReadonlySet<string>>(() => {
+    const serie = this.serie();
+    if (serie) return new Set([serie]);
+    return this.segmento() ? new Set(this.seriesDoSegmento().map((s) => s.chave)) : new Set();
+  });
+
+  /** Há o que mostrar: um segmento ou uma série escolhidos. */
+  readonly temEscopo = computed(() => this.seriesDoEscopo().size > 0);
 
   private readonly chaveMovimentos = computed(() => `${this.anoLetivo()}|${this.codFilial()}`);
   private readonly movidos = computed(() => this.movimentos().get(this.chaveMovimentos()) ?? new Map<string, string>());
@@ -389,56 +427,85 @@ export class VincularAlunosComponent {
   });
 
   /**
-   * As turmas da série, para o destino: as do cadastro da unidade no ano (OC_SAL_ENTUR_TURMAS), com
-   * ou sem sala e com ou sem aluno; as subturmas (Integral, Semi) entram como turmas próprias. A série
-   * da turma é a do curso e habilitação, se o cadastro trouxer; senão, a do nome ("3º Ano A - Manhã" é
-   * do 3º Ano). A sala e as carteiras vêm das salas do ano, pelo código da turma.
+   * As turmas da série (ou de todas as séries do segmento), para o destino, com as séries que cada uma
+   * recebe: as do cadastro da unidade no ano (OC_SAL_ENTUR_TURMAS), com ou sem sala e com ou sem aluno;
+   * as subturmas (Integral, Semi) entram como turmas próprias. A série da turma é a do curso e
+   * habilitação, se o cadastro trouxer; senão, a do nome ("3º Ano A - Manhã" é do 3º Ano). A sala e as
+   * carteiras vêm das salas do ano, pelo código da turma.
    */
-  readonly turmasDaSerie = computed<TurmaDaSerie[]>(() => {
-    const serie = this.serie();
-    if (!serie || this.codFilial() === null) return [];
-    const [codCurso, codHabilitacao] = serie.split('|');
-    const nomeDaSerie = serieDaTurma(this.series().find((s) => s.chave === serie)?.rotulo ?? '');
+  private readonly turmasComSeries = computed(() => {
+    const escopo = this.seriesDoEscopo();
+    const turmas = new Map<string, { turma: TurmaDaSerie; series: Set<string> }>();
+    if (escopo.size === 0 || this.codFilial() === null) return turmas;
+    const series = this.series()
+      .filter((s) => escopo.has(s.chave))
+      .map((s) => {
+        const [codCurso, codHabilitacao] = s.chave.split('|');
+        return { chave: s.chave, codCurso, codHabilitacao, nome: serieDaTurma(s.rotulo) };
+      });
     const salas = this.salaPorTurma();
-    const ehDaSerie = (t: ApiTurmaEnturmacaoDto) =>
-      t.codCurso && t.codHabilitacao
-        ? mesmoCodigo(t.codCurso, codCurso) && mesmoCodigo(t.codHabilitacao, codHabilitacao)
-        : serieDaTurma(t.nome) === nomeDaSerie;
     const daTurma = (codTurma: string, nome: string, turno: string): TurmaDaSerie => {
       const naSala = salas.get(codTurma);
       return { id: codTurma, nome, turno: naSala ? ROTULO_TURNO[naSala.sala.turno] : turno, sala: naSala?.sala ?? null };
     };
 
-    const turmas = new Map<string, TurmaDaSerie>();
-    this.turmasDaUnidade()
-      .filter(ehDaSerie)
-      .forEach((t) => turmas.set(t.codTurma, daTurma(t.codTurma, t.nome, t.turno ?? rotuloDoPeriodo(sufixoDaTurma(t.codTurma)))));
+    this.turmasDaUnidade().forEach((t) => {
+      const dela = series.filter((s) =>
+        t.codCurso && t.codHabilitacao
+          ? mesmoCodigo(t.codCurso, s.codCurso) && mesmoCodigo(t.codHabilitacao, s.codHabilitacao)
+          : serieDaTurma(t.nome) === s.nome,
+      );
+      if (dela.length === 0) return;
+      const turno = t.turno ?? rotuloDoPeriodo(sufixoDaTurma(t.codTurma));
+      turmas.set(t.codTurma, { turma: daTurma(t.codTurma, t.nome, turno), series: new Set(dela.map((s) => s.chave)) });
+    });
     // Aluno numa turma que o cadastro não trouxe (não deveria acontecer): ela entra, senão ele sumiria da tela.
+    const pelaSerie = new Set(turmas.keys());
     this.alunosDaUnidade().forEach((a) => {
       const cod = a.codTurmaOriginal;
-      if (a.serie === serie && cod && !turmas.has(cod)) turmas.set(cod, daTurma(cod, salas.get(cod)?.nome ?? cod, ''));
+      if (!escopo.has(a.serie) || !cod || pelaSerie.has(cod)) return;
+      const atual = turmas.get(cod);
+      if (atual) atual.series.add(a.serie);
+      else turmas.set(cod, { turma: daTurma(cod, salas.get(cod)?.nome ?? cod, ''), series: new Set([a.serie]) });
     });
-    return [...turmas.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true }));
+    return turmas;
   });
 
-  /** As turmas da série para o campo de destino: o nome e quantos alunos tem agora. */
+  /** As turmas do destino, pelo nome ("1º Ano A - Manhã", "2º Ano A - Manhã"...). */
+  readonly turmasDaSerie = computed<TurmaDaSerie[]>(() =>
+    [...this.turmasComSeries().values()]
+      .map(({ turma }) => turma)
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true })),
+  );
+
+  /** As turmas para o campo de destino: o nome e quantos alunos tem agora. */
   readonly turmaOptions = computed<SelectOption[]>(() =>
     this.turmasDaSerie().map((t) => ({ value: t.id, label: `${t.nome} (${this.alunosNaTurma(t.id).length})` })),
   );
 
   /**
+   * A turma recebe o aluno: é da série dele. Turma que a tela não conhece não barra ninguém (o RM
+   * diz se não der).
+   */
+  private cabeNaTurma(aluno: AlunoDaTela, codTurma: string): boolean {
+    return this.turmasComSeries().get(codTurma)?.series.has(aluno.serie) ?? true;
+  }
+
+  /**
    * A origem é por período: "4º Ano - Manhã" junta os alunos da série desse período que estão sem
-   * turma. Em 2027, o ano em que a tela vai ser usada, os alunos chegam sem turma, e o período de
-   * cada um vem da série dele no RM. Entram os períodos que têm aluno na série, na ordem do dia.
+   * turma; só com o segmento, "Anos Iniciais - Manhã" junta os de todas as séries dele. Em 2027, o ano
+   * em que a tela vai ser usada, os alunos chegam sem turma, e o período de cada um vem da série dele
+   * no RM. Entram os períodos que têm aluno, na ordem do dia.
    */
   readonly periodosDaSerie = computed<TurmaDaSerie[]>(() => {
+    const escopo = this.seriesDoEscopo();
+    if (escopo.size === 0) return [];
+    const presentes = new Set(this.alunosDaUnidade().filter((a) => escopo.has(a.serie)).map((a) => a.periodo));
     const serie = this.serie();
-    if (!serie) return [];
-    const presentes = new Set(this.alunosDaUnidade().filter((a) => a.serie === serie).map((a) => a.periodo));
-    const nomeDaSerie = (this.series().find((s) => s.chave === serie)?.rotulo ?? '').split(' - ')[0];
+    const nome = serie ? (this.series().find((s) => s.chave === serie)?.rotulo ?? '').split(' - ')[0] : this.segmento();
     return PERIODOS.filter((p) => presentes.has(p.chave)).map((p) => ({
       id: idDoPeriodo(p.chave),
-      nome: `${nomeDaSerie} - ${p.rotulo}`,
+      nome: `${nome} - ${p.rotulo}`,
       turno: p.rotulo,
       sala: null,
     }));
@@ -463,19 +530,20 @@ export class VincularAlunosComponent {
     return mapa;
   });
 
-  /** Os alunos de uma turma do destino ou, para um período da origem, os sem turma da série nele. */
+  /** Os alunos de uma turma do destino ou, para um período da origem, os sem turma da série (ou do segmento) nele. */
   private alunosNaTurma(id: string): AlunoDaTela[] {
     const periodo = chaveDoPeriodo(id);
     const todos = this.alunosPorTurma().get(periodo !== null ? SEM_TURMA : id) ?? [];
-    // "Sem turma" reúne todas as séries e períodos: aqui, só os da série da tela (e do período).
-    if (periodo !== null) return todos.filter((a) => a.serie === this.serie() && a.periodo === periodo);
-    return id === SEM_TURMA ? todos.filter((a) => a.serie === this.serie()) : todos;
+    // "Sem turma" reúne todas as séries e períodos: aqui, só os das séries da tela (e do período).
+    const escopo = this.seriesDoEscopo();
+    if (periodo !== null) return todos.filter((a) => escopo.has(a.serie) && a.periodo === periodo);
+    return id === SEM_TURMA ? todos.filter((a) => escopo.has(a.serie)) : todos;
   }
 
-  /** Os alunos da série (todos os períodos e turmas): as opções e contagens dos filtros. */
+  /** Os alunos da série ou do segmento (todos os períodos e turmas): as opções e contagens dos filtros. */
   private readonly alunosDaSerie = computed(() => {
-    const serie = this.serie();
-    return serie ? this.alunosDaUnidade().filter((a) => a.serie === serie) : [];
+    const escopo = this.seriesDoEscopo();
+    return escopo.size > 0 ? this.alunosDaUnidade().filter((a) => escopo.has(a.serie)) : [];
   });
 
   /** As turmas do ano anterior dos alunos da série, com quantos vieram de cada uma; e quem não tinha. */
@@ -577,12 +645,17 @@ export class VincularAlunosComponent {
    */
   readonly podeMover = computed(() => this.salvando() === 0 && this.estadoPendentes()?.estado === 'pronto');
 
-  /** As outras turmas da série, para onde os marcados do destino podem ir, com quantos alunos têm. */
-  readonly turmasParaMover = computed(() =>
-    this.turmasDaSerie()
-      .filter((t) => t.id !== this.destinoId())
-      .map((t) => ({ id: t.id, nome: t.nome, qtd: this.alunosNaTurma(t.id).length })),
-  );
+  /**
+   * As outras turmas da série, para onde os marcados do destino podem ir, com quantos alunos têm. Só
+   * com o segmento, entram só as que recebem a série de algum marcado.
+   */
+  readonly turmasParaMover = computed(() => {
+    const marcados = this.marcadosNoDestino();
+    const alunos = this.destino()?.alunos.filter((a) => marcados.has(a.id)) ?? [];
+    return this.turmasDaSerie()
+      .filter((t) => t.id !== this.destinoId() && (alunos.length === 0 || alunos.some((a) => this.cabeNaTurma(a, t.id))))
+      .map((t) => ({ id: t.id, nome: t.nome, qtd: this.alunosNaTurma(t.id).length }));
+  });
 
   /** O botão "Mover para outra turma" com a lista aberta embaixo dele; null = fechada. */
   private readonly menuMover = signal<HTMLElement | null>(null);
@@ -619,6 +692,7 @@ export class VincularAlunosComponent {
       this.alunosService.selecao = {
         ano: this.anoLetivo(),
         codFilial: this.codFilial(),
+        segmento: this.segmento(),
         serie: this.serie(),
         origemId: this.origemId(),
         destinoId: this.destinoId(),
@@ -855,19 +929,36 @@ export class VincularAlunosComponent {
   /** Trocar o ano troca o de todas as telas (é o do SalasService). Os movimentos ficam guardados por ano. */
   selecionarAno(ano: string): void {
     this.codFilial.set(null);
+    this.segmento.set('');
     this.limparSerie();
     this.salasService.selecionarAno(ano);
   }
 
   selecionarUnidade(valor: string): void {
     this.codFilial.set(valor ? Number(valor) : null);
+    this.segmento.set('');
     this.limparSerie();
+    // Na próxima entrada, os alunos dela já começam a ser lidos.
+    if (valor) this.alunosService.lembrarUnidade(this.anoLetivo(), Number(valor));
   }
 
   /**
-   * A série nova abre, na origem, com o primeiro período que tem aluno sem turma (senão o primeiro) e,
-   * no destino, com a primeira turma principal desse período: sem as subturmas Integral e Semi, que
-   * vêm antes na ordem do nome. Sem turma do período, a primeira principal; sem principal, a primeira.
+   * O segmento já abre os dois lados, com todas as séries dele; a série, se o usuário quiser, especifica
+   * depois. A série escolhida que é do segmento novo fica (a tela não muda); a de outro segmento sai, e
+   * a tela abre no segmento.
+   */
+  selecionarSegmento(valor: string): void {
+    this.segmento.set(valor);
+    const serie = this.serie();
+    if (serie && this.seriesDoSegmento().some((s) => s.chave === serie)) return;
+    this.selecionarSerie('');
+  }
+
+  /**
+   * A série nova (ou, sem série, o segmento) abre, na origem, com o primeiro período que tem aluno sem
+   * turma (senão o primeiro) e, no destino, com a primeira turma principal desse período: sem as
+   * subturmas Integral e Semi, que vêm antes na ordem do nome. Sem turma do período, a primeira
+   * principal; sem principal, a primeira.
    */
   selecionarSerie(chave: string): void {
     this.serie.set(chave);
@@ -1136,16 +1227,32 @@ export class VincularAlunosComponent {
   /**
    * Leva os alunos para a turma (ou, se for um período da origem, para "sem turma") e grava na hora.
    * O travado (enturmado ou Inconsistente) nunca vai junto, venha de onde vier o pedido (arraste, botões ou menu).
+   * Só com o segmento, os dois lados misturam séries: quem não é da série da turma fica onde está, com aviso.
    */
   private mover(ras: readonly string[], destinoId: string): void {
     if (!this.podeMover()) return;
     const para = paraTurma(destinoId);
     const travados = this.travados();
-    const chegando = this.aplicarMovimento(
-      ras.filter((ra) => !travados.has(ra)),
-      para,
-    );
+    const porRa = new Map(this.alunosDaUnidade().map((a) => [a.id, a]));
+    const livres = ras.filter((ra) => !travados.has(ra));
+    const deOutraSerie = para === SEM_TURMA ? [] : livres.filter((ra) => porRa.has(ra) && !this.cabeNaTurma(porRa.get(ra)!, para));
+    const vao = livres.filter((ra) => !deOutraSerie.includes(ra));
+    // Ninguém da série da turma: nada muda e os marcados continuam marcados, para escolher a turma certa.
+    if (deOutraSerie.length > 0 && vao.length === 0) {
+      this.avisarOutraSerie(deOutraSerie.length, para, false);
+      return;
+    }
+    const chegando = this.aplicarMovimento(vao, para);
+    if (deOutraSerie.length > 0) this.avisarOutraSerie(deOutraSerie.length, para, chegando.length > 0);
     if (chegando.length > 0) this.gravar(chegando, para);
+  }
+
+  /** "2 alunos de outra série ficaram onde estavam": a turma só recebe alunos da série dela. */
+  private avisarOutraSerie(qtd: number, para: string, outrosForam: boolean): void {
+    const ficaram = `${qtdAlunos(qtd)} de outra série ${qtd === 1 ? 'ficou onde estava' : 'ficaram onde estavam'}`;
+    const turma = this.nomeDaTurma(para);
+    const dica = outrosForam ? 'Os da série dela foram movidos.' : 'Escolha no destino uma turma da série deles ou filtre pela série.';
+    this.toast.warning(ficaram, `${turma} só recebe alunos da série dela. ${dica}`);
   }
 
   /**

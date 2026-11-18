@@ -135,6 +135,17 @@
   color: var(--saea-ink-soft);
 }
 
+/* Embaixo da tabela: quantas aparecem e o botão que traz as próximas 100. */
+.en-mais {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-2);
+  border-top: 1px solid var(--saea-border);
+}
+
 /* "Requer revisão": o motivo da FV embaixo do selo, em até duas linhas (inteiro na dica). */
 .en-motivo {
   display: -webkit-box;

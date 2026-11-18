@@ -74,6 +74,8 @@ describe('EnturmacaoComponent', () => {
   const anoLetivo = signal('2027');
 
   function montar(resposta: () => Observable<ApiEnturmacaoParaImportarDto[]> = () => of(ALUNOS)): void {
+    // A unidade lembrada de um teste não pré-carrega no outro.
+    localStorage.clear();
     anoLetivo.set('2027');
     getLista = vi.fn(resposta);
     importar = vi.fn();
@@ -177,7 +179,7 @@ describe('EnturmacaoComponent', () => {
     expect(nomes()).toEqual(['Bruno']);
   });
 
-  it('o segmento vem depois da série e filtra; lista os da série, solta a turma de fora e some ao trocar para outra série', () => {
+  it('o segmento vem antes da série e a limita; solta a série e a turma de fora', () => {
     montar(() =>
       of([
         aluno('1', 'Ana', 'EF3A-M', { segmento: 'Anos Iniciais' }),
@@ -193,7 +195,7 @@ describe('EnturmacaoComponent', () => {
     const rotulos = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.en-escolhas app-select')].map((s) =>
       s.getAttribute('label'),
     );
-    expect(rotulos).toEqual(['Ano letivo', 'Unidade', 'Série', 'Segmento', 'Turma', 'Situação']);
+    expect(rotulos).toEqual(['Ano letivo', 'Unidade', 'Segmento', 'Série', 'Turma', 'Situação']);
     expect(tela.segmentoOptions().map((o) => o.label)).toEqual(['Todos os segmentos', 'Anos Iniciais', 'Integral']);
 
     tela.selecionarSegmento('Anos Iniciais');
@@ -206,13 +208,18 @@ describe('EnturmacaoComponent', () => {
     tela.selecionarSegmento('Anos Iniciais');
     expect(tela.turma()).toBe('');
 
-    // O 5º ano não tem Integral: trocar a série solta o segmento.
-    tela.selecionarSerie('3º Ano - Ensino Fundamental');
-    tela.selecionarSegmento('Integral');
+    // O Integral só tem o 3º ano: as séries ficam só as dele, e o 5º ano escolhido antes é solto.
     tela.selecionarSerie('5º Ano - Ensino Fundamental');
-    expect(tela.segmento()).toBe('');
-    expect(tela.segmentoOptions().map((o) => o.label)).toEqual(['Todos os segmentos', 'Anos Iniciais']);
-    expect(nomes()).toEqual(['Carla']);
+    tela.selecionarSegmento('Integral');
+    expect(tela.serie()).toBe('');
+    expect(tela.serieOptions().map((o) => o.label)).toEqual(['Todas as séries', '3º Ano - Ensino Fundamental']);
+    expect(nomes()).toEqual(['Bruno']);
+
+    // A série que também é do segmento novo fica.
+    tela.selecionarSerie('3º Ano - Ensino Fundamental');
+    tela.selecionarSegmento('Anos Iniciais');
+    expect(tela.serie()).toBe('3º Ano - Ensino Fundamental');
+    expect(nomes()).toEqual(['Ana']);
   });
 
   it('marca um a um ou todos os da lista pelo cabeçalho (que também desmarca); o resumo conta alunos e turmas', () => {
@@ -517,6 +524,43 @@ describe('EnturmacaoComponent', () => {
     tela.tentarDeNovo();
     expect(getLista).toHaveBeenCalledTimes(2);
     expect(tela.pronto()).toBe(true);
+  });
+
+  it('mostra 100 alunos de cada vez: "Exibir mais" traz os próximos, e um filtro volta aos 100 primeiros', () => {
+    // 250 pendentes do 3º A, em ordem alfabética pelo número ("Aluno 001"...), e 1 do 5º ano no fim.
+    const muitos = Array.from({ length: 250 }, (_, i) => aluno(String(1000 + i), `Aluno ${String(i + 1).padStart(3, '0')}`, 'EF3A-M'));
+    montar(() => of([...muitos, aluno('9', 'Zeca', 'EF5A-M', { serie: QUINTO })]));
+    const getFotos = TestBed.inject(OcupacaoApiService).getFotosEnturmacao as ReturnType<typeof vi.fn>;
+    abrir();
+    fixture.detectChanges();
+    const linhas = () => (fixture.nativeElement as HTMLElement).querySelectorAll('.en-tabela tbody tr').length;
+    const texto = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+    expect([tela.visiveis().length, tela.exibidos().length, linhas()]).toEqual([251, 100, 100]);
+    expect(texto()).toContain('Mostrando 100 de 251 alunos');
+    expect(tela.textoExibirMais()).toBe('Exibir mais 100');
+    // As fotos pedidas são só as das linhas que aparecem.
+    expect(getFotos.mock.calls.flatMap((c) => c[2] as string[])).toHaveLength(100);
+
+    // O quadrado do cabeçalho marca só os pendentes que aparecem.
+    tela.alternarVisiveis(true);
+    expect(tela.marcados().size).toBe(100);
+
+    tela.exibirMais();
+    tela.exibirMais();
+    TestBed.tick();
+    fixture.detectChanges();
+    expect([tela.exibidos().length, linhas(), tela.faltamExibir()]).toEqual([251, 251, 0]);
+    expect(texto()).not.toContain('Mostrando');
+    expect(getFotos.mock.calls.flatMap((c) => c[2] as string[])).toHaveLength(251);
+    // Os marcados antes continuam marcados.
+    expect(tela.marcados().size).toBe(100);
+
+    // Mudar um filtro volta às 100 primeiras; no fim da lista, o botão diz quantas faltam.
+    tela.selecionarSerie('3º Ano - Ensino Fundamental');
+    expect([tela.visiveis().length, tela.exibidos().length]).toEqual([250, 100]);
+    tela.exibirMais();
+    expect(tela.textoExibirMais()).toBe('Exibir mais 50');
   });
 
   it('trocar de unidade relê e limpa os filtros e os marcados (a situação volta a todas)', () => {

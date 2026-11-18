@@ -11,6 +11,13 @@
         [disabled]="carregandoSalas()"
       />
       <app-select
+        label="Segmento"
+        [ngModel]="segmento()"
+        (ngModelChange)="selecionarSegmento($event)"
+        [options]="segmentoOptions()"
+        [disabled]="!prontos()"
+      />
+      <app-select
         label="Série"
         [ngModel]="serie()"
         (ngModelChange)="selecionarSerie($event)"
@@ -25,8 +32,8 @@
     <div class="va-vazio">
       <app-empty-state
         icon="groups"
-        title="Escolha a unidade e a série"
-        description="As turmas da série aparecem lado a lado, com as fotos dos alunos, para você mover de uma para outra."
+        title="Escolha a unidade e o segmento"
+        description="As turmas aparecem lado a lado, com as fotos dos alunos, para você mover de uma para outra."
       />
     </div>
   } @else if (erroDeLeitura(); as erro) {
@@ -34,9 +41,13 @@
       <app-alert tone="danger">{{ erro }}</app-alert>
       <app-button variant="secondary" size="sm" (clicked)="tentarDeNovo()">Tentar de novo</app-button>
     </div>
-  } @else if (prontos() && !serie()) {
+  } @else if (prontos() && !temEscopo()) {
     <div class="va-vazio">
-      <app-empty-state icon="school" title="Escolha a série" description="A lista de séries mostra quantos alunos cada uma tem na unidade." />
+      <app-empty-state
+        icon="school"
+        title="Escolha o segmento"
+        description="Os alunos do segmento aparecem na hora. Para ver uma série só, escolha também a série."
+      />
     </div>
   } @else if (prontos()) {
     <div class="va-lados">
