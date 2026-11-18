@@ -511,9 +511,9 @@ export class VincularAlunosComponent {
     }));
   });
 
-  /** Os períodos para o campo de origem, só com o nome. */
+  /** Os períodos para o campo de origem: o nome e quantos alunos ainda estão sem turma nele. */
   readonly turmaOptionsOrigem = computed<SelectOption[]>(() =>
-    this.periodosDaSerie().map((p) => ({ value: p.id, label: p.nome })),
+    this.periodosDaSerie().map((p) => ({ value: p.id, label: `${p.nome} (${this.alunosNaTurma(p.id).length})` })),
   );
 
   /** Alunos da unidade (todas as séries) por turma em que estão agora: a lotação conta todos. */

@@ -58,7 +58,7 @@ describe('HeaderComponent', () => {
     // Switch, nome e foto, nessa ordem.
     expect(nomeAoLado.previousElementSibling?.tagName).toBe('SAEA-THEME-TOGGLE');
     expect(nomeAoLado.nextElementSibling?.tagName).toBe('APP-USER-AVATAR');
-    expect(header.querySelector('.saea-header-app')?.textContent?.trim()).toBe('Ocupação de Salas');
+    expect(header.querySelector('.saea-header-app')?.textContent?.trim()).toBe('Gestão de Salas');
     // Sobre a superfície da página o anel de foco do switch volta a ser o primário.
     expect(header.querySelector('saea-theme-toggle')!.classList).toContain('saea-theme-toggle--ghost');
   });
