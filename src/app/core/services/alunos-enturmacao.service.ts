@@ -147,6 +147,14 @@ export class AlunosEnturmacaoService {
     return lerAlunos;
   }
 
+  /**
+   * Relê só as turmas do cadastro (se não estiverem sendo lidas): a Enturmação usa para trocar o aluno
+   * de turma. Enquanto relê, as que já se conheciam continuam valendo.
+   */
+  atualizarTurmas(ano: string, codFilial: number): void {
+    if (this.turmas(ano, codFilial)?.estado !== 'carregando') this.lerTurmas(ano, codFilial);
+  }
+
   /** A foto do aluno (data URL), se já chegou; null = sem foto ou ainda não veio. */
   foto(ano: string, codFilial: number, ra: string): string | null {
     return this._fotos().get(chave(ano, codFilial))?.get(ra) ?? null;

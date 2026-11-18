@@ -1,13 +1,23 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { environment } from '../../../environments/environment';
-import { SaeaAvatarComponent, SaeaCheckboxComponent, SaeaInputComponent } from '@sistemas-saea/saea-design-system';
+import {
+  SaeaAvatarComponent,
+  SaeaCheckboxComponent,
+  SaeaInputComponent,
+  SaeaSelectComponent,
+  SaeaSelectOption,
+} from '@sistemas-saea/saea-design-system';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
-import { ApiEnturmacaoImportacaoDto, ApiEnturmacaoParaImportarDto } from '../../core/models/ocupacao-api.model';
+import {
+  ApiEnturmacaoImportacaoDto,
+  ApiEnturmacaoParaImportarDto,
+  ApiTurmaEnturmacaoDto,
+} from '../../core/models/ocupacao-api.model';
 import { AlunosEnturmacaoService } from '../../core/services/alunos-enturmacao.service';
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
-import { motivoDaFalha, SalasService } from '../../core/services/salas.service';
+import { mesmoCodigo, motivoDaFalha, SalasService, serieDaTurma } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
 import { BadgeComponent, BadgeTone } from '../../shared/ui/badge/badge.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
@@ -46,6 +56,11 @@ export interface AlunoParaImportar {
   serie: string;
   /** "5º Ano - Ensino Fundamental": o filtro de série. */
   chaveSerie: string;
+  /** "Anos Iniciais": o filtro de segmento (vazio quando o back não manda). */
+  segmento: string;
+  /** A série da matrícula (curso e habilitação): a troca de turma fica nas turmas dela. Vazios no back antigo. */
+  codCurso: string;
+  codHabilitacao: string;
   codTurma: string;
   nomeTurma: string;
   situacao: SituacaoDoAluno;
@@ -56,10 +71,15 @@ export interface AlunoParaImportar {
 /**
  * Enturmação: os alunos que estão numa turma da pré-enturmação (OC_SAL_ENTUR_PARA_IMPORTAR), com a
  * situação de cada um: pendente (ainda não está na matrícula), enturmado (já está) ou inconsistente
- * (a FV recusou, com o motivo). Lista com filtro de série, turma e situação (abre em todas, para os
+ * (a FV recusou, com o motivo). Lista com filtro de série, segmento, turma e situação (abre em todas, para os
  * já enturmados continuarem à vista) e
  * busca; a secretaria marca os pendentes que vão e enturma. O esqueleto é o da Sala por Ano Letivo
  * (app-card, barra de filtros e ações, tabela), com as peças da lib SAEA.
+ *
+ * O pendente e o inconsistente trocam de turma pela própria lista (8º A → 8º B), sem voltar à
+ * Pré-enturmação: o select mostra as turmas do cadastro da mesma série e grava na hora no MD, como o
+ * movimento de lá (OC_SAL_ENTUR_SALVAR). O inconsistente volta a pendente, na turma nova. O
+ * enturmado não troca (já está na matrícula).
  *
  * Enturmar roda a FV "EDU - Enturmação" do RM (OC_SAL_ENTUR_IMPORTAR, só no TTESTE por enquanto),
  * com os registros dos marcados: ela grava a turma na matrícula ou manda o aluno para revisão, com o
@@ -74,6 +94,7 @@ export interface AlunoParaImportar {
     SaeaAvatarComponent,
     SaeaCheckboxComponent,
     SaeaInputComponent,
+    SaeaSelectComponent,
     BadgeComponent,
     ButtonComponent,
     CardComponent,
@@ -100,6 +121,8 @@ export class EnturmacaoComponent {
   readonly codFilial = signal<number | null>(null);
   /** A série do filtro ("5º Ano - Ensino Fundamental"); vazia = todas. */
   readonly serie = signal('');
+  /** O segmento do filtro ("Anos Iniciais"); vazio = todos. */
+  readonly segmento = signal('');
   /** A turma de destino do filtro (CODTURMA); vazia = todas. */
   readonly turma = signal('');
   /**
@@ -120,6 +143,8 @@ export class EnturmacaoComponent {
 
   /** A FV de importação está rodando no RM (ela grava aluno por aluno). */
   readonly importando = signal(false);
+  /** As trocas de turma sendo gravadas agora (RA → turma nova): o select já mostra a nova. */
+  readonly trocando = signal<ReadonlyMap<string, string>>(new Map());
   /** Quantos alunos foram para a FV: a barra de progresso estima o tempo por eles. */
   private readonly enviadosNaImportacao = signal(0);
 
@@ -185,26 +210,84 @@ export class EnturmacaoComponent {
     return serie ? this.alunos().filter((a) => a.chaveSerie === serie) : this.alunos();
   });
 
-  /** As turmas de destino da série escolhida (de todas, sem série), pelo nome: "3º Ano A - Manhã". */
+  /** Os segmentos da série escolhida (de todas, sem série). */
+  readonly segmentoOptions = computed<SelectOption[]>(() => {
+    const segmentos = [...new Set(this.daSerie().map((a) => a.segmento).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR', { numeric: true }),
+    );
+    return [{ value: '', label: 'Todos os segmentos' }, ...segmentos.map((s) => ({ value: s, label: s }))];
+  });
+
+  /** Os da série e do segmento escolhidos. */
+  private readonly doSegmento = computed(() => {
+    const segmento = this.segmento();
+    return segmento ? this.daSerie().filter((a) => a.segmento === segmento) : this.daSerie();
+  });
+
+  /** As turmas de destino da série e do segmento escolhidos (de todas, sem filtro), pelo nome: "3º Ano A - Manhã". */
   readonly turmaOptions = computed<SelectOption[]>(() => {
     const turmas = new Map<string, string>();
-    this.daSerie().forEach((a) => turmas.set(a.codTurma, a.nomeTurma));
+    this.doSegmento().forEach((a) => turmas.set(a.codTurma, a.nomeTurma));
     const opcoes = [...turmas]
-      .map(([codTurma, nome]) => ({ value: codTurma, label: nome === codTurma ? codTurma : `${nome} (${codTurma})` }))
+      .map(([codTurma, nome]) => ({ value: codTurma, label: rotuloDaTurma(codTurma, nome) }))
       .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { numeric: true }));
     return [{ value: '', label: 'Todas as turmas' }, ...opcoes];
+  });
+
+  /** As turmas do cadastro da unidade no ano (OC_SAL_ENTUR_TURMAS), as mesmas da Pré-enturmação. */
+  private readonly turmasDoCadastro = computed<readonly ApiTurmaEnturmacaoDto[]>(() => {
+    const filial = this.codFilial();
+    if (filial === null) return [];
+    const estado = this.alunosService.turmas(this.anoLetivo(), filial);
+    return estado?.estado === 'pronto' ? estado.turmas : [];
+  });
+
+  /**
+   * Para onde cada pendente ou inconsistente pode trocar (RA → opções): as turmas do cadastro da série
+   * dele, com a regra da Pré-enturmação (curso e habilitação; sem eles, a série do nome). A turma atual
+   * sempre aparece, mesmo antes de o cadastro chegar.
+   */
+  readonly opcoesDeTurma = computed<ReadonlyMap<string, SaeaSelectOption[]>>(() => {
+    const turmas = this.turmasDoCadastro();
+    const porSerie = new Map<string, SaeaSelectOption[]>();
+    const porRa = new Map<string, SaeaSelectOption[]>();
+    this.alunos()
+      .filter(podeTrocarDeTurma)
+      .forEach((a) => {
+        const chave = `${a.codCurso}|${a.codHabilitacao}|${a.chaveSerie}`;
+        let daSerie = porSerie.get(chave);
+        if (!daSerie) {
+          const nomeDaSerie = serieDaTurma(a.chaveSerie);
+          daSerie = turmas
+            .filter((t) =>
+              t.codCurso && t.codHabilitacao && a.codCurso && a.codHabilitacao
+                ? mesmoCodigo(t.codCurso, a.codCurso) && mesmoCodigo(t.codHabilitacao, a.codHabilitacao)
+                : serieDaTurma(t.nome) === nomeDaSerie,
+            )
+            .map((t) => ({ value: t.codTurma, label: rotuloDaTurma(t.codTurma, t.nome) }))
+            .sort((x, y) => x.label.localeCompare(y.label, 'pt-BR', { numeric: true }));
+          porSerie.set(chave, daSerie);
+        }
+        porRa.set(
+          a.id,
+          daSerie.some((o) => o.value === a.codTurma)
+            ? daSerie
+            : [{ value: a.codTurma, label: rotuloDaTurma(a.codTurma, a.nomeTurma) }, ...daSerie],
+        );
+      });
+    return porRa;
   });
 
   /** Há alunos na enturmação da unidade (em qualquer situação): a barra de ações e a tabela aparecem. */
   readonly temAlunos = computed(() => this.pronto() && this.alunos().length > 0);
 
-  /** Os da série e da turma escolhidas, em qualquer situação: a contagem do filtro de situação. */
+  /** Os da série, do segmento e da turma escolhidos, em qualquer situação: a contagem do filtro de situação. */
   private readonly daTurma = computed(() => {
     const turma = this.turma();
-    return this.daSerie().filter((a) => !turma || a.codTurma === turma);
+    return this.doSegmento().filter((a) => !turma || a.codTurma === turma);
   });
 
-  /** As situações, com quantos alunos da série e da turma escolhidas têm cada uma. */
+  /** As situações, com quantos alunos da série, do segmento e da turma escolhidos têm cada uma. */
   readonly situacaoOptions = computed<SelectOption[]>(() => {
     const alunos = this.daTurma();
     const quantos = (s: SituacaoDoAluno) => alunos.filter((a) => a.situacao === s).length;
@@ -214,7 +297,7 @@ export class EnturmacaoComponent {
     ];
   });
 
-  /** As linhas da lista: série, turma, situação e busca (nome sem ligar para acento, ou RA). */
+  /** As linhas da lista: série, segmento, turma, situação e busca (nome sem ligar para acento, ou RA). */
   readonly visiveis = computed(() => {
     const situacao = this.situacao();
     const termo = normalizar(this.busca());
@@ -253,7 +336,7 @@ export class EnturmacaoComponent {
   /** A linha da lista vazia: o que falta, pela situação do filtro. */
   readonly textoSemResultado = computed(() => {
     const situacao = this.situacao();
-    const comFiltro = !!(this.serie() || this.turma() || this.busca().trim());
+    const comFiltro = !!(this.serie() || this.segmento() || this.turma() || this.busca().trim());
     const fim = comFiltro ? ' com esse filtro.' : '.';
     if (situacao === 'pendente') return `Nenhum aluno pendente para enturmar${fim}`;
     if (situacao === 'enturmado') return `Nenhum aluno enturmado${fim}`;
@@ -299,11 +382,18 @@ export class EnturmacaoComponent {
     this.limparFiltros();
   }
 
-  /** Trocar a série solta a turma, se ela não for da série nova. */
+  /** Trocar a série solta o segmento e a turma que não forem dela. */
   selecionarSerie(valor: string): void {
     this.serie.set(valor);
-    const turma = this.turma();
-    if (turma && !this.daSerie().some((a) => a.codTurma === turma)) this.turma.set('');
+    const segmento = this.segmento();
+    if (segmento && !this.daSerie().some((a) => a.segmento === segmento)) this.segmento.set('');
+    this.soltarTurmaDeFora();
+  }
+
+  /** Trocar o segmento solta a turma, se ela não for do segmento novo. */
+  selecionarSegmento(valor: string): void {
+    this.segmento.set(valor);
+    this.soltarTurmaDeFora();
   }
 
   selecionarTurma(valor: string): void {
@@ -346,6 +436,77 @@ export class EnturmacaoComponent {
     this.marcados.set(new Set());
   }
 
+  /** A turma que o select mostra: a nova enquanto a troca grava, senão a do aluno. */
+  turmaNaTela(aluno: AlunoParaImportar): string {
+    return this.trocando().get(aluno.id) ?? aluno.codTurma;
+  }
+
+  /** O select de turma da linha: o pendente e o inconsistente trocam; o enturmado, não. */
+  readonly podeTrocarDeTurma = podeTrocarDeTurma;
+
+  /**
+   * Troca o pendente ou o inconsistente de turma e grava na hora no MD de enturmação (o mesmo
+   * movimento da Pré-enturmação): ele fica pendente na turma nova (o inconsistente sai dessa situação,
+   * sem o motivo da FV). Se o RM recusar, o select volta para a turma de antes e o aviso diz por quê.
+   */
+  trocarTurma(aluno: AlunoParaImportar, codTurma: string | null): void {
+    const filial = this.codFilial();
+    if (!codTurma || codTurma === aluno.codTurma || filial === null || !podeTrocarDeTurma(aluno)) return;
+    if (this.importando() || this.trocando().has(aluno.id)) return;
+    const ano = this.anoLetivo();
+    const nomeTurma = this.nomeDaTurma(codTurma);
+    this.trocando.update((m) => new Map(m).set(aluno.id, codTurma));
+    const terminar = () =>
+      this.trocando.update((m) => {
+        const proximo = new Map(m);
+        proximo.delete(aluno.id);
+        return proximo;
+      });
+
+    this.alunosService.salvar(ano, filial, [{ ra: aluno.id, codTurma }]).subscribe({
+      next: (resultados) => {
+        const resultado = resultados.find((r) => r.ra === aluno.id);
+        if (!resultado || resultado.situacao === 'falhou') {
+          terminar();
+          this.toast.warning(
+            'Não foi possível trocar a turma',
+            `${resultado?.motivo ?? 'Não foi possível salvar.'} ${aluno.nome} continua em ${aluno.nomeTurma}.`,
+          );
+          return;
+        }
+        // De volta à turma da matrícula, o back deixa o registro como Importado: o aluno fica enturmado.
+        const naMatricula = resultado.situacao === 'na-matricula';
+        // A lista pode ter mudado de unidade ou de ano enquanto gravava: aí ela já é outra.
+        if (this.codFilial() === filial && this.anoLetivo() === ano)
+          this.mudarNaLista(aluno.id, codTurma, nomeTurma, naMatricula ? 'importado' : 'pendente');
+        terminar();
+        if (naMatricula) this.toast.success(`Aluno de volta a ${nomeTurma}`, `${aluno.nome} já está nessa turma na matrícula: fica como enturmado.`);
+        else if (aluno.situacao === 'revisao')
+          this.toast.success(`Aluno movido para ${nomeTurma}`, `${aluno.nome} deixou de ser inconsistente: está pendente nessa turma, pronto para enturmar.`);
+        else this.toast.success(`Aluno movido para ${nomeTurma}`, `${aluno.nome} continua pendente, agora nessa turma.`);
+      },
+      error: (err) => {
+        terminar();
+        this.toast.danger('Não foi possível trocar a turma', `${motivoDaFalha(err)} ${aluno.nome} continua em ${aluno.nomeTurma}.`);
+      },
+    });
+  }
+
+  /** O nome da turma no cadastro; sem ele, o código. */
+  private nomeDaTurma(codTurma: string): string {
+    return this.turmasDoCadastro().find((t) => t.codTurma === codTurma)?.nome ?? codTurma;
+  }
+
+  /** Põe o aluno na turma nova na lista que já está na tela, sem reler do RM (a leitura é lenta). */
+  private mudarNaLista(ra: string, codTurma: string, nomeTurma: string, situacao: 'pendente' | 'importado'): void {
+    const estado = this.estado();
+    if (estado?.estado !== 'pronto') return;
+    this.estado.set({
+      estado: 'pronto',
+      alunos: estado.alunos.map((a) => (a.ra === ra ? { ...a, codTurma, nomeTurma, situacao, obs: null } : a)),
+    });
+  }
+
   /** A foto do aluno (data URL) ou null: sem ela, o saea-avatar mostra as iniciais. */
   foto(aluno: AlunoParaImportar): string | null {
     const filial = this.codFilial();
@@ -357,7 +518,8 @@ export class EnturmacaoComponent {
     const marcados = this.alunosMarcados();
     const filial = this.codFilial();
     const usuario = this.auth.currentUser()?.username;
-    if (marcados.length === 0 || filial === null || !usuario || this.importando()) return;
+    // Com uma troca de turma gravando, a FV poderia pegar o registro de antes.
+    if (marcados.length === 0 || filial === null || !usuario || this.importando() || this.trocando().size > 0) return;
     const turmas = new Set(marcados.map((a) => a.codTurma)).size;
     const confirmou = await this.confirmDialog.confirm({
       title: `Enturmar ${qtd(marcados.length, 'aluno', 'alunos')} na matrícula?`,
@@ -429,14 +591,23 @@ export class EnturmacaoComponent {
       this.estado.set({ estado: 'erro' });
       return;
     }
+    // As turmas do cadastro, para a troca de turma: lidas junto (a lista não espera por elas).
+    this.alunosService.atualizarTurmas(ano, filial);
     this.leitura = this.api.getParaImportarEnturmacao(usuario, ano, filial).subscribe({
       next: (alunos) => this.estado.set({ estado: 'pronto', alunos }),
       error: () => this.estado.set({ estado: 'erro' }),
     });
   }
 
+  /** A turma escolhida que não está mais entre as da série e do segmento volta para todas. */
+  private soltarTurmaDeFora(): void {
+    const turma = this.turma();
+    if (turma && !this.doSegmento().some((a) => a.codTurma === turma)) this.turma.set('');
+  }
+
   private limparFiltros(): void {
     this.serie.set('');
+    this.segmento.set('');
     this.turma.set('');
     this.situacao.set('');
     this.busca.set('');
@@ -451,12 +622,25 @@ function paraTela(dto: ApiEnturmacaoParaImportarDto): AlunoParaImportar {
     nome: dto.nome.trim() || `RA ${dto.ra}`,
     serie: partes[0] || '—',
     chaveSerie: partes.slice(0, 2).join(' - '),
+    segmento: dto.segmento?.trim() ?? '',
+    codCurso: dto.codCurso?.trim() ?? '',
+    codHabilitacao: dto.codHabilitacao?.trim() ?? '',
     codTurma: dto.codTurma,
     nomeTurma: dto.nomeTurma,
     // Sem o campo (backend de antes desta versão), vêm só os pendentes.
     situacao: dto.situacao === 'importado' ? 'enturmado' : dto.situacao === 'requer-revisao' ? 'revisao' : 'pendente',
     obs: dto.situacao === 'requer-revisao' ? dto.obs?.trim() || null : null,
   };
+}
+
+/** O pendente e o inconsistente trocam de turma; o enturmado já está na matrícula e não troca por aqui. */
+function podeTrocarDeTurma(aluno: AlunoParaImportar): boolean {
+  return aluno.situacao !== 'enturmado';
+}
+
+/** "3º Ano A - Manhã (EF3A-M)"; sem nome, só o código. */
+function rotuloDaTurma(codTurma: string, nome: string): string {
+  return !nome || nome === codTurma ? codTurma : `${nome} (${codTurma})`;
 }
 
 /** Sem acento, em minúsculas e sem espaços nas pontas: para a busca. */

@@ -6,7 +6,7 @@
   >
     <app-carregando [ativo]="esperando()" [texto]="textoDaEspera()" [estimativaMs]="estimativaDaEspera()" />
 
-    <!-- Ano, unidade, série, turma, situação e busca à esquerda; marcar e enturmar à direita (como em Sala por Ano Letivo). -->
+    <!-- Ano, unidade, série, segmento, turma, situação e busca à esquerda; marcar e enturmar à direita (como em Sala por Ano Letivo). -->
     <div class="en-barra">
       <div class="en-escolhas">
         <app-select label="Ano letivo" [ngModel]="anoLetivo()" (ngModelChange)="selecionarAno($event)" [options]="anoOptions()" />
@@ -22,6 +22,13 @@
           [ngModel]="serie()"
           (ngModelChange)="selecionarSerie($event)"
           [options]="serieOptions()"
+          [disabled]="!temAlunos()"
+        />
+        <app-select
+          label="Segmento"
+          [ngModel]="segmento()"
+          (ngModelChange)="selecionarSegmento($event)"
+          [options]="segmentoOptions()"
           [disabled]="!temAlunos()"
         />
         <app-select
@@ -57,7 +64,7 @@
           }
           <app-button
             class="en-importar"
-            [disabled]="alunosMarcados().length === 0 || importando()"
+            [disabled]="alunosMarcados().length === 0 || importando() || trocando().size > 0"
             [loading]="importando()"
             loadingText="Enturmando..."
             (clicked)="importar()"
@@ -123,9 +130,21 @@
                   </div>
                 </td>
                 <td class="en-cel-suave">{{ a.serie }}</td>
-                <td>
-                  <span class="en-turma-codigo">{{ a.codTurma }}</span>
-                  <span class="en-cel-suave">{{ a.nomeTurma }}</span>
+                <!-- Pendente e inconsistente trocam de turma aqui (turmas da mesma série; grava na hora). O enturmado fica travado. -->
+                <td class="en-col-turma">
+                  @if (podeTrocarDeTurma(a)) {
+                    <saea-select
+                      class="en-trocar-turma"
+                      [ariaLabel]="'Turma de ' + a.nome"
+                      [options]="opcoesDeTurma().get(a.id) ?? []"
+                      [value]="turmaNaTela(a)"
+                      (valueChange)="trocarTurma(a, $event)"
+                      [disabled]="importando() || trocando().has(a.id)"
+                    />
+                  } @else {
+                    <span class="en-turma-codigo">{{ a.codTurma }}</span>
+                    <span class="en-cel-suave">{{ a.nomeTurma }}</span>
+                  }
                 </td>
                 <!-- Pendente, Enturmado ou Inconsistente, em laranja (com o motivo da FV embaixo). -->
                 <td>

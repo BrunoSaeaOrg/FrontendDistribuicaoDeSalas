@@ -1,9 +1,9 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { Unidade } from '../../core/models';
-import { ApiEnturmacaoParaImportarDto } from '../../core/models/ocupacao-api.model';
+import { ApiEnturmacaoParaImportarDto, ApiEnturmacaoResultadoDto, ApiTurmaEnturmacaoDto } from '../../core/models/ocupacao-api.model';
 import { OcupacaoApiService } from '../../core/services/ocupacao-api.service';
 import { SalasService } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -39,6 +39,25 @@ const COM_SITUACAO = [
   aluno('7', 'Gil', 'EF3B-M', { situacao: 'importado', obs: 'Revisão antiga.' }),
 ];
 
+/** O cadastro das turmas da unidade: o 3º ano Manhã (curso 2, habilitação 3), o 3º Integral (habilitação 4) e o 5º ano. */
+const turma = (codTurma: string, nome: string, codHabilitacao: string): ApiTurmaEnturmacaoDto => ({
+  codTurma,
+  nome,
+  idPerlet: 222,
+  segmento: 'Anos Iniciais',
+  codCurso: '2',
+  codHabilitacao,
+});
+const TURMAS: ApiTurmaEnturmacaoDto[] = [
+  turma('EF3B-M', '3º Ano B - Manhã', '03'),
+  turma('EF3A-M', '3º Ano A - Manhã', '3'),
+  turma('EF3C-M', '3º Ano C - Manhã', '3'),
+  turma('EF3A-I', '3º Ano A - Integral', '4'),
+  turma('EF5A-M', '5º Ano A - Manhã', '5'),
+];
+/** Com curso e habilitação, como o back manda agora. */
+const DO_TERCEIRO = { codCurso: '2', codHabilitacao: '3' };
+
 const UNIDADES: Unidade[] = [
   { id: '2', nome: 'CASJ 1', cor: '', codFilial: 2 },
   { id: '13', nome: 'CASJ 2', cor: '', codFilial: 13 },
@@ -49,6 +68,7 @@ describe('EnturmacaoComponent', () => {
   let tela: EnturmacaoComponent;
   let getLista: ReturnType<typeof vi.fn>;
   let importar: ReturnType<typeof vi.fn>;
+  let salvar: ReturnType<typeof vi.fn>;
   let confirmar: ReturnType<typeof vi.fn>;
   let toast: { info: ReturnType<typeof vi.fn>; success: ReturnType<typeof vi.fn>; warning: ReturnType<typeof vi.fn>; danger: ReturnType<typeof vi.fn> };
   const anoLetivo = signal('2027');
@@ -57,6 +77,7 @@ describe('EnturmacaoComponent', () => {
     anoLetivo.set('2027');
     getLista = vi.fn(resposta);
     importar = vi.fn();
+    salvar = vi.fn();
     confirmar = vi.fn(async () => true);
     toast = { info: vi.fn(), success: vi.fn(), warning: vi.fn(), danger: vi.fn() };
     TestBed.configureTestingModule({
@@ -66,6 +87,9 @@ describe('EnturmacaoComponent', () => {
           useValue: {
             getParaImportarEnturmacao: getLista,
             getFotosEnturmacao: vi.fn(() => of({})),
+            getTurmasEnturmacao: vi.fn(() => of(TURMAS)),
+            getPendentesEnturmacao: vi.fn(() => of([])),
+            salvarEnturmacao: salvar,
             importarEnturmacao: importar,
           },
         },
@@ -151,6 +175,44 @@ describe('EnturmacaoComponent', () => {
     tela.selecionarSerie('5º Ano - Ensino Fundamental');
     expect(tela.turma()).toBe('');
     expect(nomes()).toEqual(['Bruno']);
+  });
+
+  it('o segmento vem depois da série e filtra; lista os da série, solta a turma de fora e some ao trocar para outra série', () => {
+    montar(() =>
+      of([
+        aluno('1', 'Ana', 'EF3A-M', { segmento: 'Anos Iniciais' }),
+        aluno('2', 'Bruno', 'EF3A-I', { segmento: 'Integral' }),
+        aluno('3', 'Carla', 'EF5A-M', { serie: QUINTO, segmento: 'Anos Iniciais' }),
+        // Back de antes desta versão: sem o segmento, fica só em "Todos os segmentos".
+        aluno('4', 'Davi', 'EF3B-M'),
+      ]),
+    );
+    abrir();
+    fixture.detectChanges();
+
+    const rotulos = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.en-escolhas app-select')].map((s) =>
+      s.getAttribute('label'),
+    );
+    expect(rotulos).toEqual(['Ano letivo', 'Unidade', 'Série', 'Segmento', 'Turma', 'Situação']);
+    expect(tela.segmentoOptions().map((o) => o.label)).toEqual(['Todos os segmentos', 'Anos Iniciais', 'Integral']);
+
+    tela.selecionarSegmento('Anos Iniciais');
+    expect(nomes()).toEqual(['Ana', 'Carla']);
+    expect(tela.turmaOptions().map((o) => o.value)).toEqual(['', 'EF3A-M', 'EF5A-M']);
+
+    // A turma do Integral não é de Anos Iniciais: volta para todas.
+    tela.selecionarSegmento('Integral');
+    tela.selecionarTurma('EF3A-I');
+    tela.selecionarSegmento('Anos Iniciais');
+    expect(tela.turma()).toBe('');
+
+    // O 5º ano não tem Integral: trocar a série solta o segmento.
+    tela.selecionarSerie('3º Ano - Ensino Fundamental');
+    tela.selecionarSegmento('Integral');
+    tela.selecionarSerie('5º Ano - Ensino Fundamental');
+    expect(tela.segmento()).toBe('');
+    expect(tela.segmentoOptions().map((o) => o.label)).toEqual(['Todos os segmentos', 'Anos Iniciais']);
+    expect(nomes()).toEqual(['Carla']);
   });
 
   it('marca um a um ou todos os da lista pelo cabeçalho (que também desmarca); o resumo conta alunos e turmas', () => {
@@ -347,6 +409,104 @@ describe('EnturmacaoComponent', () => {
     expect(confirmar).not.toHaveBeenCalled();
   });
 
+  it('pendente e inconsistente trocam de turma pelo select (só turmas da série); o enturmado não tem select', () => {
+    montar(() =>
+      of([
+        aluno('1', 'Ana', 'EF3A-M', { ...DO_TERCEIRO, situacao: 'pendente' }),
+        aluno('3', 'Carla', 'EF3A-M', { ...DO_TERCEIRO, situacao: 'importado' }),
+        aluno('4', 'Eva', 'EF3B-M', { ...DO_TERCEIRO, situacao: 'requer-revisao', obs: 'Aluno(a) já possui turma.' }),
+      ]),
+    );
+    abrir();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    // Mesmo curso e habilitação ("03" = "3"): o Integral (outra habilitação) e o 5º ano ficam de fora.
+    expect(tela.opcoesDeTurma().get('1')?.map((o) => o.label)).toEqual([
+      '3º Ano A - Manhã (EF3A-M)',
+      '3º Ano B - Manhã (EF3B-M)',
+      '3º Ano C - Manhã (EF3C-M)',
+    ]);
+    // Ana (pendente) e Eva (inconsistente) têm o select, cada uma na sua turma; Carla (enturmada), não.
+    const selects = [...el.querySelectorAll<HTMLSelectElement>('tbody saea-select select')];
+    expect(selects.map((s) => s.value)).toEqual(['EF3A-M', 'EF3B-M']);
+    expect(tela.opcoesDeTurma().has('3')).toBe(false);
+    expect(tela.opcoesDeTurma().get('4')?.map((o) => o.value)).toEqual(['EF3A-M', 'EF3B-M', 'EF3C-M']);
+  });
+
+  it('o inconsistente que troca de turma vira pendente, sem o motivo, e já pode ser marcado', () => {
+    montar(() =>
+      of([aluno('4', 'Eva', 'EF3B-M', { ...DO_TERCEIRO, situacao: 'requer-revisao', obs: 'Aluno(a) já possui turma.' })]),
+    );
+    abrir();
+    salvar.mockReturnValueOnce(of([{ ra: '4', codTurma: 'EF3C-M', situacao: 'pendente', motivo: null }]));
+
+    tela.trocarTurma(tela.visiveis()[0], 'EF3C-M');
+    fixture.detectChanges();
+
+    expect(salvar).toHaveBeenCalledWith('fulano', '2027', 2, [{ ra: '4', codTurma: 'EF3C-M' }]);
+    const [eva] = tela.visiveis();
+    expect([eva.codTurma, eva.situacao, eva.obs]).toEqual(['EF3C-M', 'pendente', null]);
+    expect(toast.success).toHaveBeenCalledWith(
+      'Aluno movido para 3º Ano C - Manhã',
+      'Eva deixou de ser inconsistente: está pendente nessa turma, pronto para enturmar.',
+    );
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('tbody saea-checkbox').length).toBe(1);
+    expect(el.querySelector('.en-motivo')).toBeNull();
+  });
+
+  it('trocar de turma grava na hora: o aluno continua pendente, na turma nova, sem reler a lista', () => {
+    montar(() => of([aluno('1', 'Ana', 'EF3A-M', { ...DO_TERCEIRO, situacao: 'pendente' })]));
+    abrir();
+    salvar.mockReturnValueOnce(of([{ ra: '1', codTurma: 'EF3B-M', situacao: 'pendente', motivo: null }]));
+
+    tela.trocarTurma(tela.visiveis()[0], 'EF3B-M');
+
+    expect(salvar).toHaveBeenCalledWith('fulano', '2027', 2, [{ ra: '1', codTurma: 'EF3B-M' }]);
+    const [ana] = tela.visiveis();
+    expect([ana.codTurma, ana.nomeTurma, ana.situacao]).toEqual(['EF3B-M', '3º Ano B - Manhã', 'pendente']);
+    expect(tela.trocando().size).toBe(0);
+    expect(toast.success).toHaveBeenCalledWith('Aluno movido para 3º Ano B - Manhã', 'Ana continua pendente, agora nessa turma.');
+    expect(getLista).toHaveBeenCalledTimes(1);
+  });
+
+  it('se o RM recusa a troca, o select volta para a turma de antes e o aviso diz por quê', () => {
+    montar(() => of([aluno('1', 'Ana', 'EF3A-M', { ...DO_TERCEIRO, situacao: 'pendente' })]));
+    abrir();
+    fixture.detectChanges();
+    // A resposta chega depois, como a do HTTP.
+    const resposta = new Subject<ApiEnturmacaoResultadoDto[]>();
+    salvar.mockReturnValueOnce(resposta);
+    const select = () => (fixture.nativeElement as HTMLElement).querySelector('tbody saea-select select') as HTMLSelectElement;
+
+    select().value = 'EF3C-M';
+    select().dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    // Gravando: o select mostra a nova e fica desligado.
+    expect(salvar).toHaveBeenCalledWith('fulano', '2027', 2, [{ ra: '1', codTurma: 'EF3C-M' }]);
+    expect([select().value, select().disabled]).toEqual(['EF3C-M', true]);
+
+    resposta.next([{ ra: '1', codTurma: 'EF3C-M', situacao: 'falhou', motivo: 'A turma EF3C-M é de outra série.' }]);
+    resposta.complete();
+    fixture.detectChanges();
+
+    expect(tela.visiveis()[0].codTurma).toBe('EF3A-M');
+    expect([select().value, select().disabled]).toEqual(['EF3A-M', false]);
+    expect(toast.warning).toHaveBeenCalledWith('Não foi possível trocar a turma', 'A turma EF3C-M é de outra série. Ana continua em Turma EF3A-M.');
+  });
+
+  it('de volta à turma da matrícula, o aluno fica como enturmado', () => {
+    montar(() => of([aluno('1', 'Ana', 'EF3B-M', { ...DO_TERCEIRO, situacao: 'pendente' })]));
+    abrir();
+    salvar.mockReturnValueOnce(of([{ ra: '1', codTurma: 'EF3A-M', situacao: 'na-matricula', motivo: null }]));
+
+    tela.trocarTurma(tela.visiveis()[0], 'EF3A-M');
+
+    expect(tela.visiveis()[0].situacao).toBe('enturmado');
+    expect(toast.success).toHaveBeenCalledWith('Aluno de volta a 3º Ano A - Manhã', 'Ana já está nessa turma na matrícula: fica como enturmado.');
+  });
+
   it('erro na leitura mostra o aviso; tentar de novo relê', () => {
     let falhar = true;
     montar(() => (falhar ? throwError(() => new Error('RM fora')) : of(ALUNOS)));
@@ -362,6 +522,7 @@ describe('EnturmacaoComponent', () => {
   it('trocar de unidade relê e limpa os filtros e os marcados (a situação volta a todas)', () => {
     montar();
     abrir();
+    tela.selecionarSegmento('Anos Iniciais');
     tela.selecionarTurma('EF3A-M');
     tela.selecionarSituacao('pendente');
     tela.busca.set('ana');
@@ -371,6 +532,6 @@ describe('EnturmacaoComponent', () => {
     TestBed.tick();
 
     expect(getLista).toHaveBeenLastCalledWith('fulano', '2027', 13);
-    expect([tela.turma(), tela.busca(), tela.marcados().size, tela.situacao()]).toEqual(['', '', 0, '']);
+    expect([tela.segmento(), tela.turma(), tela.busca(), tela.marcados().size, tela.situacao()]).toEqual(['', '', '', 0, '']);
   });
 });

@@ -234,6 +234,11 @@ export interface ApiEnturmacaoParaImportarDto {
   nome: string;
   /** "5º Ano - Ensino Fundamental - Manhã - EF I". */
   serie: string;
+  /** SEGMENTO da pré-enturmação ("Anos Iniciais"). Opcional: o backend antes desta versão não manda. */
+  segmento?: string | null;
+  /** CODCURSO e CODHABILITACAO da matrícula: a série, para trocar de turma. Opcionais como o segmento. */
+  codCurso?: string | null;
+  codHabilitacao?: string | null;
   codTurma: string;
   /** "3º Ano A - Manhã". */
   nomeTurma: string;

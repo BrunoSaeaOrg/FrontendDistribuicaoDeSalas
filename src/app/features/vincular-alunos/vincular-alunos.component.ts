@@ -13,7 +13,7 @@ import {
   SelecaoDaTela,
   TipoDeAluno,
 } from '../../core/services/alunos-enturmacao.service';
-import { SalasService, serieDaTurma } from '../../core/services/salas.service';
+import { mesmoCodigo, SalasService, serieDaTurma } from '../../core/services/salas.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AlertComponent } from '../../shared/ui/alert/alert.component';
 import { ButtonComponent } from '../../shared/ui/button/button.component';
@@ -1337,12 +1337,6 @@ function chaveDoPeriodo(id: string): string | null {
 /** Para onde o aluno vai: a turma ou, se for um período da origem, sem turma. */
 function paraTurma(id: string): string {
   return chaveDoPeriodo(id) !== null ? SEM_TURMA : id;
-}
-
-/** "03" e "3" são o mesmo código de curso ou habilitação (o RM escreve dos dois jeitos). */
-function mesmoCodigo(a: string, b: string | undefined): boolean {
-  const semZeros = (c: string) => c.trim().replace(/^0+(?=.)/, '');
-  return b !== undefined && semZeros(a) === semZeros(b);
 }
 
 /** "EF4A-SM" → "SM": o período no fim do código da turma. */

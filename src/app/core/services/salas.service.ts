@@ -41,6 +41,12 @@ export function serieDaTurma(nome: string): string {
     .trim();
 }
 
+/** "03" e "3" são o mesmo código de curso ou habilitação (o RM escreve dos dois jeitos). */
+export function mesmoCodigo(a: string, b: string | undefined): boolean {
+  const semZeros = (c: string) => c.trim().replace(/^0+(?=.)/, '');
+  return b !== undefined && semZeros(a) === semZeros(b);
+}
+
 /** Se o RM passou do tempo de espera do backend, recarrega depois deste intervalo. */
 const RECARGA_APOS_GRAVACAO_PENDENTE_MS = 8000;
 

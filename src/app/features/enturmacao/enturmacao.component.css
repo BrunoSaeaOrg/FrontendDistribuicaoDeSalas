@@ -124,6 +124,11 @@
   font-family: var(--font-mono);
   color: var(--saea-ink);
 }
+/* O select da troca de turma, no tamanho padrão da lib: a coluna abre espaço para o nome e o código. */
+.en-trocar-turma {
+  min-width: 240px;
+  max-width: 340px;
+}
 .en-sem-resultado {
   padding: var(--sp-8) var(--sp-4) !important;
   text-align: center;
