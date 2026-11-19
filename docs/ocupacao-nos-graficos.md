@@ -15,7 +15,7 @@ O cálculo está em `src/app/features/ocupacao/ocupacao-calculo.ts` (com testes 
 
 | Dado | Origem | Observação |
 |---|---|---|
-| **Alunos** de uma turma | `OCUPACAO` da consulta `API.OC.SAL.TURMA` ("OCUPAÇÃO DE SALAS - TURMAS"). Em sala com mais de uma turma, a `COMPOSICAO` de `API.OC.SAL.TURSA` ("EF3A-I (2) + EF3A-M (21)") | É o número de alunos da turma. **Quais situações de matrícula entram está no SQL da consulta**, que não está no repositório e que a API do RM não devolve: confirmar no RM. |
+| **Alunos** de uma turma | `OCUPACAO` da consulta `API.OC.SAL.TURMA` ("Gestão de Salas - TURMAS"). Em sala com mais de uma turma, a `COMPOSICAO` de `API.OC.SAL.TURSA` ("EF3A-I (2) + EF3A-M (21)") | É o número de alunos da turma. **Quais situações de matrícula entram está no SQL da consulta**, que não está no repositório e que a API do RM não devolve: confirmar no RM. |
 | **Capacidade** da sala | `CAPACIDADE` de `API.OC.SAL.PERIO`, que lê a MD Salas por Período Letivo (PRJ4087040), um registro por sala e ano | Número cadastrado. O app não calcula pela área. |
 | **Carteiras** da sala | `CARTEIRAS` do mesmo registro | As carteiras físicas, que a Planta transfere. |
 | Capacidade máxima | `CAPACIDADEMAXIMA` do mesmo registro | Vem na consulta, mas o app não usa. |

@@ -17,7 +17,7 @@ import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 export class MobileNavComponent {
   readonly usuario = inject(UsuarioService);
 
-  readonly title = input('Ocupação de Salas');
+  readonly title = input('Gestão de Salas');
   readonly currentLabel = input('Painel');
   readonly items = input<SidePanelItem[]>([]);
   readonly activeRoute = input<string>('');

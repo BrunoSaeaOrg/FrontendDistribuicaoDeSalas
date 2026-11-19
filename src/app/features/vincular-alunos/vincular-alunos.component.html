@@ -171,27 +171,38 @@
     </div>
 
     <!--
-      A sala da turma (na origem, quantos estão sem turma) e, no destino com marcados, o botão que
-      leva os marcados para outra turma da série: para corrigir quem foi para a turma errada.
+      Quantos alunos o lado tem, em destaque (com busca ou filtro, quantos aparecem de quantos); ao lado,
+      a sala da turma (na origem, o que fazer) e, no destino com marcados, o botão que leva os marcados
+      para outra turma da série: para corrigir quem foi para a turma errada.
     -->
     <div class="va-painel-info">
       <p class="va-painel-sub">
-        @if (p.turma.sala; as sala) {
-          {{ sala.nome }} · {{ sala.andar }}@if (p.dividemCom.length > 0) {
-            · divide a sala com {{ p.dividemCom.join(', ') }}
-          }
-        } @else if (p.lado === 'origem') {
-          {{ qtdAlunos(p.alunos.length) }} sem turma neste período ·
-          @if (p.marcados > 0) {
-            {{ p.marcados }} {{ p.marcados === 1 ? 'marcado' : 'marcados' }}
+        <span class="va-contagem" [class.va-contagem--vazia]="p.alunos.length === 0">
+          <span class="material-icons" aria-hidden="true">groups</span>
+          @if (p.busca || p.filtrado) {
+            <strong>{{ p.visiveis.length }}</strong> de {{ qtdAlunos(p.alunos.length) }}
           } @else {
-            marque ou arraste as fotos para mover
+            <strong>{{ p.alunos.length }}</strong> {{ p.alunos.length === 1 ? 'aluno' : 'alunos' }}
           }
-        } @else if (p.turma.id === SEM_TURMA) {
-          {{ qtdAlunos(p.alunos.length) }} da série ainda sem turma
-        } @else {
-          {{ qtdAlunos(p.alunos.length) }} · sem sala vinculada
-        }
+        </span>
+        <span class="va-painel-sub-texto">
+          @if (p.turma.sala; as sala) {
+            {{ sala.nome }} · {{ sala.andar }}@if (p.dividemCom.length > 0) {
+              · divide a sala com {{ p.dividemCom.join(', ') }}
+            }
+          } @else if (p.lado === 'origem') {
+            sem turma neste período ·
+            @if (p.marcados > 0) {
+              {{ p.marcados }} {{ p.marcados === 1 ? 'marcado' : 'marcados' }}
+            } @else {
+              marque ou arraste as fotos para mover
+            }
+          } @else if (p.turma.id === SEM_TURMA) {
+            da série ainda sem turma
+          } @else {
+            sem sala vinculada
+          }
+        </span>
       </p>
       @if (p.lado === 'destino' && p.marcados > 0) {
         <button

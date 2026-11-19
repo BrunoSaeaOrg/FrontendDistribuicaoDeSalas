@@ -44,7 +44,8 @@
             <div class="planta-meta">{{ metaDaSala() }}</div>
           </div>
           <div class="planta-head-acoes">
-            <div class="planta-tabs" role="group" aria-label="Turno">
+            <!-- Como o switch de tema: a trilha afundada e, em relevo, a pílula do turno escolhido, que desliza. -->
+            <div class="planta-tabs" [class.planta-tabs--tarde]="turno() === 'tarde'" role="group" aria-label="Turno">
               @for (tab of turnoTabs; track tab.turno) {
                 <button
                   type="button"

@@ -375,12 +375,13 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     montar(() => of([...ALUNOS, ...outros]));
     abrir();
 
+    // Cada período com quantos alunos ainda estão sem turma nele.
     expect(tela.turmaOptionsOrigem().map((o) => o.label)).toEqual([
-      '3º Ano - Manhã',
-      '3º Ano - Semi-Manhã',
-      '3º Ano - Integral',
-      '3º Ano - Tarde',
-      '3º Ano - Semi-Tarde',
+      '3º Ano - Manhã (2)',
+      '3º Ano - Semi-Manhã (1)',
+      '3º Ano - Integral (0)',
+      '3º Ano - Tarde (1)',
+      '3º Ano - Semi-Tarde (1)',
     ]);
     expect(nomes('origem')).toEqual(['Ivo', 'Júlia']);
     tela.escolherTurma('origem', 'periodo:SM');
@@ -417,6 +418,25 @@ describe('VincularAlunosComponent (lado a lado)', () => {
     expect(destino.textContent).not.toContain('carteiras');
     // Sem desfazer nem salvar: mover já grava.
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Desfazer tudo');
+  });
+
+  it('cada lado mostra em destaque quantos alunos tem; com busca, quantos aparecem de quantos', () => {
+    montar();
+    abrir();
+    fixture.detectChanges();
+    // O texto da pílula, sem o ícone.
+    const contagem = () =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('.va-contagem')].map((e) => {
+        const copia = e.cloneNode(true) as Element;
+        copia.querySelectorAll('.material-icons').forEach((icone) => icone.remove());
+        return copia.textContent!.replace(/\s+/g, ' ').trim();
+      });
+    // A origem (3º Ano - Manhã): Ivo e Júlia sem turma; o destino (3º Ano A - Manhã): Ana e Bruno.
+    expect(contagem()).toEqual(['2 alunos', '2 alunos']);
+
+    tela.buscar('destino', 'ana');
+    fixture.detectChanges();
+    expect(contagem()).toEqual(['2 alunos', '1 de 2 alunos']);
   });
 
   it('mover grava na hora: os marcados entram na turma e ficam como gravados no RM', () => {

@@ -44,7 +44,7 @@ import { UserAvatarComponent } from '../user-avatar/user-avatar.component';
 })
 export class HeaderComponent {
   readonly usuario = inject(UsuarioService);
-  readonly subtitle = input<string>('Ocupação de Salas');
+  readonly subtitle = input<string>('Gestão de Salas');
   readonly saudacao = saudacao();
 
   private readonly layout = inject(LayoutService);
