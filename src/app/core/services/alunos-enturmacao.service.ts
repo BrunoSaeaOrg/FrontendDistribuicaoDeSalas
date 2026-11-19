@@ -64,6 +64,12 @@ const VALIDADE_MS = 5 * 60_000;
 /** O back aceita até 200 RAs por pedido. */
 const FOTOS_POR_PEDIDO = 200;
 
+/** Um aluno cuja foto a tela quer: o RA e a série (CODCURSO|CODHABILITACAO), que separa os pedidos. */
+export interface FotoDoAluno {
+  ra: string;
+  serie: string;
+}
+
 /** O back grava até 100 movimentos por pedido. */
 const MOVIMENTOS_POR_PEDIDO = 100;
 
@@ -146,9 +152,9 @@ export class AlunosEnturmacaoService {
   }
 
   /**
-   * Lê os alunos da última unidade que o colaborador abriu, sem tela esperando: a consulta do RM leva
-   * de 15 s a 1 min, e o back guarda a leitura. Quando ele chegar na Pré-enturmação ou na Enturmação,
-   * os alunos já estão prontos ou a caminho.
+   * Lê os alunos da última unidade que o colaborador abriu, sem tela esperando (o back guarda a
+   * leitura). Quando ele chegar na Pré-enturmação ou na Enturmação, os alunos já estão prontos ou a
+   * caminho. Sem a foto, a leitura leva de 1 a 4 s; com ela (até 18/11/2026), levava até 1 min.
    */
   private preCarregar(usuario: string): void {
     const ultima = lerUltimaUnidade(usuario);
@@ -213,22 +219,33 @@ export class AlunosEnturmacaoService {
     return this._fotos().get(chave(ano, codFilial))?.get(ra) ?? null;
   }
 
-  /** Pede as fotos dos RAs que ainda não foram pedidos; um RA sem foto não volta a ser pedido. */
-  fotosPara(ano: string, codFilial: number, ras: readonly string[]): void {
+  /**
+   * Pede as fotos dos alunos que ainda não foram pedidos; um RA sem foto não volta a ser pedido. Vai
+   * um pedido por série (até 200 RAs cada): o back lê as fotos de uma série por vez (API.OC.ENTUR.FOT),
+   * então cada série aparece assim que chega, sem esperar as outras. A tela não espera por elas.
+   */
+  fotosPara(ano: string, codFilial: number, alunos: readonly FotoDoAluno[]): void {
     const k = chave(ano, codFilial);
     const pedidas = this.fotosPedidas.get(k) ?? new Set<string>();
     this.fotosPedidas.set(k, pedidas);
-    const faltam = [...new Set(ras)].filter((ra) => !pedidas.has(ra));
-    if (faltam.length === 0) return;
-    faltam.forEach((ra) => pedidas.add(ra));
-    for (let i = 0; i < faltam.length; i += FOTOS_POR_PEDIDO) {
-      const lote = faltam.slice(i, i + FOTOS_POR_PEDIDO);
-      this.api.getFotosEnturmacao(ano, codFilial, lote).subscribe({
-        next: (fotos) =>
-          this._fotos.update((m) => new Map(m).set(k, new Map([...(m.get(k) ?? []), ...Object.entries(fotos)]))),
-        // Falhou: libera o lote para a próxima vez que a tela pedir. Sem foto, o avatar mostra as iniciais.
-        error: () => lote.forEach((ra) => pedidas.delete(ra)),
-      });
+    const porSerie = new Map<string, string[]>();
+    for (const { ra, serie } of alunos) {
+      if (pedidas.has(ra)) continue;
+      pedidas.add(ra);
+      const daSerie = porSerie.get(serie);
+      if (daSerie) daSerie.push(ra);
+      else porSerie.set(serie, [ra]);
+    }
+    for (const ras of porSerie.values()) {
+      for (let i = 0; i < ras.length; i += FOTOS_POR_PEDIDO) {
+        const lote = ras.slice(i, i + FOTOS_POR_PEDIDO);
+        this.api.getFotosEnturmacao(ano, codFilial, lote).subscribe({
+          next: (fotos) =>
+            this._fotos.update((m) => new Map(m).set(k, new Map([...(m.get(k) ?? []), ...Object.entries(fotos)]))),
+          // Falhou: libera o lote para a próxima vez que a tela pedir. Sem foto, o avatar mostra as iniciais.
+          error: () => lote.forEach((ra) => pedidas.delete(ra)),
+        });
+      }
     }
   }
 

@@ -17,7 +17,7 @@ export const appConfig: ApplicationConfig = {
     // Layout e tema do colaborador (e o login sempre claro) já na primeira tela.
     provideAppInitializer(() => {
       inject(PreferenciasService);
-      // Os alunos da última unidade aberta na enturmação começam a ser lidos ao entrar (a leitura do RM é lenta).
+      // Os alunos da última unidade aberta na enturmação começam a ser lidos ao entrar: a tela já os encontra prontos.
       if (environment.telaVincularAlunos) inject(AlunosEnturmacaoService);
     }),
   ],

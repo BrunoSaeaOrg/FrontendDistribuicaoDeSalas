@@ -161,7 +161,7 @@ export interface ApiCopiaSalaResultadoDto {
 }
 
 /**
- * Aluno de OC_SAL_ENTUR_ALUNOS (pré-enturmação, API.OC.ENTUR.GER): um por RA, matriculado no ano
+ * Aluno de OC_SAL_ENTUR_ALUNOS (pré-enturmação, API.OC.ENTUR.ALU): um por RA, matriculado no ano
  * na filial. codTurma é a turma da matrícula; null = ainda sem turma.
  */
 export interface ApiAlunoEnturmacaoDto {

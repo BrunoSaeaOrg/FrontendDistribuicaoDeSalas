@@ -53,8 +53,8 @@ export class OcupacaoApiService {
   }
 
   /**
-   * Alunos do ano na filial, com a turma da matrícula (pré-enturmação). A primeira leitura de uma
-   * filial leva de 15 s a 1 min no RM; o back guarda o resultado por 5 minutos.
+   * Alunos do ano na filial, com a turma da matrícula (pré-enturmação, API.OC.ENTUR.ALU, sem foto).
+   * A primeira leitura de uma filial leva de 1 a 4 s no RM; o back guarda o resultado por 5 minutos.
    */
   getAlunosEnturmacao(ano: string, codFilial: number): Observable<ApiAlunoEnturmacaoDto[]> {
     return this.http.post<ApiAlunoEnturmacaoDto[]>(`${this.baseUrl}/OC_SAL_ENTUR_ALUNOS`, {
@@ -72,8 +72,9 @@ export class OcupacaoApiService {
   }
 
   /**
-   * Fotos dos alunos pedidos (até 200 RAs), da mesma leitura de getAlunosEnturmacao: RA →
-   * "data:image/jpeg;base64,...". RA sem foto não vem.
+   * Fotos dos alunos pedidos (até 200 RAs, de preferência de uma série só): RA →
+   * "data:image/jpeg;base64,...". RA sem foto não vem. O back lê uma série por vez
+   * (API.OC.ENTUR.FOT, de 1 a 10 s) e guarda as fotos.
    */
   getFotosEnturmacao(ano: string, codFilial: number, ras: readonly string[]): Observable<Record<string, string>> {
     return this.http.post<Record<string, string>>(`${this.baseUrl}/OC_SAL_ENTUR_FOTOS`, {
@@ -103,7 +104,7 @@ export class OcupacaoApiService {
 
   /**
    * Os alunos para a secretaria importar (tela Enturmação): Pendentes e Requer Revisão no MD de
-   * enturmação. A primeira leitura de uma unidade espera a dos alunos (de 15 s a 1 min).
+   * enturmação. Lê o MD do período inteiro: com muitos alunos já importados (2026), ele é o que demora.
    */
   getParaImportarEnturmacao(codUsuario: string, ano: string, codFilial: number): Observable<ApiEnturmacaoParaImportarDto[]> {
     return this.http.post<ApiEnturmacaoParaImportarDto[]>(`${this.baseUrl}/OC_SAL_ENTUR_PARA_IMPORTAR`, {

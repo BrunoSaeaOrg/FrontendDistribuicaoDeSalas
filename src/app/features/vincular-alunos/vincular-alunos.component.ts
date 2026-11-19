@@ -66,7 +66,7 @@ export interface AlunoDaTela {
    * gravado no MD de enturmação, se houver; senão, a da matrícula.
    */
   codTurmaOriginal: string | null;
-  /** Turma da matrícula (API.OC.ENTUR.GER). */
+  /** Turma da matrícula (API.OC.ENTUR.ALU). */
   codTurmaMatricula: string | null;
   /** Tem movimento gravado no MD que ainda não entrou na matrícula. */
   gravadoNoRm: boolean;
@@ -101,7 +101,7 @@ interface SerieDaUnidade {
   chave: string;
   /** "3º Ano - Ensino Fundamental". */
   rotulo: string;
-  /** "Anos Iniciais" (SEGMENTO da API.OC.ENTUR.GER); vazio quando a consulta não traz. */
+  /** "Anos Iniciais" (SEGMENTO da API.OC.ENTUR.ALU); vazio quando a consulta não traz. */
   segmento: string;
   qtd: number;
 }
@@ -261,9 +261,9 @@ export class VincularAlunosComponent {
   });
 
   /**
-   * Quanto a leitura dos alunos costuma levar, pelo tamanho da unidade: a consulta traz a foto de
-   * cada aluno (CASJ I, ~1.400 alunos: ~15 s; CAMENDEL, ~4.800: ~54 s). Lida há pouco, o back
-   * responde na hora e a barra só passa.
+   * Quanto a leitura dos alunos costuma levar, pelo tamanho da unidade. Sem a foto (API.OC.ENTUR.ALU,
+   * medida no TTESTE em 19/11/2026): CASJ I, ~1.400 alunos: ~2 s; CAMENDEL, ~4.800: ~4 s. As fotos
+   * vêm depois, por série, sem a tela esperar. Lida há pouco, o back responde na hora e a barra só passa.
    */
   readonly estimativaLeitura = computed(() => {
     const filial = this.codFilial();
@@ -277,7 +277,7 @@ export class VincularAlunosComponent {
       .turmasLivres()
       .filter((t) => t.codFilial === filial)
       .reduce((total, t) => total + t.alunos, 0);
-    return 3000 + (nasSalas + semSala) * 11;
+    return 1000 + Math.round((nasSalas + semSala) * 0.7);
   });
 
   /** As turmas do cadastro da unidade no ano, que são o destino: carregando, prontas ou com erro. */
@@ -699,7 +699,7 @@ export class VincularAlunosComponent {
         filtros: this.filtros(),
       };
     });
-    // A unidade escolhida pede os alunos dela (a leitura é lenta: só a da unidade em uso).
+    // A unidade escolhida pede os alunos dela (só a da unidade em uso).
     effect(() => {
       const filial = this.codFilial();
       const ano = this.anoLetivo();
@@ -708,9 +708,9 @@ export class VincularAlunosComponent {
     // As fotos dos alunos dos dois lados (só as que ainda não vieram; a tela não espera por elas).
     effect(() => {
       const filial = this.codFilial();
-      const ras = [this.origem(), this.destino()].flatMap((p) => p?.alunos.map((a) => a.id) ?? []);
+      const alunos = [this.origem(), this.destino()].flatMap((p) => p?.alunos.map((a) => ({ ra: a.id, serie: a.serie })) ?? []);
       const ano = this.anoLetivo();
-      if (filial !== null && ras.length > 0) untracked(() => this.alunosService.fotosPara(ano, filial, ras));
+      if (filial !== null && alunos.length > 0) untracked(() => this.alunosService.fotosPara(ano, filial, alunos));
     });
   }
 

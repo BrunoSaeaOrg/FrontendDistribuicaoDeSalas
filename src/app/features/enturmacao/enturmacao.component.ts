@@ -175,8 +175,9 @@ export class EnturmacaoComponent {
   });
 
   /**
-   * Quanto a primeira leitura costuma levar, pelo tamanho da unidade: ela espera a dos alunos, que
-   * traz a foto de cada um (a mesma conta da Pré-enturmação). Lida há pouco, o back responde na hora.
+   * Quanto a primeira leitura costuma levar, pelo tamanho da unidade. Os alunos já vêm sem foto
+   * (~2 s); o que pesa é o MD de enturmação do período, que demora com muitos alunos já importados
+   * (CASJ I em 2026: ~1 min; em 2027: ~2 s). Lida há pouco, o back responde na hora.
    */
   readonly estimativa = computed(() => {
     const filial = this.codFilial();
@@ -387,9 +388,9 @@ export class EnturmacaoComponent {
     // As fotos de quem a tabela mostra (só as que ainda não vieram; a lista não espera por elas).
     effect(() => {
       const filial = this.codFilial();
-      const ras = this.exibidos().map((a) => a.id);
+      const alunos = this.exibidos().map((a) => ({ ra: a.id, serie: `${a.codCurso}|${a.codHabilitacao}` }));
       const ano = this.anoLetivo();
-      if (filial !== null && ras.length > 0) untracked(() => this.alunosService.fotosPara(ano, filial, ras));
+      if (filial !== null && alunos.length > 0) untracked(() => this.alunosService.fotosPara(ano, filial, alunos));
     });
     inject(DestroyRef).onDestroy(() => this.leitura?.unsubscribe());
   }
